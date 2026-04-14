@@ -104,8 +104,8 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 <div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
 
 <div class="perm-box" id="permBox">
-  <p>🎙 น้องน้ำต้องการใช้ไมโครโฟนค่ะ<br><small style="opacity:.7">กดปุ่มด้านล่าง แล้วกด "อนุญาต" เพียงครั้งเดียวค่ะ</small></p>
-  <button class="perm-btn" onclick="grantMic()">🎙 อนุญาตใช้ไมโครโฟน</button>
+  <p>🎙 น้องน้ำต้องการใช้ไมโครโฟนและเสียงค่ะ<br><small style="opacity:.7">กดปุ่มด้านล่าง แล้วกด "อนุญาต" เพียงครั้งเดียวค่ะ</small></p>
+  <button class="perm-btn" onclick="grantAll()">🎙 เปิดไมโครโฟนและเสียง</button>
 </div>
 
 <div class="status-bar" id="statusBar">
@@ -190,6 +190,28 @@ async function initMic() {
     document.getElementById('permBox').style.display = 'block';
     setStatus('idle', 'กรุณาอนุญาตไมโครโฟนก่อนค่ะ');
   }
+}
+
+async function grantAll() {
+  // Unlock audio for mobile browsers first
+  try {
+    const ctx = new (AudioContext || webkitAudioContext)();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+    ctx.resume();
+  } catch(e) {}
+
+  // Also do a silent TTS to unlock speech synthesis on iOS
+  try {
+    const utt = new SpeechSynthesisUtterance(' ');
+    utt.volume = 0;
+    window.speechSynthesis.speak(utt);
+  } catch(e) {}
+
+  await grantMic();
 }
 
 async function grantMic() {
