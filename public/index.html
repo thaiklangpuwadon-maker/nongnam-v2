@@ -367,22 +367,53 @@ function copyTrans() {
   });
 }
 
-function speakOut(text, lang, fromLang) {
-  setStatus('speaking', fromLang === 'th' ? '🔊 กำลังพูดภาษาเกาหลี...' : '🔊 กำลังพูดภาษาไทย...');
-  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.lang = lang;
-  utt.rate = lang === 'ko-KR' ? 0.95 : 1.1;
-  utt.pitch = 1.0;
+function getVoice(lang) {
   const voices = window.speechSynthesis.getVoices();
   const femKw = /female|woman|girl|나영|하나|유나|지영|수진|Yuna|Nari|Sora|Heami|Kanya|Narisa/i;
   const byLang = voices.filter(v => v.lang === lang);
   let chosen = byLang.find(v => femKw.test(v.name)) || byLang[0];
   if (!chosen) { const px = voices.filter(v => v.lang.startsWith(lang.split('-')[0])); chosen = px.find(v => femKw.test(v.name)) || px[0]; }
-  if (chosen) utt.voice = chosen;
-  utt.onend = () => setStatus('idle', '✅ เสร็จแล้ว กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
-  utt.onerror = () => setStatus('idle', 'กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
-  window.speechSynthesis.speak(utt);
+  return chosen;
+}
+
+function speakOut(text, lang, fromLang) {
+  setStatus('speaking', fromLang === 'th' ? '🔊 กำลังพูดภาษาเกาหลี...' : '🔊 กำลังพูดภาษาไทย...');
+  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+
+  // แบ่งประโยคตาม ... หรือ । หรือ , หรือ เว้นวรรคยาว เพื่อให้พูดเป็นจังหวะ
+  const parts = text.split(/(?:\.\.\.|[।,،]|\s{2,})/).map(p => p.trim()).filter(p => p.length > 0);
+
+  if (parts.length <= 1) {
+    // ประโยคเดียว พูดปกติ
+    const utt = new SpeechSynthesisUtterance(text);
+    utt.lang = lang;
+    utt.rate = lang === 'ko-KR' ? 0.95 : 1.1;
+    utt.pitch = 1.0;
+    const v = getVoice(lang);
+    if (v) utt.voice = v;
+    utt.onend = () => setStatus('idle', '✅ เสร็จแล้ว กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
+    utt.onerror = () => setStatus('idle', 'กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
+    window.speechSynthesis.speak(utt);
+  } else {
+    // หลายประโยค พูดทีละส่วนเพื่อให้มีจังหวะเหมือนคนจริง
+    let idx = 0;
+    function speakNext() {
+      if (idx >= parts.length) {
+        setStatus('idle', '✅ เสร็จแล้ว กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
+        return;
+      }
+      const utt = new SpeechSynthesisUtterance(parts[idx]);
+      utt.lang = lang;
+      utt.rate = lang === 'ko-KR' ? 0.95 : 1.1;
+      utt.pitch = 1.0;
+      const v = getVoice(lang);
+      if (v) utt.voice = v;
+      utt.onend = () => { idx++; setTimeout(speakNext, 300); }; // หยุดเล็กน้อยระหว่างประโยค
+      utt.onerror = () => { idx++; speakNext(); };
+      window.speechSynthesis.speak(utt);
+    }
+    speakNext();
+  }
 }
 
 function saveToLog(orig, trans, fromLang) {
