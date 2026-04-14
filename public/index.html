@@ -88,6 +88,9 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 .log-time{font-size:10px;color:#2e3450;font-family:monospace}
 
 .free-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(78,203,141,.1);border:1px solid rgba(78,203,141,.2);color:var(--green);font-size:11px;padding:4px 10px;border-radius:20px;margin-bottom:16px}
+.line-warn{background:rgba(255,107,107,.08);border:1.5px solid rgba(255,107,107,.3);border-radius:14px;padding:16px;margin-bottom:14px;text-align:center;display:none}
+.line-warn p{font-size:14px;color:var(--thai);line-height:1.7;margin-bottom:10px}
+.line-warn-steps{font-size:12px;color:var(--muted);line-height:2;text-align:left}
 </style>
 </head>
 <body>
@@ -103,6 +106,14 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 
 <div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
 
+<div class="line-warn" id="lineWarn">
+  <p>⚠️ LINE Browser ใช้ไมโครโฟนไม่ได้ค่ะ</p>
+  <div class="line-warn-steps">
+    1️⃣ กดค้างที่ลิงก์นี้<br>
+    2️⃣ เลือก "เปิดใน Chrome" หรือ "เปิดใน Safari"<br>
+    3️⃣ แล้วใช้งานได้เลยค่ะ 🎙
+  </div>
+</div>
 <div class="perm-box" id="permBox">
   <p>🎙 น้องน้ำต้องการใช้ไมโครโฟนและเสียงค่ะ<br><small style="opacity:.7">กดปุ่มด้านล่าง แล้วกด "อนุญาต" เพียงครั้งเดียวค่ะ</small></p>
   <button class="perm-btn" onclick="grantAll()">🎙 เปิดไมโครโฟนและเสียง</button>
@@ -176,6 +187,15 @@ function checkDailyReset() {
 }
 
 async function initMic() {
+  // ตรวจจับ LINE in-app browser
+  const ua = navigator.userAgent || '';
+  const isLine = ua.includes('Line/') || ua.includes('KAKAOTALK');
+  if (isLine) {
+    document.getElementById('lineWarn').style.display = 'block';
+    setStatus('idle', '⚠️ กรุณาเปิดใน Chrome หรือ Safari ค่ะ');
+    return;
+  }
+
   try {
     const p = await navigator.permissions.query({ name: 'microphone' });
     if (p.state === 'granted') {
@@ -287,12 +307,15 @@ function startHold(lang) {
   };
 
   recognition.onend = () => {
-    if (finalText.trim()) {
-      translate(finalText.trim(), lang);
-    } else {
-      live.className = 'live-box';
-      setStatus('idle', 'ไม่ได้ยินเสียง ลองกดค้างอีกครั้งนะคะ');
-    }
+    // รอ 600ms เพื่อให้ได้รับ final result ครบก่อนส่งแปล
+    setTimeout(() => {
+      if (finalText.trim()) {
+        translate(finalText.trim(), lang);
+      } else {
+        live.className = 'live-box';
+        setStatus('idle', 'ไม่ได้ยินเสียง ลองกดค้างอีกครั้งนะคะ');
+      }
+    }, 600);
   };
 
   recognition.start();
@@ -318,11 +341,19 @@ async function translate(text, fromLang) {
   hideNotice();
 
   try {
-    const res = await fetch('/api/translate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, fromLang })
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    let res;
+    try {
+      res = await fetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, fromLang }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const data = await res.json();
 
@@ -344,7 +375,11 @@ async function translate(text, fromLang) {
     saveToLog(text, out, fromLang);
 
   } catch(err) {
-    showNotice('⚠️ ไม่สามารถเชื่อมต่อได้ค่ะ ลองใหม่อีกครั้งนะคะ', 'err');
+    if (err.name === 'AbortError') {
+      showNotice('⚠️ ใช้เวลานานเกินไปค่ะ ลองใหม่อีกครั้งนะคะ', 'err');
+    } else {
+      showNotice('⚠️ ไม่สามารถเชื่อมต่อได้ค่ะ ลองใหม่อีกครั้งนะคะ', 'err');
+    }
     setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
   }
 }
@@ -360,11 +395,11 @@ function showTranslation(trans, fromLang) {
 }
 
 function copyTrans() {
+  if (!lastTrans) return;
   navigator.clipboard.writeText(lastTrans).then(() => {
     const b = document.querySelector('.trans-copy');
-    b.textContent = '✓ คัดลอกแล้ว';
-    setTimeout(() => b.textContent = '📋 คัดลอก', 1500);
-  });
+    if (b) { b.textContent = '✓ คัดลอกแล้ว'; setTimeout(() => { if(b) b.textContent = '📋 คัดลอก'; }, 1500); }
+  }).catch(() => {});
 }
 
 function getVoice(lang) {
@@ -382,8 +417,13 @@ function speakOut(text, lang, fromLang) {
 
   // แบ่งประโยคตามเครื่องหมายวรรคตอน จุด ครึ่งจุด ลูกน้ำ และช่องว่างยาว
   // ทำให้ได้จังหวะเหมือนคนพูดจริง
-  const splitPattern = /(?<=[.!?。।๏])\s+|(?<=[,،،])\s+|(?:\s{2,})/;
-  let parts = text.split(splitPattern).map(p => p.trim()).filter(p => p.length > 0);
+  // แบ่งประโยคแบบที่รองรับทุก Browser รวม Safari
+  let parts = text
+    .replace(/([.!?。])/g, '$1|SPLIT|')
+    .replace(/([,])/g, '$1|SPLIT|')
+    .split('|SPLIT|')
+    .map(p => p.trim())
+    .filter(p => p.length > 0);
 
   // ถ้าแบ่งไม่ได้ ลองแบ่งตามความยาว (ทุก 30-40 ตัวอักษร ณ จุดช่องว่าง)
   if (parts.length <= 1 && text.length > 40) {
