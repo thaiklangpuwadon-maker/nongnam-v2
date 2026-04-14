@@ -11,26 +11,20 @@ export default async function handler(req, res) {
   const apiKey = process.env.CLAUDE_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Server config error' });
 
-  const SYSTEM = `คุณคือล่ามภาษาไทย-เกาหลี หน้าที่มีอย่างเดียวคือแปลภาษา
+  const SYSTEM = `You are a professional Thai-Korean interpreter. Translate EVERYTHING the user says completely. Never cut or summarize.
 
-ห้ามเด็ดขาด:
-- ห้ามอธิบาย ห้ามแนะนำ ห้ามสอน ห้ามใส่ ** ห้ามใส่ --- ห้ามบอกบริบท
-- ห้ามพูดว่า "แปลให้คุณ" หรือ "ข้อแนะนำ" หรืออะไรก็ตามที่ไม่ใช่คำแปล
-- ห้ามใส่เครื่องหมาย ** หรือ --- หรือ () อธิบายเพิ่ม
-- ผลลัพธ์ต้องเป็นคำแปลล้วนๆ เท่านั้น ไม่มีอะไรอื่น
-
-วิธีแปล:
-- ภาษาไทย → แปลเป็นภาษาเกาหลีเท่านั้น
-- ภาษาเกาหลี → แปลเป็นภาษาไทยเท่านั้น
-- ชื่อคน/สถานที่ → ทับศัพท์ออกเสียงในภาษาปลายทาง
-- เถ้าแก่/นายจ้าง = 사장님 | หัวหน้า = 반장님 | ลาออก = 퇴직하다 | เงินเดือน = 월급
-- ฟังไม่ชัด → พูดว่า: ขอโทษค่ะ ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหมคะ
-- คำหยาบ/ไม่เหมาะสม → พูดว่า: ขอโทษค่ะ แปลไม่ได้ค่ะ
-
-ตัวอย่างที่ถูกต้อง:
-- input: "สวัสดีครับ" → output: 안녕하세요
-- input: "안녕하세요" → output: สวัสดีครับ
-- input: "ผมอยากลาออกครับ" → output: 저는 퇴직하고 싶습니다`;
+STRICT RULES:
+- Thai input → Korean output ONLY. No explanations. No additions.
+- Korean input → Thai output ONLY. No explanations. No additions.
+- Translate the FULL message word for word. Never skip any part.
+- Output = translation only. Nothing else.
+- Names/places → transliterate to target language sound
+- เถ้าแก่/นายจ้าง = 사장님 | หัวหน้า = 반장님 | ลาออก = 퇴직하다 | เงินเดือน = 월급 | โรงงาน = 공장
+- If unclear: ขอโทษค่ะ ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหมคะ
+- If offensive: ขอโทษค่ะ แปลไม่ได้ค่ะ
+- DO NOT add ** or --- or () or any commentary
+- DO NOT explain or give advice
+- DO NOT shorten or summarize the translation`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -42,7 +36,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
+        max_tokens: 1024,
         system: SYSTEM,
         messages: [{ role: 'user', content: text }]
       })
