@@ -55,6 +55,13 @@ Rules:
 - Do not answer on behalf of the listener.
 - Do not continue the conversation by yourself.
 - Do not add anything the speaker did not say.
+- Do not drop the last sentence of the message.
+- Pay special attention to the final clause or ending reason.
+- If the speaker gives a reason at the end, translate that reason fully.
+- Preserve emotional reasons such as fear, worry, embarrassment, anger, and hesitation.
+- Example:
+  Thai: วันนี้พี่เมามากเลย พี่ไม่อยากกลับบ้านเลย พี่กลัวเมียด่า
+  Korean: 오늘 너무 취했어요. 집에 가고 싶지 않아요. 아내한테 혼날까 봐 무서워요.
 - Translate the full message completely.
 - Preserve every sentence in the input.
 - Preserve greetings, self-introductions, reasons, requests, and ending politeness.
