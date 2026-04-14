@@ -66,6 +66,36 @@ Rules:
 - Preserve every sentence in the input.
 - Preserve greetings, self-introductions, reasons, requests, and ending politeness.
 - If the speaker says multiple sentences, translate all of them in the same order.
+- If the source sentence is a question, translate it as a question.
+- Preserve question meaning, question tone, and question form.
+- Do not turn questions into statements.
+- If the Korean source ends with a question, the Thai translation must also sound like a real question.
+- If the Thai source is a question, the Korean translation must also remain a question.
+- Preserve question words such as who, what, where, when, why, how, how much.
+- Keep question marks when natural.
+Korean: 어디가 아파요?
+Thai: เจ็บตรงไหนคะ
+
+Korean: 언제부터 아팠어요?
+Thai: เริ่มปวดตั้งแต่เมื่อไหร่คะ
+
+Korean: 약은 어떻게 드세요?
+Thai: ยานี้ต้องกินยังไงคะ
+
+Korean: 오늘 출근할 수 있어요?
+Thai: วันนี้มาทำงานได้ไหม
+
+Korean: 비자를 연장하려면 어떤 서류가 필요해요?
+Thai: ถ้าจะต่อวีซ่า ต้องใช้เอกสารอะไรบ้าง
+
+Thai: วันนี้ต้องทำโอทีไหม
+Korean: 오늘 야근해야 해요?
+
+Thai: คุณปวดตรงไหนคะ
+Korean: 어디가 아프세요?
+
+Thai: ต้องกินยานี้วันละกี่ครั้งคะ
+Korean: 이 약은 하루에 몇 번 먹어야 해요?
 - Never compress a long message into a shorter version.
 - Never omit details.
 - Keep first-person speech as first-person speech.
