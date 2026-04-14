@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>น้องน้ำ · ล่ามไทย-เกาหลี</title>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0c10;--s1:#13161e;--border:#1e2333;--gold:#e8b84b;--gold2:#ffd166;--thai:#ff6b6b;--kr:#5b9cf6;--green:#4ecb8d;--text:#e8eaf2;--muted:#6b7394}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{height:100%;overflow-x:hidden}
+body{font-family:'Sarabun','Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column;align-items:center}
+body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:600px;height:400px;background:radial-gradient(ellipse,rgba(232,184,75,.06) 0%,transparent 70%);pointer-events:none;z-index:0}
+.wrap{width:100%;max-width:420px;padding:0 16px 80px;position:relative;z-index:1}
+
+.hdr{display:flex;align-items:center;justify-content:center;padding:24px 0 16px;flex-direction:column;gap:6px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-ico{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#e8b84b,#c8880a);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 20px rgba(232,184,75,.45)}
+.brand-name{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.brand-sub{font-size:11px;color:var(--muted);letter-spacing:.14em;text-align:center}
+
+.perm-box{background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.05));border:1.5px solid rgba(232,184,75,.35);border-radius:16px;padding:20px;margin-bottom:16px;text-align:center;display:none}
+.perm-box p{font-size:14px;line-height:1.8;color:var(--gold);margin-bottom:14px}
+.perm-btn{width:100%;padding:14px;background:var(--gold);color:#0a0c10;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s}
+.perm-btn:hover{background:var(--gold2)}
+
+.status-bar{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 20px;background:var(--s1);border:1px solid var(--border);border-radius:50px;font-size:13px;color:var(--muted);margin-bottom:20px;transition:all .3s}
+.sdot{width:8px;height:8px;border-radius:50%;background:#2e3450;flex-shrink:0;transition:all .3s}
+.status-bar.listening{border-color:rgba(255,107,107,.5);color:var(--thai)}
+.status-bar.listening .sdot{background:var(--thai);box-shadow:0 0 10px var(--thai);animation:pulse .6s infinite}
+.status-bar.thinking{border-color:rgba(232,184,75,.4);color:var(--gold)}
+.status-bar.thinking .sdot{background:var(--gold);box-shadow:0 0 8px var(--gold);animation:pulse 1s infinite}
+.status-bar.speaking{border-color:rgba(91,156,246,.4);color:var(--kr)}
+.status-bar.speaking .sdot{background:var(--kr);box-shadow:0 0 8px var(--kr);animation:pulse .7s infinite}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.4}}
+
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+.lang-btn{position:relative;background:var(--s1);border:2px solid var(--border);border-radius:20px;padding:28px 16px 22px;text-align:center;cursor:pointer;transition:all .15s;overflow:hidden;touch-action:none}
+.th-btn.holding,.th-btn.active{border-color:var(--thai);background:rgba(255,107,107,.1);box-shadow:0 0 28px rgba(255,107,107,.2)}
+.kr-btn.holding,.kr-btn.active{border-color:var(--kr);background:rgba(91,156,246,.1);box-shadow:0 0 28px rgba(91,156,246,.2)}
+.btn-flag{font-size:38px;display:block;margin-bottom:10px;pointer-events:none}
+.btn-name{font-size:16px;font-weight:800;display:block;margin-bottom:3px;pointer-events:none}
+.btn-desc{font-size:12px;color:var(--muted);display:block;margin-bottom:14px;pointer-events:none}
+.btn-hint{font-size:12px;font-weight:700;display:block;padding:8px 14px;border-radius:50px;pointer-events:none;transition:all .2s}
+.th-btn .btn-hint{background:rgba(255,107,107,.15);color:var(--thai)}
+.kr-btn .btn-hint{background:rgba(91,156,246,.15);color:var(--kr)}
+.th-btn.holding .btn-hint{background:var(--thai);color:white}
+.kr-btn.holding .btn-hint{background:var(--kr);color:white}
+
+.live-box{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:15px;line-height:1.7;display:none;color:var(--muted);font-style:italic}
+.live-box.show{display:block}
+.live-box.final{color:var(--text);font-style:normal}
+
+.trans-box{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px;display:none}
+.trans-box.show{display:block}
+.trans-lang{font-size:11px;color:var(--muted);margin-bottom:10px}
+.trans-text{font-size:22px;line-height:1.7;font-weight:700;-webkit-user-select:text;user-select:text}
+.trans-text.to-kr{color:#93c0ff}
+.trans-text.to-th{color:#ffd166}
+.trans-copy{margin-top:12px;background:none;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;color:var(--muted);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s}
+.trans-copy:hover{border-color:var(--gold);color:var(--text)}
+
+.notice{border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:12px;line-height:1.5;display:none}
+.notice.show{display:block}
+.notice.err{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.2);color:var(--thai)}
+.notice.ok{background:rgba(78,203,141,.08);border:1px solid rgba(78,203,141,.2);color:var(--green)}
+
+.log-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.log-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.log-clear{background:none;border:none;font-size:11px;color:#2e3450;cursor:pointer;font-family:'Sarabun',sans-serif}
+.log-clear:hover{color:var(--thai)}
+.log{background:var(--s1);border:1px solid var(--border);border-radius:14px;max-height:280px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.log::-webkit-scrollbar{width:3px}
+.log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.log-empty{text-align:center;color:#2e3450;font-size:13px;padding:24px;line-height:1.7}
+.log-item{display:flex;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px;animation:fadeUp .3s ease}
+.log-item:last-child{border-bottom:none;padding-bottom:0}
+@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.log-flag{font-size:18px;flex-shrink:0;margin-top:2px}
+.log-body{flex:1;-webkit-user-select:text;user-select:text}
+.log-orig{font-size:11px;color:var(--muted);margin-bottom:4px;line-height:1.5}
+.log-trans{font-size:14px;line-height:1.65;font-weight:600}
+.log-item.th .log-trans{color:#ffd166}
+.log-item.kr .log-trans{color:#93c0ff}
+.log-actions{display:flex;gap:8px;align-items:center;margin-top:5px}
+.log-copy{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;color:var(--muted);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s}
+.log-copy:hover{border-color:var(--gold);color:var(--text)}
+.log-time{font-size:10px;color:#2e3450;font-family:monospace}
+
+.free-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(78,203,141,.1);border:1px solid rgba(78,203,141,.2);color:var(--green);font-size:11px;padding:4px 10px;border-radius:20px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="hdr">
+  <div class="brand">
+    <div class="brand-ico">🎙</div>
+    <div class="brand-name">น้องน้ำ</div>
+  </div>
+  <div class="brand-sub">TH · KR LIVE INTERPRETER</div>
+</div>
+
+<div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
+
+<div class="perm-box" id="permBox">
+  <p>🎙 น้องน้ำต้องการใช้ไมโครโฟนค่ะ<br><small style="opacity:.7">กดปุ่มด้านล่าง แล้วกด "อนุญาต" เพียงครั้งเดียวค่ะ</small></p>
+  <button class="perm-btn" onclick="grantMic()">🎙 อนุญาตใช้ไมโครโฟน</button>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <div class="sdot"></div>
+  <span id="statusTxt">กำลังเตรียมระบบ...</span>
+</div>
+
+<div class="btn-grid">
+  <div class="lang-btn th-btn" id="thBtn">
+    <span class="btn-flag">🇹🇭</span>
+    <span class="btn-name">ฉันพูด</span>
+    <span class="btn-desc">ภาษาไทย</span>
+    <span class="btn-hint" id="thHint">🎙 กดค้างแล้วพูด</span>
+  </div>
+  <div class="lang-btn kr-btn" id="krBtn">
+    <span class="btn-flag">🇰🇷</span>
+    <span class="btn-name">상대방</span>
+    <span class="btn-desc">한국어</span>
+    <span class="btn-hint" id="krHint">🎙 꾹 눌러서 말하기</span>
+  </div>
+</div>
+
+<div class="notice" id="notice"></div>
+<div class="live-box" id="liveBox"></div>
+
+<div class="trans-box" id="transBox">
+  <div class="trans-lang" id="transLang"></div>
+  <div class="trans-text" id="transText"></div>
+  <button class="trans-copy" onclick="copyTrans()">📋 คัดลอก</button>
+</div>
+
+<div class="log-hdr">
+  <span class="log-title">📋 ประวัติบทสนทนา</span>
+  <button class="log-clear" onclick="clearLog()">ล้าง</button>
+</div>
+<div class="log" id="log">
+  <div class="log-empty">ยังไม่มีบทสนทนาค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>
+</div>
+
+</div>
+<script>
+let micOK = false;
+let recognition = null;
+let isListening = false;
+let lastTrans = '';
+let currentLang = null;
+
+window.onload = () => {
+  loadVoices();
+  initMic();
+  setupHoldButtons();
+  checkDailyReset();
+};
+
+function loadVoices() {
+  window.speechSynthesis.getVoices();
+  if (window.speechSynthesis.onvoiceschanged !== undefined)
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+}
+
+function checkDailyReset() {
+  const today = new Date().toDateString();
+  if (localStorage.getItem('nn_date') !== today) {
+    localStorage.setItem('nn_date', today);
+    localStorage.removeItem('nn_log');
+  }
+  loadLog();
+}
+
+async function initMic() {
+  try {
+    const p = await navigator.permissions.query({ name: 'microphone' });
+    if (p.state === 'granted') {
+      micOK = true;
+      document.getElementById('permBox').style.display = 'none';
+      setStatus('idle', '✅ พร้อมแล้ว กดค้างปุ่มแล้วพูดได้เลยค่ะ');
+    } else {
+      document.getElementById('permBox').style.display = 'block';
+      setStatus('idle', 'กรุณาอนุญาตไมโครโฟนก่อนค่ะ');
+    }
+  } catch(e) {
+    document.getElementById('permBox').style.display = 'block';
+    setStatus('idle', 'กรุณาอนุญาตไมโครโฟนก่อนค่ะ');
+  }
+}
+
+async function grantMic() {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach(t => t.stop());
+    micOK = true;
+    document.getElementById('permBox').style.display = 'none';
+    setStatus('idle', '✅ พร้อมแล้ว กดค้างปุ่มแล้วพูดได้เลยค่ะ');
+    beep(880, 0.1);
+  } catch(e) {
+    showNotice('⚠️ ไม่สามารถเข้าถึงไมโครโฟนได้ค่ะ กรุณาตรวจสอบ Settings → Privacy → Microphone', 'err');
+  }
+}
+
+function setupHoldButtons() {
+  ['th', 'kr'].forEach(lang => {
+    const btn = document.getElementById(lang + 'Btn');
+    btn.addEventListener('mousedown', e => { e.preventDefault(); startHold(lang); });
+    btn.addEventListener('mouseup', e => { e.preventDefault(); stopHold(); });
+    btn.addEventListener('mouseleave', () => { if (isListening && currentLang === lang) stopHold(); });
+    btn.addEventListener('touchstart', e => { e.preventDefault(); startHold(lang); }, { passive: false });
+    btn.addEventListener('touchend', e => { e.preventDefault(); stopHold(); }, { passive: false });
+    btn.addEventListener('touchcancel', () => { if (isListening) stopHold(); }, { passive: false });
+  });
+}
+
+function startHold(lang) {
+  if (!micOK) { document.getElementById('permBox').style.display = 'block'; return; }
+  if (isListening) return;
+  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+
+  currentLang = lang;
+  isListening = true;
+
+  document.getElementById(lang + 'Btn').classList.add('holding');
+  document.getElementById(lang + 'Hint').textContent = lang === 'th' ? '🔴 กำลังฟัง...' : '🔴 듣는 중...';
+
+  const live = document.getElementById('liveBox');
+  live.className = 'live-box show';
+  live.textContent = lang === 'th' ? '🎙 กำลังฟัง พูดได้เลยค่ะ...' : '🎙 말씀하세요...';
+
+  setStatus('listening', lang === 'th' ? '🇹🇭 กำลังฟัง — ปล่อยเมื่อพูดเสร็จ' : '🇰🇷 듣는 중 — 말이 끝나면 놓으세요');
+  beep(880, 0.08);
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.lang = lang === 'th' ? 'th-TH' : 'ko-KR';
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  let finalText = '';
+
+  recognition.onresult = e => {
+    let interim = '', final = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) final += t; else interim += t;
+    }
+    if (final) finalText += final;
+    live.textContent = finalText + (interim ? ' ' + interim : '');
+    if (finalText || interim) live.className = 'live-box show final';
+  };
+
+  recognition.onerror = e => {
+    if (e.error === 'not-allowed') {
+      micOK = false;
+      document.getElementById('permBox').style.display = 'block';
+    }
+    resetBtn(lang); isListening = false;
+    setStatus('idle', 'เกิดข้อผิดพลาด ลองใหม่ได้เลยค่ะ');
+  };
+
+  recognition.onend = () => {
+    if (finalText.trim()) {
+      translate(finalText.trim(), lang);
+    } else {
+      live.className = 'live-box';
+      setStatus('idle', 'ไม่ได้ยินเสียง ลองกดค้างอีกครั้งนะคะ');
+    }
+  };
+
+  recognition.start();
+}
+
+function stopHold() {
+  if (!isListening) return;
+  isListening = false;
+  resetBtn(currentLang);
+  if (recognition) { try { recognition.stop(); } catch(e) {} }
+}
+
+function resetBtn(lang) {
+  if (!lang) return;
+  document.getElementById(lang + 'Btn')?.classList.remove('holding', 'active');
+  const hint = document.getElementById(lang + 'Hint');
+  if (hint) hint.textContent = lang === 'th' ? '🎙 กดค้างแล้วพูด' : '🎙 꾹 눌러서 말하기';
+}
+
+async function translate(text, fromLang) {
+  setStatus('thinking', '⏳ น้องน้ำกำลังแปล...');
+  document.getElementById('liveBox').className = 'live-box';
+  hideNotice();
+
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, fromLang })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      const msg = data?.error || '';
+      if (msg.includes('overload') || res.status === 529) {
+        showNotice('⚠️ ระบบยุ่งอยู่ค่ะ รอแป๊บแล้วลองใหม่นะคะ', 'err');
+      } else {
+        showNotice('⚠️ เกิดข้อผิดพลาด ลองใหม่อีกครั้งนะคะ', 'err');
+      }
+      setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
+      return;
+    }
+
+    const out = data.translation;
+    lastTrans = out;
+    showTranslation(out, fromLang);
+    speakOut(out, fromLang === 'th' ? 'ko-KR' : 'th-TH', fromLang);
+    saveToLog(text, out, fromLang);
+
+  } catch(err) {
+    showNotice('⚠️ ไม่สามารถเชื่อมต่อได้ค่ะ ลองใหม่อีกครั้งนะคะ', 'err');
+    setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
+  }
+}
+
+function showTranslation(trans, fromLang) {
+  const box = document.getElementById('transBox');
+  const langEl = document.getElementById('transLang');
+  const textEl = document.getElementById('transText');
+  box.className = 'trans-box show';
+  langEl.innerHTML = fromLang === 'th' ? '🇹🇭 → 🇰🇷 &nbsp;ภาษาไทย → เกาหลี' : '🇰🇷 → 🇹🇭 &nbsp;한국어 → ภาษาไทย';
+  textEl.className = 'trans-text ' + (fromLang === 'th' ? 'to-kr' : 'to-th');
+  textEl.textContent = trans;
+}
+
+function copyTrans() {
+  navigator.clipboard.writeText(lastTrans).then(() => {
+    const b = document.querySelector('.trans-copy');
+    b.textContent = '✓ คัดลอกแล้ว';
+    setTimeout(() => b.textContent = '📋 คัดลอก', 1500);
+  });
+}
+
+function speakOut(text, lang, fromLang) {
+  setStatus('speaking', fromLang === 'th' ? '🔊 กำลังพูดภาษาเกาหลี...' : '🔊 กำลังพูดภาษาไทย...');
+  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = lang;
+  utt.rate = lang === 'ko-KR' ? 0.95 : 1.1;
+  utt.pitch = 1.0;
+  const voices = window.speechSynthesis.getVoices();
+  const femKw = /female|woman|girl|나영|하나|유나|지영|수진|Yuna|Nari|Sora|Heami|Kanya|Narisa/i;
+  const byLang = voices.filter(v => v.lang === lang);
+  let chosen = byLang.find(v => femKw.test(v.name)) || byLang[0];
+  if (!chosen) { const px = voices.filter(v => v.lang.startsWith(lang.split('-')[0])); chosen = px.find(v => femKw.test(v.name)) || px[0]; }
+  if (chosen) utt.voice = chosen;
+  utt.onend = () => setStatus('idle', '✅ เสร็จแล้ว กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
+  utt.onerror = () => setStatus('idle', 'กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
+  window.speechSynthesis.speak(utt);
+}
+
+function saveToLog(orig, trans, fromLang) {
+  const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  addLogItem(orig, trans, fromLang, timeStr);
+  const existing = JSON.parse(localStorage.getItem('nn_log') || '[]');
+  existing.push({ orig, trans, fromLang, time: timeStr });
+  if (existing.length > 50) existing.splice(0, existing.length - 50);
+  localStorage.setItem('nn_log', JSON.stringify(existing));
+}
+
+function loadLog() {
+  const items = JSON.parse(localStorage.getItem('nn_log') || '[]');
+  if (items.length > 0) {
+    document.querySelector('.log-empty')?.remove();
+    items.forEach(i => addLogItem(i.orig, i.trans, i.fromLang, i.time));
+  }
+}
+
+function addLogItem(orig, trans, fromLang, timeStr) {
+  const log = document.getElementById('log');
+  document.querySelector('.log-empty')?.remove();
+  const div = document.createElement('div');
+  div.className = 'log-item ' + fromLang;
+  div.innerHTML = `<div class="log-flag">${fromLang==='th'?'🇹🇭':'🇰🇷'}</div><div class="log-body"><div class="log-orig">${esc(orig)}</div><div class="log-trans">${esc(trans)}</div><div class="log-actions"><button class="log-copy" onclick="copyText('${esc(trans)}',this)">📋 คัดลอก</button><span class="log-time">${timeStr}</span></div></div>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => { btn.textContent = '✓'; setTimeout(() => btn.textContent = '📋 คัดลอก', 1500); });
+}
+
+function clearLog() {
+  document.getElementById('log').innerHTML = '<div class="log-empty">ยังไม่มีบทสนทนาค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>';
+  document.getElementById('transBox').className = 'trans-box';
+  document.getElementById('liveBox').className = 'live-box';
+  localStorage.removeItem('nn_log');
+}
+
+function setStatus(state, txt) {
+  document.getElementById('statusTxt').textContent = txt;
+  document.getElementById('statusBar').className = 'status-bar' + (state !== 'idle' ? ' ' + state : '');
+}
+
+function showNotice(t, type) {
+  const n = document.getElementById('notice');
+  n.textContent = t; n.className = 'notice show ' + (type || 'err');
+  setTimeout(() => n.className = 'notice', 6000);
+}
+
+function hideNotice() { document.getElementById('notice').className = 'notice'; }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;'); }
+function beep(f,v){try{const ctx=new(AudioContext||webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(v,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);o.start();o.stop(ctx.currentTime+.15)}catch(e){}}
+</script>
+</body>
+</html>
