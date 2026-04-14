@@ -25,10 +25,12 @@ export default async function handler(req, res) {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  const targetLang =
+  const sourceLang =
     fromLang === 'th' || fromLang === 'thai'
-      ? 'Korean'
-      : 'Thai';
+      ? 'Thai'
+      : 'Korean';
+
+  const targetLang = sourceLang === 'Thai' ? 'Korean' : 'Thai';
 
   const unclearReply =
     targetLang === 'Korean'
@@ -40,7 +42,86 @@ export default async function handler(req, res) {
       ? '번역할 수 없습니다.'
       : 'ไม่สามารถแปลได้ค่ะ';
 
-  const SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.
+  async function callAnthropic(system, userContent, maxTokens = 1200) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        temperature: 0,
+        system,
+        messages: [
+          {
+            role: 'user',
+            content: userContent
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err?.error?.message || 'API error');
+    }
+
+    const data = await response.json();
+    return (data?.content || [])
+      .filter((block) => block?.type === 'text')
+      .map((block) => block.text)
+      .join('\n')
+      .trim();
+  }
+
+  // STEP 1: normalize transcript and restore question / statement intent
+  const NORMALIZE_SYSTEM = `You are a transcript normalizer for Thai and Korean speech-to-text output.
+
+Your job:
+- Clean up spoken transcript text without changing meaning.
+- Preserve every word, every sentence, every request, every reason.
+- Do not shorten.
+- Do not summarize.
+- Do not omit details.
+- Do not add new content.
+- Only restore natural sentence boundaries and punctuation.
+
+Very important:
+- Decide whether each sentence is a question or a statement based on context and grammar.
+- Add question marks when the sentence is clearly a question.
+- Keep statements as statements.
+- Do not turn statements into questions.
+- Do not turn questions into statements.
+
+Question detection hints:
+- Korean endings/patterns that are often questions:
+  요, 까요, 니까, 죠, 어때요, 어디예요, 뭐예요, 어떻게 해요, 왜 그래요, 가능해요, 있어요, 없어요
+- Thai patterns that are often questions:
+  ไหม, หรือเปล่า, หรือยัง, กี่, เท่าไหร่, ที่ไหน, เมื่อไหร่, ทำไม, ยังไง, ใช่ไหม, ได้ไหม
+
+Conversation intent:
+- Everyday expressions must remain natural.
+- Example:
+  밥 먹었어요 -> if used as a question, normalize to 밥 먹었어요?
+  밥 먹었어요 -> if clearly a statement, keep as 밥 먹었어요.
+
+Output:
+- Output only the cleaned text in the same source language.
+- No explanation.
+- No notes.
+- No labels.`;
+
+  const normalizePrompt = `Language: ${sourceLang}
+Please normalize this transcript and restore punctuation/question intent without changing meaning.
+
+Text:
+${cleanedText}`;
+
+  // STEP 2: translate normalized text
+  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.
 
 Rules:
 - Thai input -> Korean output only.
@@ -66,12 +147,9 @@ Rules:
 - If the source sentence is a question, translate it as a question.
 - Preserve question meaning, question tone, and question form.
 - Do not turn questions into statements.
-- If a sentence sounds like a question based on context, treat it as a question even if there is no question mark.
-- Detect question intent from sentence patterns, not only punctuation.
-- Korean endings like 요?, 까요?, 니까?, 죠? should be treated as questions.
-- Korean question patterns without question marks should still be treated as questions when natural.
-- Thai sentences ending with ไหม, หรือเปล่า, หรือยัง, กี่, ที่ไหน, เมื่อไหร่, ทำไม, ยังไง should be treated as questions.
-- When in doubt, prefer question form over statement if the sentence can reasonably be a question.
+- Translate conversational expressions naturally, not mechanically word by word.
+- If a phrase is a common everyday expression, translate it in the way real people naturally say it.
+- Do not produce unnatural literal phrasing.
 - If unclear, output only: ${unclearReply}
 - If translation fails, output only: ${failReply}
 
@@ -177,17 +255,8 @@ Examples:
 Thai: สวัสดีครับ ผมมาจากเมืองไทยนะครับ ยินดีที่ได้รู้จักนะครับ
 Korean: 안녕하세요. 저는 태국에서 왔습니다. 만나서 반갑습니다.
 
-Thai: สวัสดีครับ ผมมาจากเมืองไทยนะครับ ยินดีที่ได้รู้จักนะครับทุกคน
-Korean: 안녕하세요. 저는 태국에서 왔습니다. 여러분 만나서 반갑습니다.
-
 Thai: ผมปวดหัวมากครับ อยากได้ยาแก้ปวดหัวครับ
 Korean: 머리가 너무 아파요. 두통약을 주세요.
-
-Thai: คุณหมอครับ วันนี้ผมปวดหัว ผมอยากได้ยาแก้ปวดหัวและยาแก้ปวดไหล่ด้วยครับ ผมน่าจะยกของหนัก
-Korean: 의사 선생님, 오늘 머리가 아파요. 두통약이랑 어깨 통증약도 주세요. 무거운 것을 들어서 그런 것 같아요.
-
-Thai: เถ้าแก่ครับ ผมขอเปลี่ยนงานได้ไหมครับ
-Korean: 사장님, 저 사업장을 변경할 수 있을까요?
 
 Korean: 비자를 연장하려면 어떤 서류가 필요해요?
 Thai: ถ้าจะต่อวีซ่า ต้องใช้เอกสารอะไรบ้าง
@@ -204,54 +273,30 @@ Thai: ยานี้ต้องกินยังไงคะ
 Korean: 오늘 출근할 수 있어요?
 Thai: วันนี้มาทำงานได้ไหม
 
-Korean: 어디가 아파요
-Thai: เจ็บตรงไหนคะ
+Korean: 밥 먹었어요?
+Thai: กินข้าวหรือยัง
 
-Korean: 오늘 출근할 수 있어요
-Thai: วันนี้มาทำงานได้ไหม
+Korean: 밥 먹었어요.
+Thai: กินข้าวแล้ว
 
-Korean: 약 어떻게 먹어요
-Thai: ยานี้กินยังไง
+Thai: กินข้าวหรือยัง
+Korean: 밥 먹었어요?
 
-Korean: 언제부터 아팠어요
-Thai: เริ่มปวดตั้งแต่เมื่อไหร่`;
+Thai: กินข้าวแล้ว
+Korean: 밥 먹었어요.`;
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1600,
-        temperature: 0,
-        system: SYSTEM,
-        messages: [
-          {
-            role: 'user',
-            content: cleanedText
-          }
-        ]
-      })
-    });
+    const normalizedText = await callAnthropic(
+      NORMALIZE_SYSTEM,
+      normalizePrompt,
+      1000
+    );
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      return res.status(response.status).json({
-        error: err?.error?.message || 'API error'
-      });
-    }
-
-    const data = await response.json();
-
-    const translation = (data?.content || [])
-      .filter((block) => block?.type === 'text')
-      .map((block) => block.text)
-      .join('\n')
-      .trim();
+    const translation = await callAnthropic(
+      TRANSLATE_SYSTEM,
+      normalizedText,
+      1600
+    );
 
     const ip = req.headers['x-forwarded-for'] || 'unknown';
     console.log(
@@ -260,6 +305,7 @@ Thai: เริ่มปวดตั้งแต่เมื่อไหร่`;
         time: new Date().toISOString(),
         fromLang,
         chars: cleanedText.length,
+        normalizedChars: normalizedText.length,
         ip: String(ip).split(',')[0].trim()
       })
     );
