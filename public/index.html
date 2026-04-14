@@ -285,6 +285,8 @@ function startHold(lang) {
   recognition.maxAlternatives = 1;
 
   let finalText = '';
+  let lastInterim = '';
+  let waitingToStop = false;
 
   recognition.onresult = e => {
     let interim = '', final = '';
@@ -292,9 +294,14 @@ function startHold(lang) {
       const t = e.results[i][0].transcript;
       if (e.results[i].isFinal) final += t; else interim += t;
     }
-    if (final) finalText += final;
-    live.textContent = finalText + (interim ? ' ' + interim : '');
-    if (finalText || interim) live.className = 'live-box show final';
+    if (final) {
+      finalText += final;
+      lastInterim = '';
+    } else {
+      lastInterim = interim;
+    }
+    live.textContent = finalText + (lastInterim ? ' ' + lastInterim : '');
+    if (finalText || lastInterim) live.className = 'live-box show final';
   };
 
   recognition.onerror = e => {
@@ -307,15 +314,18 @@ function startHold(lang) {
   };
 
   recognition.onend = () => {
-    // รอ 600ms เพื่อให้ได้รับ final result ครบก่อนส่งแปล
+    // รวม finalText + lastInterim เพื่อให้ได้ข้อความครบที่สุด
+    const fullText = (finalText + ' ' + lastInterim).trim();
+    // รอ 800ms เผื่อ recognition ส่ง final result ตามมาทีหลัง
     setTimeout(() => {
-      if (finalText.trim()) {
-        translate(finalText.trim(), lang);
+      const textToSend = (finalText + ' ' + lastInterim).trim();
+      if (textToSend) {
+        translate(textToSend, lang);
       } else {
         live.className = 'live-box';
         setStatus('idle', 'ไม่ได้ยินเสียง ลองกดค้างอีกครั้งนะคะ');
       }
-    }, 600);
+    }, 800);
   };
 
   recognition.start();
