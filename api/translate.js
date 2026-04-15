@@ -87,8 +87,6 @@ export default async function handler(req, res) {
     general: ``
   };
 
-  const situationCtx = SITUATION_CONTEXT[finalSit] || '';
-
     const VOCAB_BY_SITUATION = {
     work: `
 [งาน/โรงงาน]
@@ -191,6 +189,7 @@ TOPIK=TOPIK | KIIP=KIIP`,
   };
 
   const finalSit = autoDetect(cleanedText);
+  const situationCtx = SITUATION_CONTEXT[finalSit] || '';
   const vocabSections = [VOCAB_CORE];
   // Always include work+visa+money as base for Thai workers in Korea
   if (finalSit !== 'work') vocabSections.push(VOCAB_BY_SITUATION.work.substring(0, 300));
