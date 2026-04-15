@@ -240,6 +240,15 @@ Ambiguous Korean expressions — use prev_turn to decide:
 
 Note: only apply these when the Korean text is ambiguous. If the meaning is clear, translate normally.
 
+Housing room corrections (Thai people mispronounce Korean room types):
+- วอรูม / วอนรูม / วันรูม = 원룸 (one-room)
+- ทูรูม / สองรูม = 투룸 (two-room)  
+- ทรีรูม / สามรูม = 쓰리룸 (three-room)
+- โชว์รูม (in housing context) = 원룸 or 투룸 based on context
+- โบชึง / โบจึง / เงินมัดจำ = 보증금
+- วอลเซ / ค่าเช่าวอน = 월세
+- ชอนเซ = 전세
+
 Proper names — NEVER translate meaning, always transliterate by sound:
 - Thai names after "ผมชื่อ/ฉันชื่อ/หนูชื่อ/เขาชื่อ/เธอชื่อ/คุณ/พี่/น้อง/นาย/นาง/นางสาว" → transliterate sound only
 - Place names after "ที่/ไปที่/อยู่ที่/มาจาก/ใกล้/แถว/จังหวัด/อำเภอ" → transliterate sound only
