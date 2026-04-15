@@ -208,7 +208,26 @@ Visa & permit correction (Thai speech-to-text often mishears visa codes):
 - เคอีทีเอ / เคต้า / K-ETA → K-ETA
 - ทอปิก / TOPIK → TOPIK
 - คีป / KIIP → KIIP
-Output: cleaned text in source language only. No explanation.`;
+Output: cleaned text in source language only. No explanation.
+
+Ambiguous Korean expressions — use prev_turn to decide:
+"아 그래요" / "그래요" / "그렇군요" / "아 그렇구나":
+  - if prev_turn=question → speaker is answering → "อ๋อ ใช่ครับ / เข้าใจแล้วครับ"
+  - if prev_turn=statement → speaker is reacting with surprise → "อ๋อ อย่างนั้นเหรอครับ"
+  - if prev_turn=none → keep natural: "อ๋อ อย่างนั้นเหรอ"
+
+"맞아요" / "맞죠":
+  - if prev_turn=question → "ใช่ครับ ถูกต้องครับ"
+  - if prev_turn=statement → "ใช่ อย่างนั้นเลยครับ"
+
+"괜찮아요":
+  - if prev_turn=question → speaker is answering → "ไม่เป็นไรครับ / โอเคครับ"
+  - if prev_turn=none + hospital context → likely doctor asking → "เป็นยังไงบ้างครับ"
+
+"알겠어요" / "알겠습니다":
+  - always → "เข้าใจแล้วครับ / รับทราบครับ"
+
+Note: only apply these when the Korean text is ambiguous. If the meaning is clear, translate normally.`;
 
   const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${turnHint}${situationCtx ? '\n' + situationCtx : ''}
 
