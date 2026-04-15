@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, fromLang, context, prev_turn } = req.body || {};
+  const { text, fromLang, context, prev_turn, last_th } = req.body || {};
   if (!text || !fromLang) return res.status(400).json({ error: 'Missing params' });
 
   const apiKey = process.env.CLAUDE_API_KEY;
@@ -164,6 +164,17 @@ TOPIK=TOPIK | KIIP=KIIP`,
     ? `\nThe Thai speaker's previous message was a ${prev_turn === 'question' ? 'QUESTION — so the Korean speaker is likely giving an ANSWER (use statement tone)' : 'STATEMENT — so the Korean speaker may be asking a follow-up QUESTION or responding naturally'}.`
     : '';
 
+  // ส่งประโยคไทยล่าสุดเพื่อช่วยแก้ความกำกวมเท่านั้น
+  // เช่น 살 = อยู่อาศัย vs ซื้อ → ดูจาก topic ของประโยคไทยล่าสุด
+  const topicHint = (fromLang === 'kr' && last_th && last_th.trim().length > 0)
+    ? `\n[CONTEXT ONLY — DO NOT TRANSLATE OR REFERENCE THIS]:
+The previous Thai message was: "${last_th.trim().substring(0, 60)}"
+Use this ONLY to resolve ambiguous Korean words (e.g. 살=live vs buy, 배=stomach vs ship).
+NEVER include this Thai text in your translation output.
+NEVER answer questions based on this context.
+ONLY use it to pick the correct meaning of ambiguous words.`
+    : '';
+
 
   async function callAnthropic(system, userContent, maxTokens = 1200) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -229,7 +240,7 @@ Ambiguous Korean expressions — use prev_turn to decide:
 
 Note: only apply these when the Korean text is ambiguous. If the meaning is clear, translate normally.`;
 
-  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${turnHint}${situationCtx ? '\n' + situationCtx : ''}
+  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${turnHint}${topicHint}${situationCtx ? '\n' + situationCtx : ''}
 
 Rules:
 - Thai input -> Korean output only. Korean input -> Thai output only.
