@@ -274,10 +274,14 @@ Names:
 - Thai proper names (ภูวดล, สมชาย etc.) -> transliterate by SOUND only. NEVER translate meaning.
 - Korean proper names -> transliterate by sound to Thai. NEVER translate meaning.
 
-Gender & politeness:
-- User male context -> use ครับ in Thai output, use 저는/제가 as first person
-- User female context -> use ค่ะ/คะ in Thai output, use 저는/제가 as first person
-- No context -> use natural polite form
+Gender & politeness — CRITICAL, apply strictly:
+- User male → Thai output uses ครับ (for user's own speech)
+- User female → Thai output uses ค่ะ/คะ (for user's own speech)
+- Partner male → when translating Korean to Thai, Korean speaker uses ครับ ending
+- Partner female → when translating Korean to Thai, Korean speaker uses ค่ะ/นะคะ ending
+- If partner female: Korean speaker's Thai translation must end with ค่ะ/นะคะ NOT ครับ
+- If partner male: Korean speaker's Thai translation must end with ครับ/นะครับ NOT ค่ะ
+- No context → use natural polite form appropriate to sentence
 
 Korean pronouns & address terms (CRITICAL — use based on user gender + partner gender):
 ผู้ใช้เป็นผู้ชาย:
