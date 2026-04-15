@@ -256,12 +256,27 @@ function skipOnboard() {
 
 // ── Context Controls ──
 function setPartner(g) {
-  partnerGender = partnerGender === g ? '' : g;
+  const newGender = partnerGender === g ? '' : g;
+  if (newGender !== partnerGender) {
+    // คู่สนทนาเปลี่ยน → ล้าง history ด้วยค่ะ
+    localStorage.removeItem('nn_log');
+    document.getElementById('log').innerHTML = '<div class="log-empty">เริ่มบทสนทนาใหม่ค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>';
+    document.getElementById('transBox').className = 'trans-box';
+    document.getElementById('liveBox').className = 'live-box';
+  }
+  partnerGender = newGender;
   document.getElementById('cp-m').className = 'ctx-btn' + (partnerGender === 'male' ? ' active-m' : '');
   document.getElementById('cp-f').className = 'ctx-btn' + (partnerGender === 'female' ? ' active-f' : '');
 }
 
 function setSituation(s) {
+  if (situation !== s) {
+    // สถานการณ์เปลี่ยน → ล้าง history เพื่อไม่ให้บริบทเก่าปนมาค่ะ
+    localStorage.removeItem('nn_log');
+    document.getElementById('log').innerHTML = '<div class="log-empty">เริ่มบทสนทนาใหม่ค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>';
+    document.getElementById('transBox').className = 'trans-box';
+    document.getElementById('liveBox').className = 'live-box';
+  }
   situation = s;
   ['general','hospital','work','visa','money','bank','food','shop','travel','housing','emergency'].forEach(id => {
     const el = document.getElementById('cs-' + id);
@@ -473,6 +488,17 @@ function resetBtn(lang) {
   if (hint) hint.textContent = lang === 'th' ? '🎙 กดค้างแล้วพูด' : '🎙 꾹 눌러서 말하기';
 }
 
+function getRecentHistory(n) {
+  try {
+    const items = JSON.parse(localStorage.getItem('nn_log') || '[]');
+    return items.slice(-n).map(i => ({
+      from: i.fromLang,
+      orig: i.orig.substring(0, 80),
+      trans: i.trans.substring(0, 80)
+    }));
+  } catch(e) { return []; }
+}
+
 async function translate(text, fromLang) {
   setStatus('thinking', '⏳ น้องน้ำกำลังแปล...');
   document.getElementById('liveBox').className = 'live-box';
@@ -486,7 +512,12 @@ async function translate(text, fromLang) {
       res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, fromLang, context: buildContext() }),
+        body: JSON.stringify({
+        text,
+        fromLang,
+        context: buildContext(),
+        history: getRecentHistory(3)
+      }),
         signal: controller.signal
       });
     } finally {
