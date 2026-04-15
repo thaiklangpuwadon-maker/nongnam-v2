@@ -114,7 +114,9 @@ TOPIK=TOPIK | KIIP=KIIP`,
 แท็กซี่/แทกซี่=택시 | สถานี=역 | เรียกแท็กซี่=택시 부르다
 ไปทางไหน=어디로 가요 | หลงทาง=길을 잃었어요 | จอดตรงนี้=여기서 세워 주세요
 ซ้าย=왼쪽 | ขวา=오른쪽 | ตรงไป=직진 | เลี้ยวซ้าย=좌회전 | เลี้ยวขวา=우회전
-ขึ้นรถ=타다 | ลงรถ=내리다 | เปลี่ยนสาย=환승하다`,
+ขึ้นรถ/นั่ง=타다/탑니다 | ลงรถ=내리다 | เปลี่ยนสาย=환승하다
+รถไฟ KTX=KTX | รถไฟ ITX=ITX | รถไฟ SRT=SRT
+탑니다=นั่ง (statement ไม่ใช่ตัวเลือก) | 타세요=ขึ้นได้เลย | 내리세요=ลงได้เลย`,
 
     housing: `
 [ที่พัก]
@@ -330,7 +332,12 @@ Compliments & emotions:
 - If offensive: ${failReply}
 
 Vocabulary for this conversation:
-${vocabHint}`;
+${vocabHint}
+
+Examples of travel translation:
+Korean: KTX으로 탑니다 → Thai: นั่ง KTX ครับ (NOT "KTX ขึ้นก็ได้")
+Korean: 지하철 타세요 → Thai: ขึ้นรถไฟฟ้าได้เลยครับ
+Korean: 다음 역에서 내리세요 → Thai: ลงสถานีหน้าได้เลยครับ`;
 
   try {
     const normalizedText = await callAnthropic(
