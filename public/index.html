@@ -512,12 +512,7 @@ async function translate(text, fromLang) {
       res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-        text,
-        fromLang,
-        context: buildContext(),
-        history: getRecentHistory(3)
-      }),
+        body: JSON.stringify({ text, fromLang, context: buildContext() }),
         signal: controller.signal
       });
     } finally {
