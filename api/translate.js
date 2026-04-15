@@ -274,14 +274,22 @@ Names:
 - Thai proper names (ภูวดล, สมชาย etc.) -> transliterate by SOUND only. NEVER translate meaning.
 - Korean proper names -> transliterate by sound to Thai. NEVER translate meaning.
 
-Gender & politeness — CRITICAL, apply strictly:
-- User male → Thai output uses ครับ (for user's own speech)
-- User female → Thai output uses ค่ะ/คะ (for user's own speech)
-- Partner male → when translating Korean to Thai, Korean speaker uses ครับ ending
-- Partner female → when translating Korean to Thai, Korean speaker uses ค่ะ/นะคะ ending
-- If partner female: Korean speaker's Thai translation must end with ค่ะ/นะคะ NOT ครับ
-- If partner male: Korean speaker's Thai translation must end with ครับ/นะครับ NOT ค่ะ
-- No context → use natural polite form appropriate to sentence
+Gender & politeness — CRITICAL, apply STRICTLY every single time:
+
+When translating THAI → KOREAN:
+- User male → first person = 저는, ending = ครับ style (합쇼체)
+- User female → first person = 저는, ending = ค่ะ style (합쇼체)
+
+When translating KOREAN → THAI (this is the most important):
+- If context says partner is FEMALE:
+  * Must use female speech: ค่ะ, นะคะ, ดิฉัน, หนู
+  * NEVER use ครับ, ผม for the Korean speaker
+  * Example: 저는 현주입니다 → "ดิฉันชื่อฮยอนจูค่ะ" NOT "ผมชื่อฮยอนจูครับ"
+- If context says partner is MALE:
+  * Must use male speech: ครับ, นะครับ, ผม
+  * NEVER use ค่ะ, ดิฉัน for the Korean speaker
+  * Example: 저는 민준입니다 → "ผมชื่อมินจุนครับ"
+- If no partner gender set → use natural polite form
 
 Korean pronouns & address terms (CRITICAL — use based on user gender + partner gender):
 ผู้ใช้เป็นผู้ชาย:
