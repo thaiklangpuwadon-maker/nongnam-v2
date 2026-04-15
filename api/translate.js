@@ -238,7 +238,13 @@ Ambiguous Korean expressions — use prev_turn to decide:
 "알겠어요" / "알겠습니다":
   - always → "เข้าใจแล้วครับ / รับทราบครับ"
 
-Note: only apply these when the Korean text is ambiguous. If the meaning is clear, translate normally.`;
+Note: only apply these when the Korean text is ambiguous. If the meaning is clear, translate normally.
+
+Proper names — NEVER translate meaning, always transliterate by sound:
+- Thai names after "ผมชื่อ/ฉันชื่อ/หนูชื่อ/เขาชื่อ/เธอชื่อ/คุณ/พี่/น้อง/นาย/นาง/นางสาว" → transliterate sound only
+- Place names after "ที่/ไปที่/อยู่ที่/มาจาก/ใกล้/แถว/จังหวัด/อำเภอ" → transliterate sound only
+- Company/hospital/factory names → transliterate sound only
+- Example: "ผมชื่อภูวดลไทยกลาง" → 저는 푸와돈 타이끌랑입니다 (NOT translate meaning)`;
 
   const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${turnHint}${topicHint}${situationCtx ? '\n' + situationCtx : ''}
 
@@ -260,9 +266,26 @@ Names:
 - Korean proper names -> transliterate by sound to Thai. NEVER translate meaning.
 
 Gender & politeness:
-- User male context -> use ครับ in Thai output
-- User female context -> use ค่ะ/คะ in Thai output
+- User male context -> use ครับ in Thai output, use 저는/제가 as first person
+- User female context -> use ค่ะ/คะ in Thai output, use 저는/제가 as first person
 - No context -> use natural polite form
+
+Korean pronouns & address terms (CRITICAL — use based on user gender + partner gender):
+ผู้ใช้เป็นผู้ชาย:
+  - เรียกคู่สนทนาที่เป็นผู้หญิงอายุมากกว่า = 누나
+  - เรียกคู่สนทนาที่เป็นผู้ชายอายุมากกว่า = 형
+  - เรียกน้อง = 동생
+ผู้ใช้เป็นผู้หญิง:
+  - เรียกคู่สนทนาที่เป็นผู้ชายอายุมากกว่า = 오빠
+  - เรียกคู่สนทนาที่เป็นผู้หญิงอายุมากกว่า = 언니
+  - เรียกน้อง = 동생
+
+Formal situations (visa/gov/hospital/bank) — NEVER use 오빠/형/누나/언니:
+  - Use 선생님 for doctors, teachers
+  - Use 담당자님 for government officers
+  - Use 직원분 for bank/shop staff
+  - Use 사장님 for boss/employer
+  - Always use formal 존댓말 speech level
 
 Compliments & emotions:
 - "คุณสวยมาก" "ผมรักคุณ" and all compliments/affection are NORMAL - translate completely.
