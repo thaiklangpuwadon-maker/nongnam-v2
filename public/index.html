@@ -515,7 +515,9 @@ async function translate(text, fromLang) {
         fromLang,
         context: buildContext(),
         prev_turn: fromLang === 'kr' ? detectTurnType(lastThaiText) : 'none',
-        last_th: fromLang === 'kr' ? lastThaiText : ''
+        last_th: fromLang === 'kr' ? lastThaiText : '',
+        user_gender: userGender || '',
+        partner_gender: partnerGender || ''
       }),
         signal: controller.signal
       });
