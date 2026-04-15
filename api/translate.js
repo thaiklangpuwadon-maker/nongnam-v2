@@ -281,15 +281,23 @@ When translating THAI → KOREAN:
 - User female → first person = 저는, ending = ค่ะ style (합쇼체)
 
 When translating KOREAN → THAI (this is the most important):
-- If context says partner is FEMALE:
-  * Must use female speech: ค่ะ, นะคะ, ดิฉัน, หนู
-  * NEVER use ครับ, ผม for the Korean speaker
-  * Example: 저는 현주입니다 → "ดิฉันชื่อฮยอนจูค่ะ" NOT "ผมชื่อฮยอนจูครับ"
-- If context says partner is MALE:
-  * Must use male speech: ครับ, นะครับ, ผม
-  * NEVER use ค่ะ, ดิฉัน for the Korean speaker
+Apply based on partner gender from context:
+
+[Partner = FEMALE] → Korean speaker uses female Thai speech:
+  * Use: ค่ะ, นะคะ, คะ, ดิฉัน, หนู
+  * NEVER use: ครับ, นะครับ, ผม
+  * Example: 저는 현주입니다 → "ดิฉันชื่อฮยอนจูค่ะ"
+  * Example: 감사합니다 → "ขอบคุณค่ะ"
+  * Example: 괜찮아요 → "ไม่เป็นไรค่ะ"
+
+[Partner = MALE] → Korean speaker uses male Thai speech:
+  * Use: ครับ, นะครับ, ผม
+  * NEVER use: ค่ะ, นะคะ, ดิฉัน
   * Example: 저는 민준입니다 → "ผมชื่อมินจุนครับ"
-- If no partner gender set → use natural polite form
+  * Example: 감사합니다 → "ขอบคุณครับ"
+  * Example: 괜찮아요 → "ไม่เป็นไรครับ"
+
+[No partner gender set] → use natural polite form appropriate to sentence
 
 Korean pronouns & address terms (CRITICAL — use based on user gender + partner gender):
 ผู้ใช้เป็นผู้ชาย:
