@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, fromLang, context, prev_turn, last_th } = req.body || {};
+  const { text, fromLang, context, prev_turn, last_th, user_gender, partner_gender } = req.body || {};
   if (!text || !fromLang) return res.status(400).json({ error: 'Missing params' });
 
   const apiKey = process.env.CLAUDE_API_KEY;
@@ -159,6 +159,24 @@ TOPIK=TOPIK | KIIP=KIIP`,
 
   const contextHint = context ? `\nUser context: ${context}` : '';
 
+  // สร้าง instruction เพศแบบตรงๆ ไม่ผ่าน context string
+  let genderInstruction = '';
+  if (fromLang === 'kr') {
+    // แปลเกาหลี → ไทย: ดูเพศคู่สนทนา (คนพูดเกาหลี)
+    if (partner_gender === 'female') {
+      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is FEMALE. Thai translation MUST use female speech: ดิฉัน/หนู/เธอ and end with ค่ะ/นะคะ/คะ. ABSOLUTELY FORBIDDEN to use ผม/ครับ/นะครับ.`;
+    } else if (partner_gender === 'male') {
+      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is MALE. Thai translation MUST use male speech: ผม/เขา and end with ครับ/นะครับ. ABSOLUTELY FORBIDDEN to use ดิฉัน/ค่ะ/นะคะ.`;
+    }
+  } else {
+    // แปลไทย → เกาหลี: ดูเพศผู้ใช้ (คนพูดไทย)
+    if (user_gender === 'male') {
+      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Thai speaker is MALE. Use 저는/제가 and formal 합쇼체 Korean.`;
+    } else if (user_gender === 'female') {
+      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Thai speaker is FEMALE. Use 저는/제가 and formal 합쇼체 Korean.`;
+    }
+  }
+
   // บอก AI ว่าประโยคก่อนหน้าของคนไทยเป็นอะไร เพื่อให้รู้ว่าเกาหลีตอบหรือถาม
   const turnHint = (fromLang === 'kr' && prev_turn && prev_turn !== 'none')
     ? `\nThe Thai speaker's previous message was a ${prev_turn === 'question' ? 'QUESTION — so the Korean speaker is likely giving an ANSWER (use statement tone)' : 'STATEMENT — so the Korean speaker may be asking a follow-up QUESTION or responding naturally'}.`
@@ -255,7 +273,7 @@ Proper names — NEVER translate meaning, always transliterate by sound:
 - Company/hospital/factory names → transliterate sound only
 - Example: "ผมชื่อภูวดลไทยกลาง" → 저는 푸와돈 타이끌랑입니다 (NOT translate meaning)`;
 
-  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${turnHint}${topicHint}${situationCtx ? '\n' + situationCtx : ''}
+  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${genderInstruction}${turnHint}${topicHint}${situationCtx ? '\n' + situationCtx : ''}
 
 Rules:
 - Thai input -> Korean output only. Korean input -> Thai output only.
