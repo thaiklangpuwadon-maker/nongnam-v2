@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, fromLang, context } = req.body || {};
+  const { text, fromLang, context, history } = req.body || {};
   if (!text || !fromLang) return res.status(400).json({ error: 'Missing params' });
 
   const apiKey = process.env.CLAUDE_API_KEY;
@@ -143,6 +143,16 @@ TOPIK=TOPIK | KIIP=KIIP`,
 
   const contextHint = context ? `\nUser context: ${context}` : '';
 
+  // Build conversation history hint (last 3 turns)
+  let historyHint = '';
+  if (Array.isArray(history) && history.length > 0) {
+    const lines = history.map(h => {
+      const arrow = h.from === 'th' ? '🇹🇭→🇰🇷' : '🇰🇷→🇹🇭';
+      return `${arrow} "${h.orig}" = "${h.trans}"`;
+    }).join('\n');
+    historyHint = `\nRecent conversation (for context only, do NOT retranslate):\n${lines}`;
+  }
+
   async function callAnthropic(system, userContent, maxTokens = 1200) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -165,7 +175,7 @@ Add ? when clearly a question. Keep statements as statements.
 Thai and Korean proper names must NEVER be translated - keep them as-is.
 Output: cleaned text in source language only. No explanation.`;
 
-  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}
+  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${historyHint}
 
 Rules:
 - Thai input -> Korean output only. Korean input -> Thai output only.
