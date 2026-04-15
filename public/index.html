@@ -226,6 +226,7 @@ let recognition = null;
 let isListening = false;
 let lastTrans = '';
 let currentLang = null;
+let lastThaiText = ''; // จำประโยคไทยล่าสุดเพื่อดูบริบทเกาหลี
 
 // ── Context State ──
 let userGender = localStorage.getItem('nn_gender') || '';   // 'male' | 'female' | ''
@@ -488,15 +489,12 @@ function resetBtn(lang) {
   if (hint) hint.textContent = lang === 'th' ? '🎙 กดค้างแล้วพูด' : '🎙 꾹 눌러서 말하기';
 }
 
-function getRecentHistory(n) {
-  try {
-    const items = JSON.parse(localStorage.getItem('nn_log') || '[]');
-    return items.slice(-n).map(i => ({
-      from: i.fromLang,
-      orig: i.orig.substring(0, 80),
-      trans: i.trans.substring(0, 80)
-    }));
-  } catch(e) { return []; }
+function detectTurnType(text) {
+  if (!text) return 'none';
+  // ตรวจจับคำถามภาษาไทย
+  if (/ไหม|หรือเปล่า|หรือยัง|ได้ไหม|ใช่ไหม|เท่าไหร่|ที่ไหน|ยังไง|ทำไม|กี่|เมื่อไหร่|อะไร|ใคร|อย่างไร/.test(text))
+    return 'question';
+  return 'statement';
 }
 
 async function translate(text, fromLang) {
@@ -512,7 +510,12 @@ async function translate(text, fromLang) {
       res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, fromLang, context: buildContext() }),
+        body: JSON.stringify({
+        text,
+        fromLang,
+        context: buildContext(),
+        prev_turn: fromLang === 'kr' ? detectTurnType(lastThaiText) : 'none'
+      }),
         signal: controller.signal
       });
     } finally {
@@ -537,6 +540,7 @@ async function translate(text, fromLang) {
     showTranslation(out, fromLang);
     speakOut(out, fromLang === 'th' ? 'ko-KR' : 'th-TH', fromLang);
     saveToLog(text, out, fromLang);
+    if (fromLang === 'th') lastThaiText = text; // จำประโยคไทยล่าสุด
 
   } catch(err) {
     if (err.name === 'AbortError') {
