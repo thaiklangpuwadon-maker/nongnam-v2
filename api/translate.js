@@ -185,6 +185,29 @@ Do not shorten. Do not summarize. Do not omit anything. Only restore punctuation
 Question detection - Korean: 요,까요,니까,죠,어때요,있어요,없어요 / Thai: ไหม,หรือเปล่า,หรือยัง,ได้ไหม,ใช่ไหม
 Add ? when clearly a question. Keep statements as statements.
 Thai and Korean proper names must NEVER be translated - keep them as-is.
+
+Visa & permit correction (Thai speech-to-text often mishears visa codes):
+[วีซ่าทำงาน]
+- อีเก้า / อีนาย / อีไน / อี9 / อีก้าว → E-9
+- อีเจ็ด / อี7 → E-7
+- อีเจ็ดหนึ่ง / อี7-1 → E-7-1
+- อีเจ็ดสี่ / อีเจ็ด4 / อีเจ็ดซี / E-7-C / E7C → E-7-4
+- อีเจ็ดสี่อา / อีเจ็ดซีอาร์ / E-7-CR / E7CR → E-7-4R
+- อีสิบ / อี10 → E-10
+[วีซ่านักเรียน]
+- ดีสอง / ดี2 → D-2
+- ดีสี่ / ดี4 → D-4
+[วีซ่าครอบครัว/ถิ่นพำนัก]
+- เอฟสอง / เอฟ2 → F-2
+- เอฟทูอาร์ / เอฟสองอาร์ → F-2-R
+- เอฟสาม / เอฟ3 → F-3
+- เอฟหก / เอฟ6 → F-6
+- เอฟห้า / เอฟ5 → F-5
+[วีซ่าท่องเที่ยว/อื่นๆ]
+- ซีสาม / ซี3 → C-3
+- เคอีทีเอ / เคต้า / K-ETA → K-ETA
+- ทอปิก / TOPIK → TOPIK
+- คีป / KIIP → KIIP
 Output: cleaned text in source language only. No explanation.`;
 
   const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${turnHint}${situationCtx ? '\n' + situationCtx : ''}
