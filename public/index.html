@@ -88,6 +88,29 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 .log-time{font-size:10px;color:#2e3450;font-family:monospace}
 
 .free-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(78,203,141,.1);border:1px solid rgba(78,203,141,.2);color:var(--green);font-size:11px;padding:4px 10px;border-radius:20px;margin-bottom:16px}
+/* ONBOARDING */
+.onboard{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.onboard-ico{font-size:56px;margin-bottom:16px}
+.onboard-title{font-size:22px;font-weight:800;margin-bottom:8px;text-align:center}
+.onboard-sub{font-size:14px;color:var(--muted);margin-bottom:32px;text-align:center;line-height:1.6}
+.onboard-choices{display:flex;gap:12px;width:100%;max-width:320px}
+.onboard-btn{flex:1;background:var(--s1);border:2px solid var(--border);border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .2s}
+.onboard-btn:hover{border-color:var(--gold)}
+.onboard-btn.selected-m{border-color:var(--kr);background:rgba(91,156,246,.1)}
+.onboard-btn.selected-f{border-color:var(--thai);background:rgba(255,107,107,.1)}
+.onboard-btn .ob-ico{font-size:32px;display:block;margin-bottom:8px}
+.onboard-btn .ob-name{font-size:15px;font-weight:700}
+.onboard-skip{margin-top:16px;font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline}
+/* CONTEXT BAR */
+.ctx-bar{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px}
+.ctx-bar::-webkit-scrollbar{display:none}
+.ctx-btn{flex-shrink:0;padding:7px 12px;background:var(--s1);border:1.5px solid var(--border);border-radius:50px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;color:var(--muted)}
+.ctx-btn:hover{border-color:var(--gold);color:var(--text)}
+.ctx-btn.active{border-color:var(--gold);background:rgba(232,184,75,.1);color:var(--gold)}
+.ctx-partner{display:flex;gap:6px;margin-bottom:14px}
+.ctx-partner .ctx-btn{flex:1;text-align:center}
+.ctx-partner .ctx-btn.active-m{border-color:var(--kr);background:rgba(91,156,246,.1);color:var(--kr)}
+.ctx-partner .ctx-btn.active-f{border-color:var(--thai);background:rgba(255,107,107,.1);color:var(--thai)}
 .line-warn{background:rgba(255,107,107,.08);border:1.5px solid rgba(255,107,107,.3);border-radius:14px;padding:16px;margin-bottom:14px;text-align:center;display:none}
 .line-warn p{font-size:14px;color:var(--thai);line-height:1.7;margin-bottom:10px}
 .line-warn-steps{font-size:12px;color:var(--muted);line-height:2;text-align:left}
@@ -105,6 +128,46 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 </div>
 
 <div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
+
+<!-- CONTEXT: คู่สนทนา -->
+<div class="ctx-partner" id="ctxPartner">
+  <button class="ctx-btn" id="cp-m" onclick="setPartner('male')">👨 คุยกับผู้ชาย</button>
+  <button class="ctx-btn" id="cp-f" onclick="setPartner('female')">👩 คุยกับผู้หญิง</button>
+</div>
+
+<!-- CONTEXT: สถานการณ์ -->
+<div class="ctx-bar" id="ctxBar">
+  <button class="ctx-btn active" id="cs-general" onclick="setSituation('general')">💬 ทั่วไป</button>
+  <button class="ctx-btn" id="cs-hospital" onclick="setSituation('hospital')">🏥 โรงพยาบาล</button>
+  <button class="ctx-btn" id="cs-work" onclick="setSituation('work')">🏭 ที่ทำงาน</button>
+  <button class="ctx-btn" id="cs-visa" onclick="setSituation('visa')">🏛️ วีซ่า/ราชการ</button>
+  <button class="ctx-btn" id="cs-money" onclick="setSituation('money')">💰 เงิน/ประกัน</button>
+  <button class="ctx-btn" id="cs-bank" onclick="setSituation('bank')">🏦 ธนาคาร</button>
+  <button class="ctx-btn" id="cs-food" onclick="setSituation('food')">🍜 ร้านอาหาร</button>
+  <button class="ctx-btn" id="cs-shop" onclick="setSituation('shop')">🛒 ช้อปปิ้ง</button>
+  <button class="ctx-btn" id="cs-travel" onclick="setSituation('travel')">🚌 เดินทาง</button>
+  <button class="ctx-btn" id="cs-housing" onclick="setSituation('housing')">🏠 ที่พัก</button>
+  <button class="ctx-btn" id="cs-emergency" onclick="setSituation('emergency')">🆘 ฉุกเฉิน</button>
+</div>
+
+<!-- ONBOARDING SCREEN -->
+<div class="onboard" id="onboard" style="display:none">
+  <div class="onboard-ico">🎙</div>
+  <div class="onboard-title">ยินดีต้อนรับสู่น้องน้ำ</div>
+  <div class="onboard-sub">เพื่อให้การแปลถูกต้องที่สุด<br>กรุณาบอกน้องน้ำหน่อยนะคะ</div>
+  <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--muted)">คุณเป็นใครคะ?</div>
+  <div class="onboard-choices">
+    <div class="onboard-btn" id="ob-male" onclick="selectGender('male')">
+      <span class="ob-ico">👨</span>
+      <span class="ob-name">ผู้ชาย</span>
+    </div>
+    <div class="onboard-btn" id="ob-female" onclick="selectGender('female')">
+      <span class="ob-ico">👩</span>
+      <span class="ob-name">ผู้หญิง</span>
+    </div>
+  </div>
+  <div class="onboard-skip" onclick="skipOnboard()">ข้ามไปก่อน ตั้งค่าทีหลังได้ค่ะ</div>
+</div>
 
 <div class="line-warn" id="lineWarn">
   <p>⚠️ LINE Browser ใช้ไมโครโฟนไม่ได้ค่ะ</p>
@@ -164,11 +227,76 @@ let isListening = false;
 let lastTrans = '';
 let currentLang = null;
 
+// ── Context State ──
+let userGender = localStorage.getItem('nn_gender') || '';   // 'male' | 'female' | ''
+let partnerGender = '';   // 'male' | 'female' | ''
+let situation = 'general'; // 'general' | 'hospital' | 'work' | 'gov' | 'shop'
+
+// ── Onboarding ──
+function checkOnboard() {
+  if (!userGender) {
+    document.getElementById('onboard').style.display = 'flex';
+  }
+}
+
+function selectGender(g) {
+  userGender = g;
+  localStorage.setItem('nn_gender', g);
+  document.getElementById('ob-male').className = 'onboard-btn' + (g === 'male' ? ' selected-m' : '');
+  document.getElementById('ob-female').className = 'onboard-btn' + (g === 'female' ? ' selected-f' : '');
+  setTimeout(() => {
+    document.getElementById('onboard').style.display = 'none';
+  }, 400);
+}
+
+function skipOnboard() {
+  userGender = '';
+  document.getElementById('onboard').style.display = 'none';
+}
+
+// ── Context Controls ──
+function setPartner(g) {
+  partnerGender = partnerGender === g ? '' : g;
+  document.getElementById('cp-m').className = 'ctx-btn' + (partnerGender === 'male' ? ' active-m' : '');
+  document.getElementById('cp-f').className = 'ctx-btn' + (partnerGender === 'female' ? ' active-f' : '');
+}
+
+function setSituation(s) {
+  situation = s;
+  ['general','hospital','work','visa','money','bank','food','shop','travel','housing','emergency'].forEach(id => {
+    const el = document.getElementById('cs-' + id);
+    if (el) el.className = 'ctx-btn' + (id === s ? ' active' : '');
+  });
+}
+
+// ── Build context string for API ──
+function buildContext() {
+  const parts = [];
+  if (userGender) parts.push('ผู้ใช้เป็น' + (userGender === 'male' ? 'ผู้ชาย (ลงท้ายครับ)' : 'ผู้หญิง (ลงท้ายค่ะ)'));
+  if (partnerGender) parts.push('คู่สนทนาเป็น' + (partnerGender === 'male' ? 'ผู้ชาย' : 'ผู้หญิง'));
+  const sitMap = {
+    hospital: 'อยู่ที่โรงพยาบาล เน้นศัพท์การแพทย์',
+    work: 'อยู่ที่ทำงาน เน้นศัพท์แรงงาน',
+    visa: 'ติดต่อราชการ/วีซ่า เน้นศัพท์กฎหมาย',
+    money: 'เรื่องเงิน ภาษี ประกันสังคม',
+    bank: 'ธุรกรรมธนาคาร โอนเงิน',
+    food: 'อยู่ที่ร้านอาหาร',
+    shop: 'ช้อปปิ้ง ซื้อของ',
+    travel: 'เดินทาง รถไฟ แท็กซี่',
+    housing: 'เรื่องที่พัก บ้านเช่า',
+    emergency: 'เหตุฉุกเฉิน ต้องการความช่วยเหลือ',
+    general: ''
+  };
+  if (sitMap[situation]) parts.push(sitMap[situation]);
+  return parts.join(' | ');
+}
+
 window.onload = () => {
   loadVoices();
   initMic();
   setupHoldButtons();
   checkDailyReset();
+  checkOnboard();
 };
 
 function loadVoices() {
@@ -358,7 +486,7 @@ async function translate(text, fromLang) {
       res = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, fromLang }),
+        body: JSON.stringify({ text, fromLang, context: buildContext() }),
         signal: controller.signal
       });
     } finally {
