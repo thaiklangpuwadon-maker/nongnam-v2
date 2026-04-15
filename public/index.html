@@ -289,7 +289,7 @@ function setSituation(s) {
 function buildContext() {
   const parts = [];
   if (userGender) parts.push('ผู้ใช้เป็น' + (userGender === 'male' ? 'ผู้ชาย (ลงท้ายครับ)' : 'ผู้หญิง (ลงท้ายค่ะ)'));
-  if (partnerGender) parts.push('คู่สนทนาเป็น' + (partnerGender === 'male' ? 'ผู้ชาย' : 'ผู้หญิง'));
+  if (partnerGender) parts.push('คู่สนทนาเป็น' + (partnerGender === 'male' ? 'ผู้ชาย (คู่สนทนาลงท้ายครับ/ผู้ชาย)' : 'ผู้หญิง (คู่สนทนาลงท้ายค่ะ/ผู้หญิง)'));
   const sitMap = {
     hospital: 'อยู่ที่โรงพยาบาล เน้นศัพท์การแพทย์',
     work: 'อยู่ที่ทำงาน เน้นศัพท์แรงงาน',
@@ -514,7 +514,8 @@ async function translate(text, fromLang) {
         text,
         fromLang,
         context: buildContext(),
-        prev_turn: fromLang === 'kr' ? detectTurnType(lastThaiText) : 'none'
+        prev_turn: fromLang === 'kr' ? detectTurnType(lastThaiText) : 'none',
+        last_th: fromLang === 'kr' ? lastThaiText : ''
       }),
         signal: controller.signal
       });
