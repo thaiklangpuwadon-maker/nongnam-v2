@@ -584,31 +584,15 @@ function speakOut(text, lang, fromLang) {
   setStatus('speaking', fromLang === 'th' ? '🔊 กำลังพูดภาษาเกาหลี...' : '🔊 กำลังพูดภาษาไทย...');
   if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
 
-  // แบ่งประโยคตามเครื่องหมายวรรคตอน จุด ครึ่งจุด ลูกน้ำ และช่องว่างยาว
-  // ทำให้ได้จังหวะเหมือนคนพูดจริง
-  // แบ่งประโยคแบบที่รองรับทุก Browser รวม Safari
+  // แบ่งเฉพาะจุดจบประโยค ไม่แบ่งตาม , เพราะทำให้ชิ้นสั้นเกินจน iOS ไม่ speak
   let parts = text
-    .replace(/([.!?。])/g, '$1|SPLIT|')
-    .replace(/([,])/g, '$1|SPLIT|')
+    .replace(/([.!?。])\s+/g, '$1|SPLIT|')
     .split('|SPLIT|')
     .map(p => p.trim())
-    .filter(p => p.length > 0);
+    .filter(p => p.length > 1); // กรองชิ้นที่สั้นเกิน 1 ตัวออก
 
-  // ถ้าแบ่งไม่ได้ ลองแบ่งตามความยาว (ทุก 30-40 ตัวอักษร ณ จุดช่องว่าง)
-  if (parts.length <= 1 && text.length > 40) {
-    const words = text.split(' ');
-    const chunks = [];
-    let current = '';
-    for (const word of words) {
-      current += (current ? ' ' : '') + word;
-      if (current.length >= 35) {
-        chunks.push(current);
-        current = '';
-      }
-    }
-    if (current) chunks.push(current);
-    if (chunks.length > 1) parts = chunks;
-  }
+  // ถ้าได้แค่ชิ้นเดียวหรือข้อความสั้น → พูดทั้งหมดในครั้งเดียวเลย
+  if (parts.length <= 1) parts = [text.trim()];
 
   const voice = getVoice(lang);
   let idx = 0;
@@ -618,7 +602,10 @@ function speakOut(text, lang, fromLang) {
       setStatus('idle', '✅ เสร็จแล้ว กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
       return;
     }
-    const utt = new SpeechSynthesisUtterance(parts[idx]);
+    const chunk = parts[idx];
+    if (!chunk) { idx++; speakNext(); return; }
+
+    const utt = new SpeechSynthesisUtterance(chunk);
     utt.lang = lang;
     utt.rate = lang === 'ko-KR' ? 0.92 : 1.05;
     utt.pitch = 1.0;
@@ -626,15 +613,19 @@ function speakOut(text, lang, fromLang) {
 
     utt.onend = () => {
       idx++;
-      // หยุดระหว่างประโยค — สั้น 200ms หรือยาว 400ms ถ้าจบประโยค
-      const pause = parts[idx - 1] && /[.!?。]$/.test(parts[idx - 1].trim()) ? 400 : 200;
+      const pause = /[.!?。]$/.test(chunk.trim()) ? 350 : 150;
       setTimeout(speakNext, pause);
     };
-    utt.onerror = () => { idx++; speakNext(); };
+    utt.onerror = (e) => {
+      console.log('TTS error:', e.error, 'chunk:', chunk);
+      idx++;
+      setTimeout(speakNext, 100);
+    };
     window.speechSynthesis.speak(utt);
   }
 
-  speakNext();
+  // iOS workaround: ต้องรอ 100ms หลัง cancel ก่อน speak ใหม่
+  setTimeout(speakNext, 100);
 }
 
 function saveToLog(orig, trans, fromLang) {
