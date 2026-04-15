@@ -164,9 +164,19 @@ TOPIK=TOPIK | KIIP=KIIP`,
   if (fromLang === 'kr') {
     // แปลเกาหลี → ไทย: ดูเพศคู่สนทนา (คนพูดเกาหลี)
     if (partner_gender === 'female') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is FEMALE. Thai translation MUST use female speech: ดิฉัน/หนู/เธอ and end with ค่ะ/นะคะ/คะ. ABSOLUTELY FORBIDDEN to use ผม/ครับ/นะครับ.`;
+      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is FEMALE.
+EVERY SINGLE SENTENCE in Thai output MUST use female speech.
+ALLOWED: ดิฉัน, หนู, เธอ, ค่ะ, นะคะ, คะ
+FORBIDDEN in EVERY sentence: ผม, ครับ, นะครับ (even the last sentence)
+Example: 저는 민수진입니다. 만나서 반갑습니다. → "ดิฉันชื่อมินซูจินค่ะ ยินดีที่ได้รู้จักค่ะ"
+If any sentence uses ครับ it is WRONG. Fix all sentences to use ค่ะ.`;
     } else if (partner_gender === 'male') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is MALE. Thai translation MUST use male speech: ผม/เขา and end with ครับ/นะครับ. ABSOLUTELY FORBIDDEN to use ดิฉัน/ค่ะ/นะคะ.`;
+      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is MALE.
+EVERY SINGLE SENTENCE in Thai output MUST use male speech.
+ALLOWED: ผม, เขา, ครับ, นะครับ
+FORBIDDEN in EVERY sentence: ดิฉัน, ค่ะ, นะคะ (even the last sentence)
+Example: 저는 민준입니다. 만나서 반갑습니다. → "ผมชื่อมินจุนครับ ยินดีที่ได้รู้จักครับ"
+If any sentence uses ค่ะ it is WRONG. Fix all sentences to use ครับ.`;
     }
   } else {
     // แปลไทย → เกาหลี: ดูเพศผู้ใช้ (คนพูดไทย)
