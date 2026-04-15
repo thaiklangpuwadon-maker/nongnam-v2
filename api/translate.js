@@ -206,7 +206,11 @@ TOPIK=TOPIK | KIIP=KIIP`,
       const arrow = h.from === 'th' ? '🇹🇭→🇰🇷' : '🇰🇷→🇹🇭';
       return `${arrow} "${h.orig}" = "${h.trans}"`;
     }).join('\n');
-    historyHint = `\nRecent conversation (for context only, do NOT retranslate):\n${lines}`;
+    historyHint = `\nPREVIOUS CONVERSATION (for context reference ONLY):
+CRITICAL: Do NOT include any of these previous lines in your translation output.
+Only use them to understand the ongoing topic and who is speaking.
+${lines}
+END OF CONTEXT — Translate ONLY the new message below, nothing else.`;
   }
 
   async function callAnthropic(system, userContent, maxTokens = 1200) {
