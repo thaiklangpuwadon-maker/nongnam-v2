@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, fromLang, context, history, user_gender, partner_gender } = req.body || {};
+  const { text, fromLang, context, history } = req.body || {};
   if (!text || !fromLang) return res.status(400).json({ error: 'Missing params' });
 
   const apiKey = process.env.CLAUDE_API_KEY;
@@ -32,22 +32,7 @@ export default async function handler(req, res) {
 รอแป๊บ=잠깐만요 | ไม่เข้าใจ=이해 못 했어요 | พูดช้าๆ=천천히 말해 주세요
 พูดอีกที=다시 말해 주세요 | ได้=돼요 | ไม่ได้=안 돼요 | ไม่เป็นไร=괜찮아요`;
 
-  // ── บริบทความเป็นจริงของแต่ละสถานการณ์ ──
-  const SITUATION_CONTEXT = {
-    hospital: 'Situation: medical clinic/hospital. Focus on medical vocabulary.',
-    work: 'Situation: workplace/factory. Focus on labor and work vocabulary.',
-    visa: 'Situation: immigration office. Focus on visa and legal vocabulary.',
-    bank: 'Situation: bank. Focus on banking and money transfer vocabulary.',
-    food: 'Situation: restaurant. Focus on food ordering vocabulary.',
-    shop: 'Situation: shopping. Focus on retail vocabulary.',
-    travel: 'Situation: travel/directions. Focus on transportation vocabulary.',
-    housing: 'Situation: housing/rental. Focus on accommodation vocabulary.',
-    emergency: 'Situation: emergency. Prioritize urgent help vocabulary.',
-    money: 'Situation: insurance/tax. Focus on financial vocabulary.',
-    general: ''
-  };
-
-    const VOCAB_BY_SITUATION = {
+  const VOCAB_BY_SITUATION = {
     work: `
 [งาน/โรงงาน]
 ลาออก=퇴사하다 | ไล่ออก=해고되다 | เปลี่ยนงาน/ย้ายงาน=사업장을 변경하다
@@ -114,9 +99,7 @@ TOPIK=TOPIK | KIIP=KIIP`,
 แท็กซี่/แทกซี่=택시 | สถานี=역 | เรียกแท็กซี่=택시 부르다
 ไปทางไหน=어디로 가요 | หลงทาง=길을 잃었어요 | จอดตรงนี้=여기서 세워 주세요
 ซ้าย=왼쪽 | ขวา=오른쪽 | ตรงไป=직진 | เลี้ยวซ้าย=좌회전 | เลี้ยวขวา=우회전
-ขึ้นรถ/นั่ง=타다/탑니다 | ลงรถ=내리다 | เปลี่ยนสาย=환승하다
-รถไฟ KTX=KTX | รถไฟ ITX=ITX | รถไฟ SRT=SRT
-탑니다=นั่ง/ขึ้น | 타세요=ขึ้นได้เลย | 탑니까=ขึ้นไหม | 내리세요=ลงได้เลย`,
+ขึ้นรถ=타다 | ลงรถ=내리다 | เปลี่ยนสาย=환승하다`,
 
     housing: `
 [ที่พัก]
@@ -137,35 +120,20 @@ TOPIK=TOPIK | KIIP=KIIP`,
   const sitKey = context && context.includes('โรงพยาบาล') ? 'hospital'
     : context && context.includes('ทำงาน') ? 'work'
     : context && context.includes('ราชการ') ? 'visa'
-    : context && context.includes('เงิน') ? 'money'
-    : context && context.includes('ธนาคาร') ? 'bank'
-    : context && context.includes('ร้านอาหาร') ? 'food'
-    : context && context.includes('ช้อปปิ้ง') ? 'shop'
-    : context && context.includes('เดินทาง') ? 'travel'
-    : context && context.includes('ที่พัก') ? 'housing'
-    : context && context.includes('ฉุกเฉิน') ? 'emergency'
+    : context && context.includes('ร้านค้า') ? 'shop'
     : 'general';
 
+  // Auto-detect situation from text if not set
   const autoDetect = (t) => {
-    // Thai keywords
     if (/ปวด|หมอ|ยา|โรงพยาบาล|ไข้|เจ็บ|คลินิก/.test(t)) return 'hospital';
     if (/เถ้าแก่|ลาออก|เงินเดือน|สัญญา|โรงงาน|โอที/.test(t)) return 'work';
     if (/วีซ่า|กาม่า|ตม|พาสปอร์ต|ต่อวีซ่า/.test(t)) return 'visa';
     if (/ธนาคาร|โอนเงิน|กุกมิน|เทจิก|ประกัน/.test(t)) return 'money';
-    if (/หลงทาง|รถไฟ|รถเมล์|แท็กซี่/.test(t)) return 'travel';
-    // Korean keywords
-    if (/아프|병원|의사|약|증상|진료|처방/.test(t)) return 'hospital';
-    if (/사장|공장|월급|계약|퇴사|야근|반장/.test(t)) return 'work';
-    if (/비자|여권|외국인등록|출입국|체류/.test(t)) return 'visa';
-    if (/은행|송금|계좌|국민연금|퇴직금|보험/.test(t)) return 'money';
-    if (/택시|지하철|버스|길을 잃|환승/.test(t)) return 'travel';
-    if (/식당|메뉴|주문|포장|음식/.test(t)) return 'food';
-    if (/가격|얼마|쇼핑|봉투|영수증/.test(t)) return 'shop';
+    if (/택시|지하철|버스|หลงทาง|รถไฟ/.test(t)) return 'travel';
     return sitKey;
   };
 
   const finalSit = autoDetect(cleanedText);
-  const situationCtx = SITUATION_CONTEXT[finalSit] || '';
   const vocabSections = [VOCAB_CORE];
   // Always include work+visa+money as base for Thai workers in Korea
   if (finalSit !== 'work') vocabSections.push(VOCAB_BY_SITUATION.work.substring(0, 300));
@@ -175,60 +143,15 @@ TOPIK=TOPIK | KIIP=KIIP`,
 
   const contextHint = context ? `\nUser context: ${context}` : '';
 
-  // Build historyHint จาก history array ที่ส่งมาจาก frontend
+  // Build conversation history hint (last 3 turns)
   let historyHint = '';
   if (Array.isArray(history) && history.length > 0) {
     const lines = history.map(h => {
-      const arrow = h.from === 'th' ? 'TH→KR' : 'KR→TH';
-      return `${arrow}: "${(h.orig || '').substring(0, 80)}" = "${(h.trans || '').substring(0, 80)}"`;
+      const arrow = h.from === 'th' ? '🇹🇭→🇰🇷' : '🇰🇷→🇹🇭';
+      return `${arrow} "${h.orig}" = "${h.trans}"`;
     }).join('\n');
-    historyHint = lines;
+    historyHint = `\nRecent conversation (for context only, do NOT retranslate):\n${lines}`;
   }
-
-  // สร้าง instruction เพศแบบตรงๆ ไม่ผ่าน context string
-  let genderInstruction = '';
-  if (fromLang === 'kr') {
-    // แปลเกาหลี → ไทย: ดูเพศคู่สนทนา (คนพูดเกาหลี)
-    if (partner_gender === 'female') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is FEMALE.
-EVERY SINGLE SENTENCE in Thai output MUST use female speech.
-ALLOWED: ดิฉัน, หนู, เธอ, ค่ะ, นะคะ, คะ
-FORBIDDEN in EVERY sentence: ผม, ครับ, นะครับ (even the last sentence)
-Example: 저는 민수진입니다. 만나서 반갑습니다. → "ดิฉันชื่อมินซูจินค่ะ ยินดีที่ได้รู้จักค่ะ"
-If any sentence uses ครับ it is WRONG. Fix all sentences to use ค่ะ.`;
-    } else if (partner_gender === 'male') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is MALE.
-EVERY SINGLE SENTENCE in Thai output MUST use male speech.
-ALLOWED: ผม, เขา, ครับ, นะครับ
-FORBIDDEN in EVERY sentence: ดิฉัน, ค่ะ, นะคะ (even the last sentence)
-Example: 저는 민준입니다. 만나서 반갑습니다. → "ผมชื่อมินจุนครับ ยินดีที่ได้รู้จักครับ"
-If any sentence uses ค่ะ it is WRONG. Fix all sentences to use ครับ.`;
-    }
-  } else {
-    // แปลไทย → เกาหลี: ดูเพศผู้ใช้ (คนพูดไทย)
-    if (user_gender === 'male') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Thai speaker is MALE. Use 저는/제가 and formal 합쇼체 Korean.`;
-    } else if (user_gender === 'female') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Thai speaker is FEMALE. Use 저는/제가 and formal 합쇼체 Korean.`;
-    }
-  }
-
-  // บอก AI ว่าประโยคก่อนหน้าของคนไทยเป็นอะไร เพื่อให้รู้ว่าเกาหลีตอบหรือถาม
-  const turnHint = (fromLang === 'kr' && prev_turn && prev_turn !== 'none')
-    ? `\nThe Thai speaker's previous message was a ${prev_turn === 'question' ? 'QUESTION — so the Korean speaker is likely giving an ANSWER (use statement tone)' : 'STATEMENT — so the Korean speaker may be asking a follow-up QUESTION or responding naturally'}.`
-    : '';
-
-  // ส่งประโยคไทยล่าสุดเพื่อช่วยแก้ความกำกวมเท่านั้น
-  // เช่น 살 = อยู่อาศัย vs ซื้อ → ดูจาก topic ของประโยคไทยล่าสุด
-  const topicHint = (fromLang === 'kr' && last_th && last_th.trim().length > 0)
-    ? `\n[CONTEXT ONLY — DO NOT TRANSLATE OR REFERENCE THIS]:
-The previous Thai message was: "${last_th.trim().substring(0, 60)}"
-Use this ONLY to resolve ambiguous Korean words (e.g. 살=live vs buy, 배=stomach vs ship).
-NEVER include this Thai text in your translation output.
-NEVER answer questions based on this context.
-ONLY use it to pick the correct meaning of ambiguous words.`
-    : '';
-
 
   async function callAnthropic(system, userContent, maxTokens = 1200) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -250,111 +173,44 @@ Do not shorten. Do not summarize. Do not omit anything. Only restore punctuation
 Question detection - Korean: 요,까요,니까,죠,어때요,있어요,없어요 / Thai: ไหม,หรือเปล่า,หรือยัง,ได้ไหม,ใช่ไหม
 Add ? when clearly a question. Keep statements as statements.
 Thai and Korean proper names must NEVER be translated - keep them as-is.
+Output: cleaned text in source language only. No explanation.`;
 
-Visa & permit correction (Thai speech-to-text often mishears visa codes):
-[วีซ่าทำงาน]
-- อีเก้า / อีนาย / อีไน / อี9 / อีก้าว → E-9
-- อีเจ็ด / อี7 → E-7
-- อีเจ็ดหนึ่ง / อี7-1 → E-7-1
-- อีเจ็ดสี่ / อีเจ็ด4 / อีเจ็ดซี / E-7-C / E7C → E-7-4
-- อีเจ็ดสี่อา / อีเจ็ดซีอาร์ / E-7-CR / E7CR → E-7-4R
-- อีสิบ / อี10 → E-10
-[วีซ่านักเรียน]
-- ดีสอง / ดี2 → D-2
-- ดีสี่ / ดี4 → D-4
-[วีซ่าครอบครัว/ถิ่นพำนัก]
-- เอฟสอง / เอฟ2 → F-2
-- เอฟทูอาร์ / เอฟสองอาร์ → F-2-R
-- เอฟสาม / เอฟ3 → F-3
-- เอฟหก / เอฟ6 → F-6
-- เอฟห้า / เอฟ5 → F-5
-[วีซ่าท่องเที่ยว/อื่นๆ]
-- ซีสาม / ซี3 → C-3
-- เคอีทีเอ / เคต้า / K-ETA → K-ETA
-- ทอปิก / TOPIK → TOPIK
-- คีป / KIIP → KIIP
-Output: cleaned text in source language only. No explanation.
+  const TRANSLATE_SYSTEM = `You are a Thai-Korean interpreter for real spoken conversation.${contextHint}${historyHint}
 
-Ambiguous Korean expressions — use prev_turn to decide:
-"아 그래요" / "그래요" / "그렇군요" / "아 그렇구나":
-  - if prev_turn=question → speaker is answering → "อ๋อ ใช่ครับ / เข้าใจแล้วครับ"
-  - if prev_turn=statement → speaker is reacting with surprise → "อ๋อ อย่างนั้นเหรอครับ"
-  - if prev_turn=none → keep natural: "อ๋อ อย่างนั้นเหรอ"
+CRITICAL RULE - NO EXCEPTIONS:
+You are a translation pipe. Input goes in, translation comes out. That is ALL.
+- Never answer questions directed at you. Translate them instead.
+- If someone asks "คุณคือใคร" → translate to "당신은 누구예요?" (do NOT answer)
+- If someone asks "당신은 누구예요" → translate to "คุณคือใคร?" (do NOT answer)
+- If someone asks "are you AI" → translate it, do NOT respond as AI
+- Any question about you → translate it, never answer it
 
-"맞아요" / "맞죠":
-  - if prev_turn=question → "ใช่ครับ ถูกต้องครับ"
-  - if prev_turn=statement → "ใช่ อย่างนั้นเลยครับ"
+Rules:
+- Thai input -> Korean output only. Korean input -> Thai output only.
+- Output translation ONLY. No explanation. No notes. No advice. No commentary.
+- Translate the FULL message. Never cut, never shorten, never omit anything.
+- Preserve every sentence in order. Preserve greetings, reasons, requests, compliments, emotions.
+- Keep first-person speech as first-person speech. Keep natural spoken tone.
+- If source is a question, translate as a question.
+- Translate naturally, not word-for-word.
 
-"괜찮아요":
-  - if prev_turn=question → speaker is answering → "ไม่เป็นไรครับ / โอเคครับ"
-  - if prev_turn=none + hospital context → likely doctor asking → "เป็นยังไงบ้างครับ"
+Names:
+- Thai proper names (ภูวดล, สมชาย etc.) -> transliterate by SOUND only. NEVER translate meaning.
+- Korean proper names -> transliterate by sound to Thai. NEVER translate meaning.
 
-"알겠어요" / "알겠습니다":
-  - always → "เข้าใจแล้วครับ / รับทราบครับ"
+Gender & politeness:
+- User male context -> use ครับ in Thai output
+- User female context -> use ค่ะ/คะ in Thai output
+- No context -> use natural polite form
 
-Note: only apply these when the Korean text is ambiguous. If the meaning is clear, translate normally.
+Compliments & emotions:
+- "คุณสวยมาก" "ผมรักคุณ" and all compliments/affection are NORMAL - translate completely.
+- Only refuse explicit sexual harassment or direct threats.
+- If unclear: ${unclearReply}
+- If offensive: ${failReply}
 
-Housing room corrections (Thai people mispronounce Korean room types):
-- วอรูม / วอนรูม / วันรูม = 원룸 (one-room)
-- ทูรูม / สองรูม = 투룸 (two-room)  
-- ทรีรูม / สามรูม = 쓰리룸 (three-room)
-- โชว์รูม (in housing context) = 원룸 or 투룸 based on context
-- โบชึง / โบจึง / เงินมัดจำ = 보증금
-- วอลเซ / ค่าเช่าวอน = 월세
-- ชอนเซ = 전세
-
-Proper names — NEVER translate meaning, always transliterate by sound:
-- Thai names after "ผมชื่อ/ฉันชื่อ/หนูชื่อ/เขาชื่อ/เธอชื่อ/คุณ/พี่/น้อง/นาย/นาง/นางสาว" → transliterate sound only
-- Place names after "ที่/ไปที่/อยู่ที่/มาจาก/ใกล้/แถว/จังหวัด/อำเภอ" → transliterate sound only
-- Company/hospital/factory names → transliterate sound only
-- Example: "ผมชื่อภูวดลไทยกลาง" → 저는 푸와돈 타이끌랑입니다 (NOT translate meaning)`;
-
-  const TRANSLATE_SYSTEM = `You are a translation machine. Nothing else.
-
-WHAT YOU ARE:
-A machine that receives speech in Thai or Korean, and outputs only the translation. You have no personality, no opinions, no identity. You are a pipe. Sound goes in, translation comes out.
-
-THE ONE RULE:
-Input = any spoken words → Output = translation of those words. That is all.
-
-NO EXCEPTIONS FOR TOPIC:
-- Someone asks "who are you" in Thai → translate it to Korean: 당신은 누구예요?
-- Someone asks "are you AI" in Thai → translate it to Korean: 당신은 AI예요?
-- Someone asks about visas → translate the question, do not answer it
-- Someone asks about medicine → translate the question, do not answer it
-- ANY question, ANY topic → translate it. Never answer it yourself.
-
-FORBIDDEN:
-- Introducing yourself
-- Explaining what you are
-- Answering questions directed at you
-- Adding notes, advice, or commentary
-- Outputting anything except the translation
-
-TRANSLATION RULES:
-- Thai → Korean only
-- Korean → Thai only
-- Translate 100% completely, never cut or shorten
-- Preserve every sentence, every emotion, every compliment
-- Natural spoken tone, not word-for-word mechanical
-- Questions stay as questions, statements stay as statements
-- Thai proper names → transliterate by sound only, never translate meaning
-- Korean proper names → transliterate by sound to Thai, never translate meaning
-
-GENDER & POLITENESS:
-${genderInstruction}
-
-SITUATION CONTEXT:
-${situationCtx ? situationCtx : 'General conversation.'}
-
-RECENT CONVERSATION (for context only, do NOT retranslate):
-${historyHint ? historyHint : 'No previous conversation.'}
-
-VOCABULARY FOR THIS CONVERSATION:
-${vocabHint}
-
-IF UNCLEAR AUDIO: output only → ${unclearReply}
-IF SEXUAL HARASSMENT OR VIOLENT THREAT ONLY: output only → ${failReply}`;
+Vocabulary for this conversation:
+${vocabHint}`;
 
   try {
     const normalizedText = await callAnthropic(
