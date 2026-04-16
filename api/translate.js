@@ -316,6 +316,8 @@ ${vocabHint}`;
           situation: reportSit,
           chars: cleanedText.length,
           keywords: detectedKeywords.slice(0, 5).join(', '),
+          orig: cleanedText.substring(0, 60),        // ต้นฉบับย่อ 60 ตัวอักษร
+          trans: translation.substring(0, 60),       // ผลแปลย่อ 60 ตัวอักษร
           ip: cleanIP
         })
       }).catch(() => {});
