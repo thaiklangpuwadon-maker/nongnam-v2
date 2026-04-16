@@ -248,7 +248,7 @@ Housing corrections:
 
 Ambiguous Korean — use prev_turn:
 괜찮아요: question→answer (ไม่เป็นไรครับ) | hospital+none→doctor asking (เป็นยังไงบ้าง)
-아 그래요/그렇군요: question→answer (ใช่ครับ) | statement→reaction (อ๋อ อย่างนั้นเหรอ)
+아 그래요/그렇군요: question→answer (ใช่ครับ/เข้าใจแล้วครับ) | statement→reaction (อ๋อ เข้าใจแล้วครับ) | hospital+doctor→reacting to patient (อ๋อ เข้าใจแล้วครับ/ได้เลยครับ) — NEVER แปลว่า ใช่ค่ะ เมื่อหมอตอบผู้ป่วย
 맞아요: question→(ใช่ครับ ถูกต้อง) | statement→(ใช่ อย่างนั้นเลย)
 알겠어요/알겠습니다: always→(เข้าใจแล้วครับ)
 
