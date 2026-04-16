@@ -137,16 +137,30 @@ TOPIK=TOPIK | KIIP=KIIP`,
   const sitKey = context && context.includes('โรงพยาบาล') ? 'hospital'
     : context && context.includes('ทำงาน') ? 'work'
     : context && context.includes('ราชการ') ? 'visa'
-    : context && context.includes('ร้านค้า') ? 'shop'
+    : context && context.includes('เงิน') ? 'money'
+    : context && context.includes('ธนาคาร') ? 'bank'
+    : context && context.includes('ร้านอาหาร') ? 'food'
+    : context && context.includes('ช้อปปิ้ง') ? 'shop'
+    : context && context.includes('เดินทาง') ? 'travel'
+    : context && context.includes('ที่พัก') ? 'housing'
+    : context && context.includes('ฉุกเฉิน') ? 'emergency'
     : 'general';
 
-  // Auto-detect situation from text if not set
   const autoDetect = (t) => {
+    // Thai keywords
     if (/ปวด|หมอ|ยา|โรงพยาบาล|ไข้|เจ็บ|คลินิก/.test(t)) return 'hospital';
     if (/เถ้าแก่|ลาออก|เงินเดือน|สัญญา|โรงงาน|โอที/.test(t)) return 'work';
     if (/วีซ่า|กาม่า|ตม|พาสปอร์ต|ต่อวีซ่า/.test(t)) return 'visa';
     if (/ธนาคาร|โอนเงิน|กุกมิน|เทจิก|ประกัน/.test(t)) return 'money';
-    if (/택시|지하철|버스|หลงทาง|รถไฟ/.test(t)) return 'travel';
+    if (/หลงทาง|รถไฟ|รถเมล์|แท็กซี่/.test(t)) return 'travel';
+    // Korean keywords
+    if (/아프|병원|의사|약|증상|진료|처방/.test(t)) return 'hospital';
+    if (/사장|공장|월급|계약|퇴사|야근|반장/.test(t)) return 'work';
+    if (/비자|여권|외국인등록|출입국|체류/.test(t)) return 'visa';
+    if (/은행|송금|계좌|국민연금|퇴직금|보험/.test(t)) return 'money';
+    if (/택시|지하철|버스|길을 잃|환승/.test(t)) return 'travel';
+    if (/식당|메뉴|주문|포장|음식/.test(t)) return 'food';
+    if (/가격|얼마|쇼핑|봉투|영수증/.test(t)) return 'shop';
     return sitKey;
   };
 
