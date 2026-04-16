@@ -284,8 +284,30 @@ ${vocabHint}`;
     // ส่งข้อมูลไป Google Sheets (fire and forget)
     const sheetURL = process.env.SHEET_WEBHOOK_URL;
     if (sheetURL) {
-      // ใช้ sitKey (จากปุ่มที่กด) เป็นหลัก ถ้าไม่มีค่อยใช้ autoDetect
       const reportSit = sitKey !== 'general' ? sitKey : finalSit;
+      
+      // Keyword detection — ไม่เก็บเนื้อหา เก็บแค่ keyword ที่พบ
+      const KEYWORD_MAP = {
+        'กุกมิน': 'ประกัน/กุกมิน', 'กุ๊กมิน': 'ประกัน/กุกมิน',
+        'เทจิก': 'เทจิก/ออกงาน', 'แทจิก': 'เทจิก/ออกงาน',
+        'ลาออก': 'เทจิก/ออกงาน', 'ไล่ออก': 'เทจิก/ออกงาน',
+        'วีซ่า': 'วีซ่า', 'E-9': 'วีซ่า E-9', 'E-7-4': 'วีซ่า E-7-4',
+        'กาม่า': 'บัตรต่างด้าว', 'พาสปอร์ต': 'พาสปอร์ต',
+        'เงินเดือน': 'เงินเดือน', 'โอที': 'โอที',
+        'โรงพยาบาล': 'โรงพยาบาล', 'หมอ': 'หมอ', 'ยา': 'ยา',
+        'ปวด': 'อาการปวด', 'ไข้': 'ไข้',
+        'โอนเงิน': 'โอนเงิน', 'ธนาคาร': 'ธนาคาร',
+        'ภาษี': 'ภาษี', 'ประกัน': 'ประกัน',
+        'เถ้าแก่': 'นายจ้าง', 'สัญญา': 'สัญญาจ้าง',
+        'หลงทาง': 'เดินทาง', 'แท็กซี่': 'แท็กซี่',
+        'ช่วยด้วย': 'ฉุกเฉิน', 'เรียกรถ': 'ฉุกเฉิน'
+      };
+      
+      const detectedKeywords = [];
+      for (const [kw, label] of Object.entries(KEYWORD_MAP)) {
+        if (cleanedText.includes(kw)) detectedKeywords.push(label);
+      }
+      
       fetch(sheetURL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,6 +315,7 @@ ${vocabHint}`;
           fromLang,
           situation: reportSit,
           chars: cleanedText.length,
+          keywords: detectedKeywords.slice(0, 5).join(', '),
           ip: cleanIP
         })
       }).catch(() => {});
