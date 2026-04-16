@@ -211,6 +211,23 @@ Question detection - Korean: 요,까요,니까,죠,어때요,있어요,없어요
 Add ? when clearly a question. Keep statements as statements.
 Thai and Korean proper names must NEVER be translated - keep them as-is.
 
+CRITICAL - Word spacing fix for Thai speech-to-text:
+Thai speech-to-text often produces words WITHOUT spaces. You MUST add proper spaces.
+Common patterns to fix:
+- "สวัสดีครับคุณหมอ" → "สวัสดีครับ คุณหมอ"
+- "ผมมาตรวจร่างกาย" → "ผมมาตรวจร่างกาย" (keep as-is, already correct)
+- "ครับผม" at word boundary → "ครับ ผม"
+- Particles: ครับ ค่ะ คะ นะ ด้วย แล้ว ก็ จะ ได้ ไม่ → add space after each
+- Titles: คุณหมอ คุณครู คุณพยาบาล นายจ้าง เถ้าแก่ → keep as one unit
+- NEVER split: คุณหมอ ร้านขายยา โรงพยาบาล สวัสดี ขอบคุณ
+
+CRITICAL - Role disambiguation:
+- "สวัสดีครับคุณหมอผมมาตรวจ" → speaker is PATIENT visiting doctor, NOT doctor themselves
+- "ผมมาหาหมอ" = "I came to see the doctor" NOT "I am the doctor"
+- "มาตรวจร่างกาย" = "came for a checkup" — the speaker is the PATIENT
+- Context: Thai workers visiting Korean doctors → speaker is ALWAYS the patient unless explicitly stated otherwise
+- If ambiguous, assume speaker is the non-professional (patient/worker/customer)`
+
 Visa corrections:
 อีเก้า/อีนาย/อี9 → E-9 | อีเจ็ดสี่/อี7-4 → E-7-4 | อีเจ็ดสี่อา → E-7-4R
 เอฟทูอาร์ → F-2-R | เอฟหก → F-6 | TOPIK=TOPIK | KIIP=KIIP
