@@ -5,7 +5,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, fromLang, context, prev_turn, last_th, user_gender, partner_gender } = req.body || {};
+  const { text, fromLang, context, history, user_gender, partner_gender } = req.body || {};
   if (!text || !fromLang) return res.status(400).json({ error: 'Missing params' });
 
   const apiKey = process.env.CLAUDE_API_KEY;
@@ -160,6 +160,16 @@ TOPIK=TOPIK | KIIP=KIIP`,
   const vocabHint = vocabSections.filter(Boolean).join('\n');
 
   const contextHint = context ? `\nUser context: ${context}` : '';
+
+  // Build historyHint จาก history array ที่ส่งมาจาก frontend
+  let historyHint = '';
+  if (Array.isArray(history) && history.length > 0) {
+    const lines = history.map(h => {
+      const arrow = h.from === 'th' ? 'TH→KR' : 'KR→TH';
+      return `${arrow}: "${(h.orig || '').substring(0, 80)}" = "${(h.trans || '').substring(0, 80)}"`;
+    }).join('\n');
+    historyHint = lines;
+  }
 
   // สร้าง instruction เพศแบบตรงๆ ไม่ผ่าน context string
   let genderInstruction = '';
