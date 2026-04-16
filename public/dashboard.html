@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>น้องน้ำ · Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0f;
+  --s1: #12121a;
+  --s2: #1a1a26;
+  --border: rgba(255,255,255,0.08);
+  --text: #f0f0f8;
+  --muted: rgba(240,240,248,0.45);
+  --gold: #f5c842;
+  --green: #4ecf8a;
+  --red: #ff6b6b;
+  --blue: #5b9cf6;
+  --thai: #ff6b6b;
+  --kr: #5b9cf6;
+  --purple: #a78bfa;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Kanit',sans-serif; min-height:100vh; }
+
+/* Header */
+.header { padding:24px 20px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.header-left { display:flex; align-items:center; gap:12px; }
+.logo { width:40px; height:40px; background:var(--gold); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+.header-title { font-size:18px; font-weight:700; }
+.header-sub { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-top:2px; }
+.refresh-btn { background:var(--s2); border:1px solid var(--border); color:var(--muted); padding:8px 14px; border-radius:10px; font-size:12px; font-family:'Kanit',sans-serif; cursor:pointer; transition:all .2s; }
+.refresh-btn:hover { border-color:var(--gold); color:var(--gold); }
+
+/* Credit card */
+.credit-card { margin:16px; background:linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border:1px solid rgba(91,156,246,0.3); border-radius:20px; padding:20px; position:relative; overflow:hidden; }
+.credit-card::before { content:''; position:absolute; top:-40px; right:-40px; width:150px; height:150px; background:rgba(91,156,246,0.08); border-radius:50%; }
+.credit-label { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; letter-spacing:1px; text-transform:uppercase; }
+.credit-amount { font-size:42px; font-weight:700; color:#fff; font-family:'IBM Plex Mono',monospace; margin:4px 0; }
+.credit-amount span { font-size:20px; color:var(--blue); }
+.credit-bar-wrap { margin-top:12px; }
+.credit-bar { height:6px; background:rgba(255,255,255,0.1); border-radius:3px; overflow:hidden; }
+.credit-bar-fill { height:100%; border-radius:3px; transition:width 1s ease; }
+.credit-info { display:flex; justify-content:space-between; margin-top:6px; font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+.credit-status { display:inline-flex; align-items:center; gap:5px; margin-top:10px; font-size:12px; padding:4px 10px; border-radius:20px; }
+.status-ok { background:rgba(78,207,138,0.15); color:var(--green); border:1px solid rgba(78,207,138,0.3); }
+.status-warn { background:rgba(245,200,66,0.15); color:var(--gold); border:1px solid rgba(245,200,66,0.3); }
+.status-danger { background:rgba(255,107,107,0.15); color:var(--red); border:1px solid rgba(255,107,107,0.3); }
+
+/* Stats grid */
+.stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 16px 16px; }
+.stat-card { background:var(--s1); border:1px solid var(--border); border-radius:16px; padding:16px; }
+.stat-icon { font-size:22px; margin-bottom:8px; }
+.stat-val { font-size:28px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+.stat-label { font-size:11px; color:var(--muted); margin-top:2px; }
+.stat-sub { font-size:10px; color:var(--muted); opacity:.6; margin-top:4px; font-family:'IBM Plex Mono',monospace; }
+
+/* Section */
+.section { margin:0 16px 16px; }
+.section-title { font-size:13px; font-weight:600; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:10px; font-family:'IBM Plex Mono',monospace; }
+
+/* Situation bars */
+.sit-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.sit-name { font-size:12px; width:90px; flex-shrink:0; }
+.sit-bar-wrap { flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:4px; overflow:hidden; }
+.sit-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg, var(--gold), var(--blue)); transition:width 1s ease; }
+.sit-count { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; width:30px; text-align:right; }
+
+/* Log table */
+.log-wrap { background:var(--s1); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+.log-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--border); font-size:12px; }
+.log-row:last-child { border-bottom:none; }
+.log-flag { font-size:16px; flex-shrink:0; }
+.log-time { font-family:'IBM Plex Mono',monospace; color:var(--muted); font-size:10px; flex-shrink:0; width:45px; }
+.log-sit { font-size:10px; padding:2px 8px; border-radius:10px; background:var(--s2); color:var(--muted); flex-shrink:0; }
+.log-chars { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--muted); margin-left:auto; }
+
+/* Hourly chart */
+.hour-chart { display:flex; align-items:flex-end; gap:3px; height:60px; }
+.hour-bar { flex:1; background:rgba(91,156,246,0.2); border-radius:3px 3px 0 0; transition:height .5s ease; position:relative; cursor:pointer; min-height:3px; }
+.hour-bar:hover { background:rgba(91,156,246,0.5); }
+.hour-labels { display:flex; justify-content:space-between; margin-top:4px; font-size:9px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+
+/* Loading */
+.loading { text-align:center; padding:40px; color:var(--muted); font-size:13px; }
+.dot { display:inline-block; animation:pulse 1s infinite; }
+.dot:nth-child(2) { animation-delay:.2s; }
+.dot:nth-child(3) { animation-delay:.4s; }
+@keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+/* Error */
+.error-box { background:rgba(255,107,107,0.1); border:1px solid rgba(255,107,107,0.3); border-radius:12px; padding:14px; margin:16px; font-size:13px; color:var(--red); }
+
+/* Last updated */
+.last-updated { text-align:center; padding:12px; font-size:10px; color:var(--muted); font-family:'IBM Plex Mono',monospace; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">🎙</div>
+    <div>
+      <div class="header-title">น้องน้ำ Dashboard</div>
+      <div class="header-sub">TH · KR LIVE INTERPRETER</div>
+    </div>
+  </div>
+  <button class="refresh-btn" onclick="loadAll()">🔄 รีเฟรช</button>
+</div>
+
+<div id="main">
+  <div class="loading">กำลังโหลดข้อมูล<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+</div>
+
+<div class="last-updated" id="lastUpdated"></div>
+
+<script>
+const SHEET_URL = localStorage.getItem('nn_sheet_url') || '';
+
+// ถ้ายังไม่มี URL → แสดงหน้าตั้งค่า
+function checkSetup() {
+  if (!SHEET_URL) {
+    document.getElementById('main').innerHTML = `
+      <div style="padding:20px">
+        <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:16px">
+          <div style="font-size:14px;font-weight:600;margin-bottom:8px">⚙️ ตั้งค่าครั้งแรก</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.6">
+            กรอก URL ของ Google Apps Script ที่สร้างไว้ค่ะ<br>
+            (ดูได้จาก Apps Script → Deploy → Web App URL)
+          </div>
+          <input id="urlInput" type="text" placeholder="https://script.google.com/macros/s/..." 
+            style="width:100%;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--text);font-size:12px;font-family:'IBM Plex Mono',monospace;outline:none;margin-bottom:12px">
+          <button onclick="saveURL()" style="width:100%;background:var(--gold);color:#000;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;font-family:'Kanit',sans-serif;cursor:pointer">
+            บันทึกและเริ่มใช้งาน
+          </button>
+        </div>
+      </div>`;
+    return false;
+  }
+  return true;
+}
+
+function saveURL() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url.startsWith('https://')) { alert('URL ไม่ถูกต้องค่ะ'); return; }
+  localStorage.setItem('nn_sheet_url', url);
+  location.reload();
+}
+
+async function loadAll() {
+  if (!checkSetup()) return;
+  
+  document.getElementById('main').innerHTML = `<div class="loading">กำลังโหลดข้อมูล<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>`;
+  
+  try {
+    const res = await fetch(SHEET_URL + '?action=dashboard');
+    const data = await res.json();
+    renderDashboard(data);
+    document.getElementById('lastUpdated').textContent = 'อัพเดตล่าสุด: ' + new Date().toLocaleTimeString('th-TH');
+  } catch(e) {
+    document.getElementById('main').innerHTML = `
+      <div class="error-box">⚠️ เชื่อมต่อ Google Sheets ไม่ได้ค่ะ<br><small style="opacity:.7">${e.message}</small></div>
+      <div style="padding:0 16px">
+        <button onclick="localStorage.removeItem('nn_sheet_url');location.reload()" 
+          style="background:var(--s2);border:1px solid var(--border);color:var(--muted);padding:10px 16px;border-radius:10px;font-family:'Kanit',sans-serif;cursor:pointer;font-size:12px">
+          ตั้งค่า URL ใหม่
+        </button>
+      </div>`;
+  }
+}
+
+function renderDashboard(d) {
+  const credit = d.credit || 0;
+  const maxCredit = d.maxCredit || 5;
+  const pct = Math.min(100, (credit / maxCredit) * 100);
+  const barColor = pct > 40 ? 'var(--green)' : pct > 20 ? 'var(--gold)' : 'var(--red)';
+  const statusClass = pct > 40 ? 'status-ok' : pct > 20 ? 'status-warn' : 'status-danger';
+  const statusText = pct > 40 ? '✅ เพียงพอ' : pct > 20 ? '⚠️ ควรเติมเร็วๆนี้' : '🔴 ใกล้หมดแล้ว!';
+
+  const todayCount = d.todayCount || 0;
+  const totalCount = d.totalCount || 0;
+  const uniqueIPs = d.uniqueIPs || 0;
+  const avgChars = d.avgChars || 0;
+
+  // Situation data
+  const sits = d.situations || {};
+  const sitEmoji = { hospital:'🏥', work:'🏭', visa:'🏛️', money:'💰', bank:'🏦', food:'🍜', shop:'🛒', travel:'🚌', housing:'🏠', emergency:'🆘', general:'💬' };
+  const sitName = { hospital:'โรงพยาบาล', work:'ที่ทำงาน', visa:'วีซ่า', money:'เงิน/ประกัน', bank:'ธนาคาร', food:'ร้านอาหาร', shop:'ช้อปปิ้ง', travel:'เดินทาง', housing:'ที่พัก', emergency:'ฉุกเฉิน', general:'ทั่วไป' };
+  const sitEntries = Object.entries(sits).sort((a,b) => b[1]-a[1]).slice(0,6);
+  const maxSit = sitEntries[0]?.[1] || 1;
+
+  // Recent logs
+  const logs = d.recentLogs || [];
+
+  // Hourly
+  const hourly = d.hourly || new Array(24).fill(0);
+  const maxHour = Math.max(...hourly, 1);
+
+  document.getElementById('main').innerHTML = `
+    <!-- Credit Card -->
+    <div class="credit-card">
+      <div class="credit-label">ANTHROPIC API CREDIT</div>
+      <div class="credit-amount"><span>$</span>${credit.toFixed(2)}</div>
+      <div class="credit-bar-wrap">
+        <div class="credit-bar">
+          <div class="credit-bar-fill" style="width:${pct}%;background:${barColor}"></div>
+        </div>
+        <div class="credit-info">
+          <span>เหลือ ${pct.toFixed(0)}%</span>
+          <span>จาก $${maxCredit.toFixed(2)}</span>
+        </div>
+      </div>
+      <div class="credit-status ${statusClass}">${statusText}</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-val" style="color:var(--gold)">${todayCount}</div>
+        <div class="stat-label">ครั้งวันนี้</div>
+        <div class="stat-sub">total ${totalCount}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-val" style="color:var(--blue)">${uniqueIPs}</div>
+        <div class="stat-label">ผู้ใช้ (IP)</div>
+        <div class="stat-sub">unique today</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💬</div>
+        <div class="stat-val" style="color:var(--green)">${avgChars}</div>
+        <div class="stat-label">ตัวอักษรเฉลี่ย</div>
+        <div class="stat-sub">per translation</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💸</div>
+        <div class="stat-val" style="color:var(--purple)">฿${(totalCount * 0.01).toFixed(2)}</div>
+        <div class="stat-label">ต้นทุนรวม</div>
+        <div class="stat-sub">~฿0.01/ครั้ง</div>
+      </div>
+    </div>
+
+    <!-- Hourly Chart -->
+    <div class="section">
+      <div class="section-title">📈 การใช้งานรายชั่วโมง (วันนี้)</div>
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:16px">
+        <div class="hour-chart">
+          ${hourly.map((v,i) => `<div class="hour-bar" style="height:${Math.max(5,(v/maxHour)*100)}%" title="${i}:00 — ${v} ครั้ง"></div>`).join('')}
+        </div>
+        <div class="hour-labels">
+          <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Situations -->
+    ${sitEntries.length > 0 ? `
+    <div class="section">
+      <div class="section-title">🏷️ สถานการณ์ยอดนิยม</div>
+      <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:16px">
+        ${sitEntries.map(([k,v]) => `
+          <div class="sit-row">
+            <div class="sit-name">${sitEmoji[k]||'💬'} ${sitName[k]||k}</div>
+            <div class="sit-bar-wrap"><div class="sit-bar-fill" style="width:${(v/maxSit)*100}%"></div></div>
+            <div class="sit-count">${v}</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+
+    <!-- Recent Logs -->
+    ${logs.length > 0 ? `
+    <div class="section">
+      <div class="section-title">🕐 การแปลล่าสุด</div>
+      <div class="log-wrap">
+        ${logs.slice(0,10).map(l => `
+          <div class="log-row">
+            <div class="log-flag">${l.from === 'th' ? '🇹🇭' : '🇰🇷'}</div>
+            <div class="log-time">${l.time||''}</div>
+            <div class="log-sit">${sitEmoji[l.sit]||'💬'} ${sitName[l.sit]||l.sit||'ทั่วไป'}</div>
+            <div class="log-chars">${l.chars||0} chars</div>
+          </div>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+}
+
+// Auto-refresh ทุก 5 นาที
+setInterval(loadAll, 5 * 60 * 1000);
+loadAll();
+</script>
+</body>
+</html>
