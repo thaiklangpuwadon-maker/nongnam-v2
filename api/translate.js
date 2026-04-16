@@ -274,11 +274,27 @@ ${vocabHint}`;
     const translation = await callAnthropic(TRANSLATE_SYSTEM, normalizedText, 1600);
 
     const ip = req.headers['x-forwarded-for'] || 'unknown';
+    const cleanIP = String(ip).split(',')[0].trim();
     console.log('USAGE:', JSON.stringify({
       time: new Date().toISOString(), fromLang,
       chars: cleanedText.length, situation: finalSit,
-      ip: String(ip).split(',')[0].trim()
+      ip: cleanIP
     }));
+
+    // ส่งข้อมูลไป Google Sheets (fire and forget)
+    const sheetURL = process.env.SHEET_WEBHOOK_URL;
+    if (sheetURL) {
+      fetch(sheetURL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fromLang,
+          situation: finalSit,
+          chars: cleanedText.length,
+          ip: cleanIP
+        })
+      }).catch(() => {}); // ไม่ให้ error กระทบการแปล
+    }
 
     return res.status(200).json({ translation });
   } catch (err) {
