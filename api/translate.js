@@ -228,6 +228,17 @@ CRITICAL - Role disambiguation:
 - Context: Thai workers visiting Korean doctors → speaker is ALWAYS the patient unless explicitly stated otherwise
 - If ambiguous, assume speaker is the non-professional (patient/worker/customer)
 
+ROLE EXAMPLES - CRITICAL:
+Thai: "สวัสดีครับคุณหมอ ผมมาตรวจร่างกายประจำปีครับ"
+= Speaker is PATIENT greeting the doctor → Korean: 안녕하세요. 저는 연간 건강검진을 받으러 왔습니다.
+NOT: 저는 의사입니다 (I am a doctor) ← WRONG
+
+Thai: "สวัสดีครับเถ้าแก่ ผมอยากลาออกครับ"
+= Speaker is WORKER talking to boss → Korean: 안녕하세요, 사장님. 저는 퇴사하고 싶습니다.
+
+Thai: "สวัสดีครับพนักงาน ผมอยากเปิดบัญชีครับ"
+= Speaker is CUSTOMER at bank → Korean: 안녕하세요. 계좌를 개설하고 싶습니다.
+
 Visa corrections:
 อีเก้า/อีนาย/อี9 → E-9 | อีเจ็ดสี่/อี7-4 → E-7-4 | อีเจ็ดสี่อา → E-7-4R
 เอฟทูอาร์ → F-2-R | เอฟหก → F-6 | TOPIK=TOPIK | KIIP=KIIP
