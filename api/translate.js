@@ -32,7 +32,7 @@ export default async function handler(req, res) {
 พูดอีกที=다시 말해 주세요 | ได้=돼요 | ไม่ได้=안 돼요 | ไม่เป็นไร=괜찮아요`;
 
   const SITUATION_CONTEXT = {
-    hospital: 'Situation: medical clinic/hospital. Focus on medical vocabulary.',
+    hospital: 'Situation: hospital/clinic. The THAI USER is the PATIENT. The Korean speaker is the doctor/nurse. Thai person came to receive medical care, NOT to provide it. Never translate Thai speaker as a medical professional.',
     work: 'Situation: workplace/factory. Focus on labor and work vocabulary.',
     visa: 'Situation: immigration office. Focus on visa and legal vocabulary.',
     bank: 'Situation: bank. Focus on banking and money transfer vocabulary.',
