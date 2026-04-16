@@ -226,7 +226,7 @@ CRITICAL - Role disambiguation:
 - "ผมมาหาหมอ" = "I came to see the doctor" NOT "I am the doctor"
 - "มาตรวจร่างกาย" = "came for a checkup" — the speaker is the PATIENT
 - Context: Thai workers visiting Korean doctors → speaker is ALWAYS the patient unless explicitly stated otherwise
-- If ambiguous, assume speaker is the non-professional (patient/worker/customer)`
+- If ambiguous, assume speaker is the non-professional (patient/worker/customer)
 
 Visa corrections:
 อีเก้า/อีนาย/อี9 → E-9 | อีเจ็ดสี่/อี7-4 → E-7-4 | อีเจ็ดสี่อา → E-7-4R
