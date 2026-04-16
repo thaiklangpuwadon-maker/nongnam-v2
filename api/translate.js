@@ -284,16 +284,18 @@ ${vocabHint}`;
     // ส่งข้อมูลไป Google Sheets (fire and forget)
     const sheetURL = process.env.SHEET_WEBHOOK_URL;
     if (sheetURL) {
+      // ใช้ sitKey (จากปุ่มที่กด) เป็นหลัก ถ้าไม่มีค่อยใช้ autoDetect
+      const reportSit = sitKey !== 'general' ? sitKey : finalSit;
       fetch(sheetURL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fromLang,
-          situation: finalSit,
+          situation: reportSit,
           chars: cleanedText.length,
           ip: cleanIP
         })
-      }).catch(() => {}); // ไม่ให้ error กระทบการแปล
+      }).catch(() => {});
     }
 
     return res.status(200).json({ translation });
