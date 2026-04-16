@@ -172,6 +172,7 @@ async function loadAll() {
 
 function renderDashboard(d) {
   const credit = d.credit || 0;
+  const creditDisplay = credit === 0 ? '-.--' : credit.toFixed(2);
   const maxCredit = d.maxCredit || 5;
   const pct = Math.min(100, (credit / maxCredit) * 100);
   const barColor = pct > 40 ? 'var(--green)' : pct > 20 ? 'var(--gold)' : 'var(--red)';
@@ -193,15 +194,23 @@ function renderDashboard(d) {
   // Recent logs
   const logs = d.recentLogs || [];
 
-  // Hourly
-  const hourly = d.hourly || new Array(24).fill(0);
-  const maxHour = Math.max(...hourly, 1);
+  // Hourly - สร้างจาก recentLogs เพราะ timezone issue ใน Apps Script
+  const hourly = new Array(24).fill(0);
+  (d.recentLogs || []).forEach(l => {
+    const t = (l.time || '').substring(0,5);
+    const h = parseInt(t.split(':')[0]);
+    if (!isNaN(h) && h >= 0 && h < 24) hourly[h]++;
+  });
+  // fallback ใช้ข้อมูลจาก Apps Script ถ้ามี
+  const appsHourly = d.hourly || new Array(24).fill(0);
+  const combinedHourly = hourly.map((v,i) => v + appsHourly[i]);
+  const maxHour = Math.max(...combinedHourly, 1);
 
   document.getElementById('main').innerHTML = `
     <!-- Credit Card -->
     <div class="credit-card">
       <div class="credit-label">ANTHROPIC API CREDIT</div>
-      <div class="credit-amount"><span>$</span>${credit.toFixed(2)}</div>
+      <div class="credit-amount"><span>$</span>${creditDisplay}</div>
       <div class="credit-bar-wrap">
         <div class="credit-bar">
           <div class="credit-bar-fill" style="width:${pct}%;background:${barColor}"></div>
@@ -247,7 +256,7 @@ function renderDashboard(d) {
       <div class="section-title">📈 การใช้งานรายชั่วโมง (วันนี้)</div>
       <div style="background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:16px">
         <div class="hour-chart">
-          ${hourly.map((v,i) => `<div class="hour-bar" style="height:${Math.max(5,(v/maxHour)*100)}%" title="${i}:00 — ${v} ครั้ง"></div>`).join('')}
+          ${combinedHourly.map((v,i) => `<div class="hour-bar" style="height:${Math.max(5,(v/maxHour)*100)}%" title="${i}:00 — ${v} ครั้ง"></div>`).join('')}
         </div>
         <div class="hour-labels">
           <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>23:00</span>
@@ -277,7 +286,7 @@ function renderDashboard(d) {
         ${logs.slice(0,10).map(l => `
           <div class="log-row">
             <div class="log-flag">${l.from === 'th' ? '🇹🇭' : '🇰🇷'}</div>
-            <div class="log-time">${l.time||''}</div>
+            <div class="log-time">${(l.time||'').substring(0,5)}</div>
             <div class="log-sit">${sitEmoji[l.sit]||'💬'} ${sitName[l.sit]||l.sit||'ทั่วไป'}</div>
             <div class="log-chars">${l.chars||0} chars</div>
           </div>`).join('')}
@@ -292,4 +301,3 @@ loadAll();
 </script>
 </body>
 </html>
-
