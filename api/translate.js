@@ -253,6 +253,10 @@ Korean address terms:
 ผู้ใช้หญิง: พี่ชาย=오빠 | พี่สาว=언니
 ทางการ/โรงพยาบาล/ราชการ: หมอ=선생님 | เจ้าหน้าที่=담당자님 | พนักงาน=직원분 | เถ้าแก่=사장님
 
+ค่ะ vs คะ (MANDATORY for female speech):
+- ประโยคบอกเล่า → ลงท้าย ค่ะ เสมอ (เช่น ได้ค่ะ ใช่ค่ะ ไม่เป็นไรค่ะ)
+- ประโยคคำถาม → ลงท้าย คะ เสมอ (เช่น ชื่ออะไรคะ ไปไหนมาคะ ต้องการอะไรคะ)
+
 Compliments & emotions: always translate completely. Never refuse or omit.
 If truly unclear audio: ${unclearReply}
 If explicit sexual harassment or violent threat only: ${failReply}
