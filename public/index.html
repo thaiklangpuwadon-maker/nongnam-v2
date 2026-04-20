@@ -6,9 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="น้องน้ำ">
-<meta name="application-name" content="น้องน้ำ">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="/icon-192.png">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -83,11 +81,11 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 .log-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .log-clear{background:none;border:none;font-size:11px;color:#2e3450;cursor:pointer;font-family:'Sarabun',sans-serif}
 .log-clear:hover{color:var(--thai)}
-.log{background:var(--s1);border:1px solid var(--border);border-radius:14px;max-height:320px;overflow-y:auto;padding:12px 12px 0;display:flex;flex-direction:column;gap:0}
+.log{background:var(--s1);border:1px solid var(--border);border-radius:14px;max-height:280px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .log::-webkit-scrollbar{width:3px}
 .log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .log-empty{text-align:center;color:#2e3450;font-size:13px;padding:24px;line-height:1.7}
-.log-item{display:flex;gap:10px;border-bottom:1px solid var(--border);padding:10px 0;animation:fadeUp .3s ease}
+.log-item{display:flex;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px;animation:fadeUp .3s ease}
 .log-item:last-child{border-bottom:none;padding-bottom:0}
 @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .log-flag{font-size:18px;flex-shrink:0;margin-top:2px}
@@ -102,6 +100,21 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 .log-time{font-size:10px;color:#2e3450;font-family:monospace}
 
 .free-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(78,203,141,.1);border:1px solid rgba(78,203,141,.2);color:var(--green);font-size:11px;padding:4px 10px;border-radius:20px;margin-bottom:16px}
+/* LANDING PAGE */
+.landing{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center}
+.landing-logo{width:80px;height:80px;background:var(--gold);border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 20px;box-shadow:0 8px 32px rgba(245,200,66,.3)}
+.landing-title{font-size:32px;font-weight:800;margin-bottom:6px}
+.landing-sub{font-size:14px;color:var(--muted);margin-bottom:8px}
+.landing-desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:32px;max-width:280px}
+.landing-btn{width:100%;max-width:320px;background:var(--gold);color:#000;border:none;border-radius:16px;padding:18px;font-size:18px;font-weight:800;font-family:'Kanit',sans-serif;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 20px rgba(245,200,66,.4)}
+.landing-btn:active{transform:scale(.98)}
+.landing-warn{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);border-radius:12px;padding:16px;margin-top:16px;width:100%;max-width:320px;display:none}
+.landing-warn-title{color:var(--red);font-weight:700;margin-bottom:6px;font-size:14px}
+.landing-warn-text{font-size:12px;color:var(--muted);line-height:1.6}
+.landing-copy-btn{background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 16px;font-size:13px;font-family:'Kanit',sans-serif;cursor:pointer;margin-top:10px;width:100%}
+/* PWA INSTALL */
+.install-bar{background:rgba(245,200,66,.08);border:1px solid rgba(245,200,66,.2);border-radius:12px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;justify-content:space-between;gap:10px}
+.install-bar-btn{background:var(--gold);color:#000;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;font-family:'Kanit',sans-serif;cursor:pointer;white-space:nowrap}
 /* ONBOARDING */
 .onboard{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
 .onboard-ico{font-size:56px;margin-bottom:16px}
@@ -142,10 +155,6 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 </div>
 
 <div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
-<div id="installBanner" style="display:none;background:rgba(245,200,66,0.1);border:1px solid rgba(245,200,66,0.3);border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
-  <span style="font-size:13px">📲 เพิ่มเป็นแอปบนมือถือ</span>
-  <button id="installBtn" onclick="installPWA()" style="background:var(--gold);color:#000;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;font-family:'Kanit',sans-serif;cursor:pointer">ติดตั้ง</button>
-</div>
 
 <!-- CONTEXT: คู่สนทนา -->
 <div class="ctx-partner" id="ctxPartner">
@@ -168,6 +177,27 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <button class="ctx-btn" id="cs-emergency" onclick="setSituation('emergency')">🆘 ฉุกเฉิน</button>
 </div>
 
+<!-- LANDING PAGE -->
+<div class="landing" id="landing">
+  <div class="landing-logo">🎙</div>
+  <div class="landing-title">น้องน้ำ</div>
+  <div class="landing-sub">TH · KR LIVE INTERPRETER</div>
+  <div class="landing-desc">ล่าม AI ไทย-เกาหลี<br>สำหรับแรงงานไทยในเกาหลี<br>ใช้งานฟรี ไม่ต้องสมัครสมาชิก</div>
+  <button class="landing-btn" onclick="startApp()">🚀 เริ่มใช้งาน</button>
+  <div style="font-size:11px;color:var(--muted);opacity:.5">nongnam-v2.vercel.app</div>
+  <div class="landing-warn" id="landingWarn">
+    <div class="landing-warn-title">⚠️ กรุณาเปิดใน Chrome หรือ Safari</div>
+    <div class="landing-warn-text">เบราว์เซอร์นี้ไม่รองรับไมโครโฟนค่ะ<br>กรุณาคัดลอกลิงก์แล้วเปิดใน Chrome หรือ Safari แทนนะคะ</div>
+    <button class="landing-copy-btn" id="landingCopyBtn" onclick="copyLandingURL()">📋 คัดลอกลิงก์</button>
+  </div>
+</div>
+
+<!-- INSTALL BAR -->
+<div class="install-bar" id="installBar">
+  <span style="font-size:13px">📲 เพิ่มเป็นแอปบนมือถือได้ค่ะ</span>
+  <button class="install-bar-btn" onclick="installPWA()">ติดตั้ง</button>
+</div>
+
 <!-- ONBOARDING SCREEN -->
 <div class="onboard" id="onboard" style="display:none">
   <div class="onboard-ico">🎙</div>
@@ -187,20 +217,7 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <div class="onboard-skip" onclick="skipOnboard()">ข้ามไปก่อน ตั้งค่าทีหลังได้ค่ะ</div>
 </div>
 
-<div class="line-warn" id="lineWarn" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;">
-  <div style="font-size:64px;margin-bottom:16px">🎙</div>
-  <div style="font-size:22px;font-weight:800;margin-bottom:8px">น้องน้ำ</div>
-  <div style="font-size:14px;opacity:.7;margin-bottom:24px">TH · KR LIVE INTERPRETER</div>
-  <div style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);border-radius:16px;padding:20px;margin-bottom:24px;max-width:320px">
-    <div style="font-size:16px;font-weight:700;color:#ff6b6b;margin-bottom:8px">⚠️ ต้องเปิดใน Chrome หรือ Safari</div>
-    <div style="font-size:13px;opacity:.8;line-height:1.6">เบราว์เซอร์ใน LINE ไม่รองรับไมโครโฟนค่ะ กรุณาเปิดลิงก์นี้ใน Chrome หรือ Safari แทนนะคะ</div>
-  </div>
-  <button id="openChromeBtn" style="background:#4ecf8a;color:#000;border:none;border-radius:14px;padding:16px 32px;font-size:16px;font-weight:700;font-family:'Kanit',sans-serif;cursor:pointer;width:100%;max-width:320px;margin-bottom:12px">
-    🟢 เปิดใน Chrome เลยค่ะ
-  </button>
-  <div style="font-size:11px;opacity:.5">nongnam-v2.vercel.app</div>
-</div>
-
+<div class="line-warn" id="lineWarn" style="display:none">
   <p>⚠️ LINE Browser ใช้ไมโครโฟนไม่ได้ค่ะ</p>
   <div class="line-warn-steps">
     1️⃣ กดค้างที่ลิงก์นี้<br>
@@ -250,7 +267,62 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <div class="log-empty">ยังไม่มีบทสนทนาค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>
 </div>
 
+</div>
 <script>
+// PWA Install
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const bar = document.getElementById('installBar');
+  if (bar) bar.style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  const bar = document.getElementById('installBar');
+  if (bar) bar.style.display = 'none';
+});
+function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else {
+    alert('วิธีเพิ่มลงหน้าจอค่ะ:\n\niPhone/iPad:\nกด Share (□↑) → Add to Home Screen\n\nAndroid:\nกด Menu (⋮) → Add to Home Screen');
+  }
+}
+function copyLandingURL() {
+  const url = window.location.href;
+  navigator.clipboard.writeText(url).then(() => {
+    const btn = document.getElementById('landingCopyBtn');
+    if (btn) { btn.textContent = '✅ คัดลอกแล้ว! วางใน Chrome/Safari ได้เลยค่ะ'; btn.style.background = 'var(--green)'; btn.style.color = '#000'; }
+  }).catch(() => {
+    prompt('คัดลอก URL นี้แล้วเปิดใน Chrome/Safari ค่ะ:', url);
+  });
+}
+function startApp() {
+  // ตรวจสอบว่าเบราว์เซอร์รองรับไมโครโฟนหรือเปล่า
+  const ua = navigator.userAgent || '';
+  const isLineBrowser = ua.includes('Line/') || ua.includes('KAKAOTALK');
+  const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  const hasSpeechRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  
+  if (isLineBrowser || !hasGetUserMedia || !hasSpeechRecognition) {
+    // แสดงคำเตือน
+    const warn = document.getElementById('landingWarn');
+    if (warn) warn.style.display = 'block';
+    
+    // Android: ลอง intent เปิด Chrome
+    if (/android/i.test(ua)) {
+      const url = window.location.href;
+      window.location.href = 'intent://' + url.replace(/https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+    }
+    return;
+  }
+  
+  // ใช้งานได้ → ซ่อน landing แสดงแอป
+  document.getElementById('landing').style.display = 'none';
+  checkOnboard();
+}
+
 let micOK = false;
 let recognition = null;
 let isListening = false;
@@ -337,32 +409,11 @@ function buildContext() {
   return parts.join(' | ');
 }
 
-// PWA Install
-let deferredPrompt = null;
-window.addEventListener('beforeinstallprompt', (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-  document.getElementById('installBanner').style.display = 'flex';
-});
-window.addEventListener('appinstalled', () => {
-  document.getElementById('installBanner').style.display = 'none';
-});
-function installPWA() {
-  if (deferredPrompt) {
-    deferredPrompt.prompt();
-    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
-  } else {
-    // iOS fallback
-    alert('เพื่อเพิ่มลงหน้าจอ:\niOS: กด Share → Add to Home Screen\nAndroid: กด Menu → Add to Home Screen');
-  }
-}
-
 window.onload = () => {
   loadVoices();
-  initMic();
   setupHoldButtons();
   checkDailyReset();
-  checkOnboard();
+  // ไม่เรียก checkOnboard ตอนโหลด เพราะ startApp() จะเรียกแทน
 };
 
 function loadVoices() {
@@ -383,38 +434,10 @@ function checkDailyReset() {
 async function initMic() {
   // ตรวจจับ LINE in-app browser
   const ua = navigator.userAgent || '';
-  const isLine = ua.includes('Line/') || ua.includes('KAKAOTALK') || ua.includes('FBAN') || ua.includes('FBAV');
+  const isLine = ua.includes('Line/') || ua.includes('KAKAOTALK');
   if (isLine) {
-    document.getElementById('lineWarn').style.display = 'flex';
-    
-    // สร้างปุ่มเปิดใน Chrome อัตโนมัติ
-    const currentURL = window.location.href;
-    const isAndroid = /android/i.test(ua);
-    const isIOS = /iphone|ipad|ipod/i.test(ua);
-    
-    const btn = document.getElementById('openChromeBtn');
-    if (btn) {
-      if (isAndroid) {
-        btn.onclick = () => {
-          window.location.href = 'intent://' + currentURL.replace(/https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
-        };
-        btn.textContent = '🟢 เปิดใน Chrome เลยค่ะ';
-      } else if (isIOS) {
-        btn.onclick = () => {
-          // iOS copy to clipboard
-          navigator.clipboard.writeText(currentURL).then(() => {
-            btn.textContent = '✅ คัดลอกลิงก์แล้ว! วางใน Chrome ได้เลยค่ะ';
-            btn.style.background = '#4ecf8a';
-          }).catch(() => {
-            btn.textContent = '📋 กด Copy แล้ววางใน Chrome ค่ะ: ' + currentURL;
-          });
-        };
-        btn.textContent = '📋 คัดลอกลิงก์ เพื่อเปิดใน Safari/Chrome';
-      } else {
-        btn.onclick = () => { window.open(currentURL, '_blank'); };
-        btn.textContent = '🌐 เปิดในเบราว์เซอร์';
-      }
-    }
+    document.getElementById('lineWarn').style.display = 'block';
+    setStatus('idle', '⚠️ กรุณาเปิดใน Chrome หรือ Safari ค่ะ');
     return;
   }
 
