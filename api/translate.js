@@ -4,7 +4,9 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   const {
     text,
@@ -26,9 +28,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server config error' });
   }
 
-  // ─────────────────────────────────────────────────────
-  // Helpers
-  // ─────────────────────────────────────────────────────
   const safeStr = (v, max = 500) =>
     String(v ?? '')
       .replace(/\u0000/g, '')
@@ -45,10 +44,12 @@ export default async function handler(req, res) {
       .replace(/\n{3,}/g, '\n\n')
       .trim();
 
-  const containsKorean = (s) => /[가-힣]/.test(s);
-  const containsThai = (s) => /[ก-๙]/.test(s);
-  const englishOnlyish = (s) => /^[a-zA-Z0-9\s.,!?'"():;/\\\-_[\]{}@#$%^&*+=<>|`~]+$/.test((s || '').trim());
-  const hasApiErrorShape = (s) =>
+  const containsThai = (s) => /[ก-๙]/.test(String(s || ''));
+  const containsKorean = (s) => /[가-힣]/.test(String(s || ''));
+  const englishOnlyish = (s) =>
+    /^[a-zA-Z0-9\s.,!?'"():;/\\\-_[\]{}@#$%^&*+=<>|`~]+$/.test(String(s || '').trim());
+
+  const looksLikeApiError = (s) =>
     /(error|invalid_request|authentication|overloaded|rate limit|bad request|method not allowed|server error|api)/i.test(
       String(s || '')
     );
@@ -517,10 +518,18 @@ Negation and time rule:
 - เคย = past experience
 - เพิ่ง = just
 
+KOREAN REACTION / AMBIGUITY RULES:
+- If "아" appears before a short reaction word (e.g. 아 그래요, 아 그렇군요, 아 진짜요), it usually signals new realization / surprise / recognition.
+- In those cases, prefer translations like:
+  - "อ๋อ อย่างนั้นเหรอครับ/ค่ะ"
+  - "อ๋อ เข้าใจแล้วครับ/ค่ะ"
+  - "อ้าว จริงเหรอครับ/ค่ะ"
+- Do NOT translate "아 그래요 / 아 그렇군요" as simple confirmation like "ใช่ครับ/ค่ะ" unless the surrounding context clearly requires confirmation.
+
 Korean intonation ambiguity rule:
 - If a Korean sentence ends with 요 without ? and can be either a statement or a question, use punctuation first, then current utterance, then recent context.
 - If a short Korean sentence is ambiguous (e.g. 괜찮아요, 맞아요, 그래요, 돼요, 진짜요), and previous turn was a question, it is more likely an answer.
-- If previous turn was a statement, it may be a follow-up question.
+- If previous turn was a statement, it may be a follow-up question or reaction.
 - If still ambiguous, choose the most neutral translation and do not invent extra meaning.
 
 Strict safety:
@@ -578,24 +587,20 @@ ${vocabHint}
 
     if (!out) return unclearReply;
 
-    // กันข้อความ error ภาษาอังกฤษยาว ๆ ไม่ให้หลุดไป TTS
-    if (out.length > 25 && englishOnlyish(out) && hasApiErrorShape(out)) {
+    if (out.length > 25 && englishOnlyish(out) && looksLikeApiError(out)) {
       return unclearReply;
     }
 
-    // กัน output อังกฤษล้วนยาว ๆ
     if (out.length > 40 && englishOnlyish(out)) {
       return unclearReply;
     }
 
-    // ฝั่งไทยพูด -> ต้องได้เกาหลีเป็นหลัก
     if (isThai) {
       if (out.length > 8 && !containsKorean(out)) {
         return unclearReply;
       }
     }
 
-    // ฝั่งเกาหลีพูด -> ต้องได้ไทยเป็นหลัก
     if (isKorean) {
       if (out.length > 8 && !containsThai(out)) {
         return unclearReply;
