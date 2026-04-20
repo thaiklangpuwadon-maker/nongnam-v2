@@ -183,7 +183,6 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <div class="onboard-skip" onclick="skipOnboard()">ข้ามไปก่อน ตั้งค่าทีหลังได้ค่ะ</div>
 </div>
 
-<div id="mainContent">
 <div class="line-warn" id="lineWarn" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;">
   <div style="font-size:64px;margin-bottom:16px">🎙</div>
   <div style="font-size:22px;font-weight:800;margin-bottom:8px">น้องน้ำ</div>
@@ -197,7 +196,7 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   </button>
   <div style="font-size:11px;opacity:.5">nongnam-v2.vercel.app</div>
 </div>
-<div style="display:none">
+
   <p>⚠️ LINE Browser ใช้ไมโครโฟนไม่ได้ค่ะ</p>
   <div class="line-warn-steps">
     1️⃣ กดค้างที่ลิงก์นี้<br>
@@ -247,7 +246,6 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <div class="log-empty">ยังไม่มีบทสนทนาค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>
 </div>
 
-</div>
 <script>
 let micOK = false;
 let recognition = null;
@@ -759,5 +757,5 @@ if ('serviceWorker' in navigator) {
 
 function beep(f,v){try{const ctx=new(AudioContext||webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(v,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);o.start();o.stop(ctx.currentTime+.15)}catch(e){}}
 </script>
-</div></div></body>
+</body>
 </html>
