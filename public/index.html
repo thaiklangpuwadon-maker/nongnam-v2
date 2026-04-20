@@ -2,6 +2,20 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="น้องน้ำ">
+<meta name="application-name" content="น้องน้ำ">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="น้องน้ำ">
+  <meta name="theme-color" content="#0f1117">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>น้องน้ำ · ล่ามไทย-เกาหลี</title>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
@@ -169,7 +183,21 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <div class="onboard-skip" onclick="skipOnboard()">ข้ามไปก่อน ตั้งค่าทีหลังได้ค่ะ</div>
 </div>
 
-<div class="line-warn" id="lineWarn">
+<div id="mainContent">
+<div class="line-warn" id="lineWarn" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;">
+  <div style="font-size:64px;margin-bottom:16px">🎙</div>
+  <div style="font-size:22px;font-weight:800;margin-bottom:8px">น้องน้ำ</div>
+  <div style="font-size:14px;opacity:.7;margin-bottom:24px">TH · KR LIVE INTERPRETER</div>
+  <div style="background:rgba(255,107,107,0.15);border:1px solid rgba(255,107,107,0.3);border-radius:16px;padding:20px;margin-bottom:24px;max-width:320px">
+    <div style="font-size:16px;font-weight:700;color:#ff6b6b;margin-bottom:8px">⚠️ ต้องเปิดใน Chrome หรือ Safari</div>
+    <div style="font-size:13px;opacity:.8;line-height:1.6">เบราว์เซอร์ใน LINE ไม่รองรับไมโครโฟนค่ะ กรุณาเปิดลิงก์นี้ใน Chrome หรือ Safari แทนนะคะ</div>
+  </div>
+  <button id="openChromeBtn" style="background:#4ecf8a;color:#000;border:none;border-radius:14px;padding:16px 32px;font-size:16px;font-weight:700;font-family:'Kanit',sans-serif;cursor:pointer;width:100%;max-width:320px;margin-bottom:12px">
+    🟢 เปิดใน Chrome เลยค่ะ
+  </button>
+  <div style="font-size:11px;opacity:.5">nongnam-v2.vercel.app</div>
+</div>
+<div style="display:none">
   <p>⚠️ LINE Browser ใช้ไมโครโฟนไม่ได้ค่ะ</p>
   <div class="line-warn-steps">
     1️⃣ กดค้างที่ลิงก์นี้<br>
@@ -333,10 +361,39 @@ function checkDailyReset() {
 async function initMic() {
   // ตรวจจับ LINE in-app browser
   const ua = navigator.userAgent || '';
-  const isLine = ua.includes('Line/') || ua.includes('KAKAOTALK');
+  const isLine = ua.includes('Line/') || ua.includes('KAKAOTALK') || ua.includes('FBAN') || ua.includes('FBAV');
   if (isLine) {
-    document.getElementById('lineWarn').style.display = 'block';
-    setStatus('idle', '⚠️ กรุณาเปิดใน Chrome หรือ Safari ค่ะ');
+    document.getElementById('lineWarn').style.display = 'flex';
+    document.getElementById('mainContent').style.display = 'none';
+    
+    // สร้างปุ่มเปิดใน Chrome อัตโนมัติ
+    const currentURL = window.location.href;
+    const isAndroid = /android/i.test(ua);
+    const isIOS = /iphone|ipad|ipod/i.test(ua);
+    
+    const btn = document.getElementById('openChromeBtn');
+    if (btn) {
+      if (isAndroid) {
+        btn.onclick = () => {
+          window.location.href = 'intent://' + currentURL.replace(/https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
+        };
+        btn.textContent = '🟢 เปิดใน Chrome เลยค่ะ';
+      } else if (isIOS) {
+        btn.onclick = () => {
+          // iOS copy to clipboard
+          navigator.clipboard.writeText(currentURL).then(() => {
+            btn.textContent = '✅ คัดลอกลิงก์แล้ว! วางใน Chrome ได้เลยค่ะ';
+            btn.style.background = '#4ecf8a';
+          }).catch(() => {
+            btn.textContent = '📋 กด Copy แล้ววางใน Chrome ค่ะ: ' + currentURL;
+          });
+        };
+        btn.textContent = '📋 คัดลอกลิงก์ เพื่อเปิดใน Safari/Chrome';
+      } else {
+        btn.onclick = () => { window.open(currentURL, '_blank'); };
+        btn.textContent = '🌐 เปิดในเบราว์เซอร์';
+      }
+    }
     return;
   }
 
@@ -497,6 +554,17 @@ function detectTurnType(text) {
   return 'statement';
 }
 
+function getRecentHistory(n) {
+  try {
+    const items = JSON.parse(localStorage.getItem('nn_log') || '[]');
+    return items.slice(-n).map(i => ({
+      from: i.fromLang,
+      orig: (i.orig || '').substring(0, 80),
+      trans: (i.trans || '').substring(0, 80)
+    }));
+  } catch(e) { return []; }
+}
+
 async function translate(text, fromLang) {
   setStatus('thinking', '⏳ น้องน้ำกำลังแปล...');
   document.getElementById('liveBox').className = 'live-box';
@@ -514,6 +582,7 @@ async function translate(text, fromLang) {
         text,
         fromLang,
         context: buildContext(),
+        history: getRecentHistory(3),
         prev_turn: fromLang === 'kr' ? detectTurnType(lastThaiText) : 'none',
         last_th: fromLang === 'kr' ? lastThaiText : '',
         user_gender: userGender || '',
@@ -681,7 +750,14 @@ function showNotice(t, type) {
 
 function hideNotice() { document.getElementById('notice').className = 'notice'; }
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;'); }
+// Register PWA Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
 function beep(f,v){try{const ctx=new(AudioContext||webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(v,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);o.start();o.stop(ctx.currentTime+.15)}catch(e){}}
 </script>
-</body>
-</html>
+</div></div></body>
+</html
