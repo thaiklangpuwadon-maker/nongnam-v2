@@ -2,66 +2,163 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { text, fromLang, context, prev_turn, last_th, user_gender, partner_gender } = req.body || {};
-  if (!text || !fromLang) return res.status(400).json({ error: 'Missing params' });
+  const {
+    text,
+    fromLang,
+    context,
+    history,
+    prev_turn,
+    last_th,
+    user_gender,
+    partner_gender,
+  } = req.body || {};
+
+  if (!text || !fromLang) {
+    return res.status(400).json({ error: 'Missing params' });
+  }
 
   const apiKey = process.env.CLAUDE_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Server config error' });
+  if (!apiKey) {
+    return res.status(500).json({ error: 'Server config error' });
+  }
 
-  const cleanedText = String(text)
-    .replace(/\r\n/g, '\n').replace(/\u00A0/g, ' ')
-    .replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  // ─────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────
+  const safeStr = (v, max = 500) =>
+    String(v ?? '')
+      .replace(/\u0000/g, '')
+      .replace(/\r/g, '')
+      .slice(0, max);
 
-  const sourceLang = (fromLang === 'th' || fromLang === 'thai') ? 'Thai' : 'Korean';
-  const targetLang = sourceLang === 'Thai' ? 'Korean' : 'Thai';
-  const unclearReply = targetLang === 'Korean'
-    ? '잘 못 들었습니다. 다시 말씀해 주세요.'
-    : 'ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหมคะ';
-  const failReply = targetLang === 'Korean'
-    ? '번역할 수 없습니다.'
-    : 'ไม่สามารถแปลได้ค่ะ';
+  const safeJson = (v, max = 500) => JSON.stringify(safeStr(v, max));
+
+  const compact = (v) =>
+    String(v ?? '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\u00A0/g, ' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+  const containsKorean = (s) => /[가-힣]/.test(s);
+  const containsThai = (s) => /[ก-๙]/.test(s);
+  const englishOnlyish = (s) => /^[a-zA-Z0-9\s.,!?'"():;/\\\-_[\]{}@#$%^&*+=<>|`~]+$/.test((s || '').trim());
+  const hasApiErrorShape = (s) =>
+    /(error|invalid_request|authentication|overloaded|rate limit|bad request|method not allowed|server error|api)/i.test(
+      String(s || '')
+    );
+
+  const cleanedText = compact(text);
+
+  const lang = String(fromLang || '').toLowerCase();
+  const isThai = ['th', 'thai'].includes(lang);
+  const isKorean = ['kr', 'ko', 'korean'].includes(lang);
+
+  if (!isThai && !isKorean) {
+    return res.status(400).json({ error: 'Unsupported fromLang' });
+  }
+
+  const sourceLang = isThai ? 'Thai' : 'Korean';
+  const targetLang = isThai ? 'Korean' : 'Thai';
+
+  const unclearReply =
+    targetLang === 'Korean'
+      ? '잘 못 들었습니다. 다시 말씀해 주세요.'
+      : 'ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหมคะ';
+
+  const failReply =
+    targetLang === 'Korean'
+      ? '번역할 수 없습니다.'
+      : 'ไม่สามารถแปลได้ค่ะ';
+
+  function parseSelectedSituation(ctx = '') {
+    const c = String(ctx || '');
+
+    if (c.includes('คลินิกศัลยกรรม') || c.includes('ศัลยกรรมและความงาม') || c.includes('ศัลยกรรม')) return 'beauty';
+    if (c.includes('โรงพยาบาล')) return 'hospital';
+    if (c.includes('ที่ทำงาน')) return 'work';
+    if (c.includes('วีซ่า') || c.includes('ราชการ')) return 'visa';
+    if (c.includes('ธุรกรรมธนาคาร') || c.includes('ธนาคาร')) return 'bank';
+    if (c.includes('ภาษี') || c.includes('ประกันสังคม') || c.includes('เรื่องเงิน')) return 'money';
+    if (c.includes('ร้านอาหาร')) return 'food';
+    if (c.includes('ช้อปปิ้ง')) return 'shop';
+    if (c.includes('เดินทาง')) return 'travel';
+    if (c.includes('ที่พัก')) return 'housing';
+    if (c.includes('เหตุฉุกเฉิน') || c.includes('ฉุกเฉิน')) return 'emergency';
+
+    return 'general';
+  }
+
+  function autoDetectSituation(t, fallback = 'general') {
+    const s = String(t || '');
+
+    if (/ศัลยกรรม|เสริมจมูก|ทำตา|โบทอก|ฟิลเลอร์|ดูดไขมัน|ทำนม|จัดฟัน|성형|쌍꺼풀|코 수술|보톡스|필러|지방흡입|가슴 수술/.test(s)) {
+      return 'beauty';
+    }
+    if (/ปวด|หมอ|ยา|โรงพยาบาล|ไข้|เจ็บ|คลินิก|ตรวจเลือด|เอ็กซเรย์|อัลตราซาวด์|의사|병원|약|증상|진료|검사|수술/.test(s)) {
+      return 'hospital';
+    }
+    if (/วีซ่า|กาม่า|บัตรต่างด้าว|ตม|พาสปอร์ต|ต่อวีซ่า|ยื่นวีซ่า|출입국|비자|여권|외국인등록/.test(s)) {
+      return 'visa';
+    }
+    if (/ธนาคาร|เปิดบัญชี|ปิดบัญชี|โอนเงิน|ฝากเงิน|ถอนเงิน|บัญชีโดนล็อค|ลืมรหัส|은행|계좌|송금|입금|출금|통장/.test(s)) {
+      return 'bank';
+    }
+    if (/กุกมิน|เทจิก|퇴직금|국민연금|ประกัน|ภาษี|คืนภาษี|고용보험|건강보험|세금/.test(s)) {
+      return 'money';
+    }
+    if (/เถ้าแก่|ลาออก|เงินเดือน|สัญญา|โรงงาน|โอที|งาน|사장|공장|월급|계약|퇴사|야근|출근|퇴근/.test(s)) {
+      return 'work';
+    }
+    if (/택시|지하철|버스|หลงทาง|รถไฟ|แท็กซี่|รถเมล์|ทางไหน|환승|역|길을 잃/.test(s)) {
+      return 'travel';
+    }
+    if (/ร้านอาหาร|เมนู|สั่งอาหาร|เผ็ด|ไม่เผ็ด|คิดเงิน|식당|주문|메뉴|포장|계산/.test(s)) {
+      return 'food';
+    }
+    if (/ช้อป|ลดหน่อย|ราคาเท่าไหร่|ขอถุง|ใบเสร็จ|얼마예요|깎아|영수증|봉투/.test(s)) {
+      return 'shop';
+    }
+    if (/ค่าเช่า|มัดจำ|เจ้าของบ้าน|ย้ายบ้าน|น้ำไม่ไหล|ไฟดับ|월세|보증금|집주인|이사|난방/.test(s)) {
+      return 'housing';
+    }
+    if (/ช่วยด้วย|เรียกรถพยาบาล|ตำรวจ|ของหาย|โดนโกง|응급|구급차|경찰|사기|잃어버렸/.test(s)) {
+      return 'emergency';
+    }
+
+    return fallback;
+  }
+
+  const selectedSit = parseSelectedSituation(context);
+  const detectedSit = autoDetectSituation(cleanedText, selectedSit);
+  const finalSit = selectedSit !== 'general' ? selectedSit : detectedSit;
 
   const VOCAB_CORE = `
 เถ้าแก่/ซาจัง/ซาจังนิม/นายจ้าง=사장님 | หัวหน้า/พันจัง/บันจัง=반장님
 โรงงาน/คงจัง/กงจัง=공장 | เงินเดือน=월급 | สลิปเงินเดือน=급여명세서
 กินข้าวหรือยัง=밥 먹었어요? | กินข้าวแล้ว=밥 먹었어요
 รอแป๊บ=잠깐만요 | ไม่เข้าใจ=이해 못 했어요 | พูดช้าๆ=천천히 말해 주세요
-พูดอีกที=다시 말해 주세요 | ได้=돼요 | ไม่ได้=안 돼요 | ไม่เป็นไร=괜찮아요`;
+พูดอีกที=다시 말해 주세요 | ได้=돼요 | ไม่ได้=안 돼요 | ไม่เป็นไร=괜찮아요
+`;
 
   const SITUATION_CONTEXT = {
-    hospital: 'Situation: hospital/clinic. The THAI USER is the PATIENT. The Korean speaker is the doctor/nurse. Thai person came to receive medical care, NOT to provide it. Never translate Thai speaker as a medical professional.',
-    work: 'Situation: workplace/factory. Focus on labor and work vocabulary.',
-    visa: 'Situation: immigration office. Focus on visa and legal vocabulary.',
-    bank: 'Situation: bank. Focus on banking and money transfer vocabulary.',
-    food: 'Situation: restaurant. Focus on food ordering vocabulary.',
-    shop: 'Situation: shopping. Focus on retail vocabulary.',
-    travel: 'Situation: travel/directions. Focus on transportation vocabulary.',
-    housing: 'Situation: housing/rental. Focus on accommodation vocabulary.',
-    emergency: 'Situation: emergency. Prioritize urgent help vocabulary.',
-    money: 'Situation: insurance/tax. Focus on financial vocabulary.',
-    beauty: `
-[ศัลยกรรม/ความงาม]
-ศัลยกรรม=성형수술 | ทำตาสองชั้น/ซองกาพุล=쌍꺼풀 수술
-เย็บไม่กรีด=매몰법 | กรีดตา=절개법 | เปิดหัวตา=앞트임 | เปิดหางตา=뒤트임
-เสริมจมูก/โคซูซูล=코 수술 | ซิลิโคน=실리콘 | กระดูกตัวเอง=자가연골
-สันจมูก=콧대 | ปลายจมูก=코끝
-ฟิลเลอร์ปาก=입술 필러 | ยกมุมปาก=입꼬리 수술
-ศัลยกรรมโครงหน้า=윤곽수술 | ลดโหนกแก้ม=광대 축소 | กรามเหลี่ยม=사각턱
-หน้าเรียว=V라인 | ศัลยกรรมคาง=턱 수술
-เสริมหน้าอก/ทำนม=가슴 수술 | ดูดไขมัน=지방흡입
-โบทอก/Botox=보톡스 | ฟิลเลอร์/Filler=필러 | เลเซอร์=레이저 | ยกกระชับ=리프팅
-ผิวขาว=미백 | ลดริ้วรอย=주름 개선
-จัดฟัน=치아교정 | รากฟันเทียม/อิมแพลน=임플란트 | ฟอกสีฟัน=치아미백 | ขูดหินปูน/สเกลลิ่ง=스케일링
-ยาชา=마취 | ดมยาสลบ=전신마취 | ห้องพักฟื้น=회복실 | แอดมิด=입원
-ผลข้างเคียง=부작용 | แผลเป็น=흉터 | แก้จมูก/แก้งาน=재수술
-อยากปรึกษา=상담 받고 싶어요 | ราคาเท่าไหร่=비용이 얼마예요
-ใช้เวลาฟื้นตัวกี่วัน=회복 기간은 얼마나 걸려요`,
-
-    beauty: 'Situation: beauty clinic/plastic surgery. Focus on cosmetic procedure vocabulary.',
-    general: ''
+    hospital: 'Situation: hospital/clinic. The Thai user is usually the patient. The Korean speaker is usually doctor, nurse, or staff unless explicitly stated otherwise.',
+    work: 'Situation: workplace/factory. Focus on labor, boss-worker, schedule, wages, resignation, and contract vocabulary.',
+    visa: 'Situation: immigration office / official paperwork. Focus on visa, legal, document, appointment, extension, and application vocabulary.',
+    bank: 'Situation: bank / remittance / account service. Focus on account opening, remittance, deposits, withdrawals, and banking service vocabulary.',
+    money: 'Situation: money / tax / insurance / pension. Focus on 국민연금, 퇴직금, tax, refund, and insurance vocabulary.',
+    food: 'Situation: restaurant. Focus on ordering food, spice level, takeaway, and payment vocabulary.',
+    shop: 'Situation: shopping / retail. Focus on price, discount, receipt, and bag vocabulary.',
+    travel: 'Situation: transportation / directions. Focus on taxi, subway, bus, getting lost, transfer, and directions.',
+    housing: 'Situation: housing / rental. Focus on deposit, monthly rent, landlord, moving, and maintenance issues.',
+    emergency: 'Situation: emergency. Prioritize urgent help, ambulance, police, danger, theft, injury, and distress vocabulary.',
+    beauty: 'Situation: beauty clinic / plastic surgery / dental cosmetics. Focus on consultation, procedures, recovery, side effects, and cosmetic vocabulary.',
+    general: '',
   };
 
   const VOCAB_BY_SITUATION = {
@@ -73,7 +170,8 @@ export default async function handler(req, res) {
 มาสาย=지각하다 | ขาดงาน=결근하다 | เข้างาน=출근하다 | เลิกงาน=퇴근하다
 เงินเดือนสุทธิ=실수령액 | เงินเดือนก่อนหัก=세전 월급 | หักเงิน=공제
 โดนหักเงิน=돈이 공제됐다 | เงินเดือนค้าง=임금 체불 | นายจ้างไม่จ่ายเงิน=사장이 돈을 안 준다
-โดนโกงเงิน=돈을 사기당했다 | โดนเอาเปรียบ=부당한 대우를 받다`,
+โดนโกงเงิน=돈을 사기당했다 | โดนเอาเปรียบ=부당한 대우를 받다
+`,
     visa: `
 [วีซ่า/ราชการ]
 บัตรต่างด้าว/ใบกาม่า/กาม่า/บัตรกาม่า=외국인등록증 | พาสปอร์ต=여권
@@ -83,7 +181,8 @@ export default async function handler(req, res) {
 หมดวีซ่า=비자 만료 | เกินวีซ่า=체류기간 초과 | แรงงานผิดกฎหมาย=불법체류자
 E-9/อีเก้า/อีนาย=E-9 비자 | E-7-4/อีเจ็ดสี่=E-7-4 비자
 E-7-4R=E-7-4R 비자 | F-2-R/เอฟทูอาร์=F-2-R 비자 | F-6/เอฟหก=F-6 비자
-TOPIK=TOPIK | KIIP=KIIP`,
+TOPIK=TOPIK | KIIP=KIIP
+`,
     money: `
 [เงิน/ภาษี/ประกัน]
 กุ๊กมิน/กุกมิน/กูมิน/เงินกุกมิน=국민연금
@@ -93,7 +192,8 @@ TOPIK=TOPIK | KIIP=KIIP`,
 ประกันอุบัติเหตุ=산재보험 | ประกันการจ้างงาน=고용보험
 เงินประกันเดินทาง=출국만기보험금 | เงินประกันกลับประเทศ=귀국비용보험금
 ภาษี=세금 | ภาษีเงินได้=소득세 | คืนภาษี=세금 환급 | ยื่นภาษีประจำปี=연말정산
-ค่าล่วงเวลา/ค่าโอที=초과근무수당`,
+ค่าล่วงเวลา/ค่าโอที=초과근무수당
+`,
     hospital: `
 [โรงพยาบาล/ร้านขายยา]
 โรงพยาบาล=병원 | คลินิก=의원 | ร้านขายยา=약국 | หมอ=의사 | พยาบาล=간호사
@@ -113,41 +213,48 @@ TOPIK=TOPIK | KIIP=KIIP`,
 อาหารเป็นพิษ=식중독 | ภูมิแพ้=알레르기
 เบาหวาน=당뇨병 | ความดันสูง=고혈압
 ห้องฉุกเฉิน=응급실 | ห้องผ่าตัด=수술실 | เคาน์เตอร์รับบัตร=접수처
-หมดสติ=의식 없음 | หยุดหายใจ=호흡 정지 | โทร 119=119`,
+หมดสติ=의식 없음 | หยุดหายใจ=호흡 정지 | โทร 119=119
+`,
     bank: `
 [ธนาคาร]
 ธนาคาร=은행 | เปิดบัญชี=계좌 개설 | ปิดบัญชี=계좌 해지
 สมุดบัญชี=통장 | บัตรเอทีเอ็ม=체크카드 | บัตรเครดิต=신용카드
 โอนเงิน=송금하다 | โอนเงินกลับไทย=해외송금 | ฝากเงิน=입금하다 | ถอนเงิน=출금하다
 ยอดเงิน/ยอดคงเหลือ=잔액 | ค่าธรรมเนียมโอน=송금 수수료
-บัญชีโดนล็อค=계좌가 막혔다 | ลืมรหัส=비밀번호 잊어버렸다`,
+บัญชีโดนล็อค=계좌가 막혔다 | ลืมรหัส=비밀번호 잊어버렸다
+`,
     food: `
 [ร้านอาหาร]
 ร้านอาหาร/ร้านข้าว=식당 | เมนู=메뉴 | สั่งอาหาร=주문하다
 เอาอันนี้=이걸로 주세요 | ห่อกลับ/เอากลับบ้าน=포장해 주세요
 ขอน้ำ=물 주세요 | ไม่เผ็ด=안 맵게 | เผ็ดน้อย=덜 맵게
-อร่อย=맛있어요 | คิดเงิน=계산해 주세요`,
+อร่อย=맛있어요 | คิดเงิน=계산해 주세요
+`,
     shop: `
 [ช้อปปิ้ง]
 ราคาเท่าไหร่=얼마예요 | แพงไป=너무 비싸요 | ลดหน่อย=좀 깎아 주세요
-ขอถุง=봉투 주세요 | ขอใบเสร็จ=영수증 주세요`,
+ขอถุง=봉투 주세요 | ขอใบเสร็จ=영수증 주세요
+`,
     travel: `
 [เดินทาง]
 รถเมล์/บัส/บาซือ=버스 | รถไฟฟ้า/ซับเว/ซับเวย์/จีฮาชอล=지하철
 แท็กซี่/แทกซี่=택시 | สถานี=역 | เรียกแท็กซี่=택시 부르다
 ไปทางไหน=어디로 가요 | หลงทาง=길을 잃었어요 | จอดตรงนี้=여기서 세워 주세요
 ซ้าย=왼쪽 | ขวา=오른쪽 | ตรงไป=직진 | เลี้ยวซ้าย=좌회전 | เลี้ยวขวา=우회전
-ขึ้นรถ/นั่ง=타다/탑니다 | ลงรถ=내리다 | เปลี่ยนสาย=환승하다`,
+ขึ้นรถ/นั่ง=타다/탑니다 | ลงรถ=내리다 | เปลี่ยนสาย=환승하다
+`,
     housing: `
 [ที่พัก]
 บ้านเช่า/ห้องเช่า=월세방/원룸 | ค่าเช่า=월세 | เงินมัดจำ=보증금
 เจ้าของบ้าน=집주인 | ย้ายบ้าน=이사하다 | ย้ายออก=이사 나가다
-น้ำไม่ไหล=물이 안 나와요 | ไฟดับ=전기가 나갔어요 | ฮีตเตอร์เสีย=난방 고장`,
+น้ำไม่ไหล=물이 안 나와요 | ไฟดับ=전기가 나갔어요 | ฮีตเตอร์เสีย=난방 고장
+`,
     emergency: `
 [ฉุกเฉิน]
 ช่วยด้วย=도와 주세요 | เจ็บมาก=많이 아파요 | เรียกรถพยาบาล=구급차 불러 주세요
 โทรตำรวจ=경찰에 전화하다 | ของหาย=잃어버렸어요 | โดนโกง=사기당했어요
-มีปัญหา=문제가 있다`,
+มีปัญหา=문제가 있다
+`,
     beauty: `
 [ศัลยกรรม/ความงาม]
 ศัลยกรรม=성형수술 | ทำตาสองชั้น/ซองกาพุล=쌍꺼풀 수술
@@ -164,248 +271,271 @@ TOPIK=TOPIK | KIIP=KIIP`,
 ยาชา=마취 | ดมยาสลบ=전신마취 | ห้องพักฟื้น=회복실 | แอดมิด=입원
 ผลข้างเคียง=부작용 | แผลเป็น=흉터 | แก้จมูก/แก้งาน=재수술
 อยากปรึกษา=상담 받고 싶어요 | ราคาเท่าไหร่=비용이 얼마예요
-ใช้เวลาฟื้นตัวกี่วัน=회복 기간은 얼마나 걸려요`,
-
-    beauty: 'Situation: beauty clinic/plastic surgery. Focus on cosmetic procedure vocabulary.',
-    general: ''
+ใช้เวลาฟื้นตัวกี่วัน=회복 기간은 얼마나 걸려요
+`,
+    general: '',
   };
 
-  const sitKey = context && context.includes('โรงพยาบาล') ? 'hospital'
-    : context && context.includes('ทำงาน') ? 'work'
-    : context && context.includes('ราชการ') ? 'visa'
-    : context && context.includes('เงิน') ? 'money'
-    : context && context.includes('ธนาคาร') ? 'bank'
-    : context && context.includes('ร้านอาหาร') ? 'food'
-    : context && context.includes('ช้อปปิ้ง') ? 'shop'
-    : context && context.includes('เดินทาง') ? 'travel'
-    : context && context.includes('ที่พัก') ? 'housing'
-    : context && context.includes('ฉุกเฉิน') ? 'emergency'
-    : context && context.includes('ศัลยกรรม') ? 'beauty'
-    : context && context.includes('ความงาม') ? 'beauty'
-    : 'general';
-
-  const autoDetect = (t) => {
-    if (/ปวด|หมอ|ยา|โรงพยาบาล|ไข้|เจ็บ|คลินิก/.test(t)) return 'hospital';
-    if (/เถ้าแก่|ลาออก|เงินเดือน|สัญญา|โรงงาน|โอที/.test(t)) return 'work';
-    if (/วีซ่า|กาม่า|ตม|พาสปอร์ต|ต่อวีซ่า/.test(t)) return 'visa';
-    if (/ธนาคาร|โอนเงิน|กุกมิน|เทจิก|ประกัน/.test(t)) return 'money';
-    if (/택시|지하철|버스|หลงทาง|รถไฟ/.test(t)) return 'travel';
-    // Korean auto-detect
-    if (/아프|병원|의사|약|증상|진료/.test(t)) return 'hospital';
-    if (/사장|공장|월급|계약|퇴사|야근/.test(t)) return 'work';
-    if (/비자|여권|외국인등록|출입국/.test(t)) return 'visa';
-    if (/은행|송금|계좌|국민연금|퇴직금/.test(t)) return 'money';
-    if (/택시|지하철|버스|환승/.test(t)) return 'travel';
-    if (/ศัลยกรรม|เสริมจมูก|ทำตา|โบทอก|ฟิลเลอร์|ดูดไขมัน|ทำนม|จัดฟัน|성형|쌍꺼풀|코 수술|보톡스/.test(t)) return 'beauty';
-    return sitKey;
+  const SUPPORT_VOCAB = {
+    work: 'ลาออก=퇴사하다 | เงินเดือน=월급 | สัญญาจ้าง=근로계약서 | นายจ้าง=사장님',
+    money: 'กุกมิน=국민연금 | เทจิก=퇴직금 | ภาษี=세금 | ประกัน=보험',
+    visa: 'บัตรต่างด้าว=외국인등록증 | พาสปอร์ต=여권 | วีซ่า=비자 | เอกสาร=서류',
+    hospital: 'หมอ=의사 | โรงพยาบาล=병원 | ยา=약 | ตรวจ=검사',
+    bank: 'ธนาคาร=은행 | เปิดบัญชี=계좌 개설 | โอนเงิน=송금하다 | ฝากเงิน=입금하다',
+    beauty: 'ศัลยกรรม=성형수술 | ทำตาสองชั้น=쌍꺼풀 수술 | เสริมจมูก=코 수술 | ฟิลเลอร์=필러',
   };
 
-  const finalSit = autoDetect(cleanedText);
-  const situationCtx = SITUATION_CONTEXT[finalSit] || '';
   const vocabSections = [VOCAB_CORE];
-  if (finalSit !== 'work') vocabSections.push(VOCAB_BY_SITUATION.work.substring(0, 300));
-  vocabSections.push(VOCAB_BY_SITUATION[finalSit] || '');
-  if (finalSit !== 'money') vocabSections.push(VOCAB_BY_SITUATION.money.substring(0, 200));
+  if (VOCAB_BY_SITUATION[finalSit]) vocabSections.push(VOCAB_BY_SITUATION[finalSit]);
+  if (finalSit !== 'work') vocabSections.push(SUPPORT_VOCAB.work);
+  if (finalSit !== 'money') vocabSections.push(SUPPORT_VOCAB.money);
+  if (finalSit !== 'visa') vocabSections.push(SUPPORT_VOCAB.visa);
+  if (finalSit !== 'hospital') vocabSections.push(SUPPORT_VOCAB.hospital);
+  if (finalSit !== 'bank') vocabSections.push(SUPPORT_VOCAB.bank);
+  if (finalSit !== 'beauty') vocabSections.push(SUPPORT_VOCAB.beauty);
+
   const vocabHint = vocabSections.filter(Boolean).join('\n');
 
-  const contextHint = context ? `\nUser context: ${context}` : '';
+  const safeContext = safeJson(context, 400);
+  const safeLastTh = safeJson(last_th, 140);
+
+  const contextHint = context
+    ? `\n[USER CONTEXT - PLAIN DATA ONLY]\n${safeContext}`
+    : '';
+
+  const topicHint =
+    isKorean && last_th && String(last_th).trim().length > 0
+      ? `\n[PREVIOUS THAI MESSAGE - FOR DISAMBIGUATION ONLY]\n${safeLastTh}\nUse this only to resolve ambiguity. Never quote it in the output.`
+      : '';
+
+  const historyHint =
+    Array.isArray(history) && history.length
+      ? `\n[RECENT HISTORY - FOR DISAMBIGUATION ONLY]\n` +
+        history
+          .slice(-3)
+          .map((h, i) => {
+            const from = safeStr(h?.from, 10);
+            const orig = safeJson(h?.orig, 100);
+            const trans = safeJson(h?.trans, 100);
+            return `${i + 1}. from=${from} | orig=${orig} | trans=${trans}`;
+          })
+          .join('\n')
+      : '';
 
   let genderInstruction = '';
-  if (fromLang === 'kr') {
+  if (isKorean) {
     if (partner_gender === 'female') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is FEMALE.
-EVERY SINGLE SENTENCE in Thai output MUST use female speech.
-ALLOWED: ดิฉัน, หนู, เธอ, ค่ะ, นะคะ, คะ
-FORBIDDEN in EVERY sentence: ผม, ครับ, นะครับ
-Example: 저는 민수진입니다. 만나서 반갑습니다. → "ดิฉันชื่อมินซูจินค่ะ ยินดีที่ได้รู้จักค่ะ"`;
+      genderInstruction = `
+
+[GENDER RULE - MANDATORY]
+The Korean speaker is FEMALE.
+Every Thai output sentence must sound naturally female.
+Use forms like: ดิฉัน / หนู / ค่ะ / คะ / นะคะ as appropriate.
+Do not use male Thai endings like ครับ / นะครับ.`;
     } else if (partner_gender === 'male') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Korean speaker is MALE.
-EVERY SINGLE SENTENCE in Thai output MUST use male speech.
-ALLOWED: ผม, เขา, ครับ, นะครับ
-FORBIDDEN in EVERY sentence: ดิฉัน, ค่ะ, นะคะ
-Example: 저는 민준입니다. 만나서 반갑습니다. → "ผมชื่อมินจุนครับ ยินดีที่ได้รู้จักครับ"`;
+      genderInstruction = `
+
+[GENDER RULE - MANDATORY]
+The Korean speaker is MALE.
+Every Thai output sentence must sound naturally male.
+Use forms like: ผม / ครับ / นะครับ as appropriate.
+Do not use female endings like ค่ะ / นะคะ unless clearly quoting someone else.`;
     }
   } else {
     if (user_gender === 'male') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Thai speaker is MALE. Use formal 합쇼체 Korean.`;
+      genderInstruction = `
+
+[GENDER RULE - MANDATORY]
+The Thai speaker is MALE.
+Translate Thai→Korean in a natural respectful spoken style suitable for a male speaker.`;
     } else if (user_gender === 'female') {
-      genderInstruction = `\n[GENDER RULE - MANDATORY]: The Thai speaker is FEMALE. Use formal 합쇼체 Korean.`;
+      genderInstruction = `
+
+[GENDER RULE - MANDATORY]
+The Thai speaker is FEMALE.
+Translate Thai→Korean in a natural respectful spoken style suitable for a female speaker.`;
     }
   }
 
-  const turnHint = (fromLang === 'kr' && prev_turn && prev_turn !== 'none')
-    ? `\nThe Thai speaker's previous message was a ${prev_turn === 'question' ? 'QUESTION — so the Korean speaker is likely giving an ANSWER (use statement tone)' : 'STATEMENT — so the Korean speaker may be asking a follow-up QUESTION or responding naturally'}.`
-    : '';
+  const turnHint =
+    isKorean && prev_turn && prev_turn !== 'none'
+      ? `\n[PREVIOUS THAI TURN TYPE - WEAK HINT ONLY]\n${safeStr(prev_turn, 20)}`
+      : '';
 
-  const topicHint = (fromLang === 'kr' && last_th && last_th.trim().length > 0)
-    ? `\n[CONTEXT ONLY — DO NOT TRANSLATE OR REFERENCE THIS]:
-The previous Thai message was: "${last_th.trim().substring(0, 60)}"
-Use this ONLY to resolve ambiguous Korean words.
-NEVER include this Thai text in your translation output.`
-    : '';
+  const roleLock =
+    {
+      hospital: 'Role lock: In hospital context, Thai speaker is usually the patient/client unless explicitly stated otherwise.',
+      work: 'Role lock: In workplace context, Thai speaker is often employee/worker unless explicitly stated otherwise.',
+      visa: 'Role lock: In immigration context, Thai speaker is usually the applicant unless explicitly stated otherwise.',
+      bank: 'Role lock: In bank context, Thai speaker is usually the customer unless explicitly stated otherwise.',
+      beauty: 'Role lock: In beauty/plastic surgery context, Thai speaker is usually the client/patient unless explicitly stated otherwise.',
+      general: '',
+    }[finalSit] || '';
 
   async function callAnthropic(system, userContent, maxTokens = 1200) {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: maxTokens, temperature: 0,
-        system, messages: [{ role: 'user', content: userContent }]
-      })
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        temperature: 0,
+        system,
+        messages: [{ role: 'user', content: userContent }],
+      }),
     });
-    if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e?.error?.message || 'API error'); }
+
+    if (!response.ok) {
+      const e = await response.json().catch(() => ({}));
+      throw new Error(e?.error?.message || 'API error');
+    }
+
     const data = await response.json();
-    return (data?.content || []).filter(b => b?.type === 'text').map(b => b.text).join('\n').trim();
+    return (data?.content || [])
+      .filter((b) => b?.type === 'text')
+      .map((b) => b.text)
+      .join('\n')
+      .trim();
   }
 
   const NORMALIZE_SYSTEM = `You are a transcript normalizer for Thai and Korean speech-to-text output.
 Your job: Clean up spoken transcript without changing meaning. Preserve EVERY word, sentence, compliment, and emotion.
-Do not shorten. Do not summarize. Do not omit anything. Only restore punctuation and sentence boundaries.
-Question detection — Thai (ลงท้ายด้วยคำเหล่านี้ = คำถามเสมอ → ใส่ ? ท้ายประโยค):
-ไหม/ไหมครับ/ไหมคะ/มั้ย/มั้ยครับ/มั้ยคะ = ~요?
-หรือเปล่า/หรือเปล่าครับ/หรือเปล่าคะ/ป่าว = ~요?
-หรือไม่/หรือไม่ครับ/หรือไม่คะ = ~습니까?
-เหรอ/หรอ/เหรอครับ/เหรอคะ = ~요?
-ปะ/ปะครับ/ปะคะ = ~ㄹ래요?
-อะ/อ่ะ (ลงท้าย) = ~요?
-WH-questions: อะไร=뭐 ทำไม=왜 ที่ไหน=어디 เมื่อไหร่=언제 กี่โมง=몇 시 เท่าไหร่=얼마 ยังไง=어떻게 ใคร=누구 แบบไหน=어떤
-
-Question detection — Korean (ลงท้ายด้วย = คำถามเสมอ):
-요? / 까요? / 니까? / 죠? / 나요? / 래요? / 어요? / 어때요? / 있어요? / 없어요?
-
-Thai question patterns → Korean:
-ไปไหม = 갈래요? | กินไหม = 먹을래요? | โอเคไหม/ไหวไหม = 괜찮아요?
-ใช่ไหม/ถูกไหม = 맞아요? | จริงไหม = 진짜예요? | เข้าใจไหม = 이해했어요?
-ดีไหม = ~는 게 어때요? | เอาไหม = ~ㄹ래요?
-เป็นไงบ้าง = 어때요? | กินยัง = 밥 먹었어요? | เป็นอะไร = 왜 그래요?
+Do not shorten. Do not summarize. Do not omit anything. Only restore punctuation, spacing, and sentence boundaries.
 
 Add ? when clearly a question. Keep statements as statements.
 Thai and Korean proper names must NEVER be translated - keep them as-is.
+
+Question detection — Thai:
+ไหม/ไหมครับ/ไหมคะ/มั้ย/มั้ยครับ/มั้ยคะ
+หรือเปล่า/หรือเปล่าครับ/หรือเปล่าคะ/ป่าว
+หรือไม่/หรือไม่ครับ/หรือไม่คะ
+เหรอ/หรอ/เหรอครับ/เหรอคะ
+WH-questions: อะไร, ทำไม, ที่ไหน, เมื่อไหร่, กี่โมง, เท่าไหร่, ยังไง, ใคร, แบบไหน
+
+Question detection — Korean:
+요? / 까요? / 니까? / 죠? / 나요? / 래요? / 어요? / 어때요? / 있어요? / 없어요?
 
 CRITICAL - Word spacing fix for Thai speech-to-text:
 Thai speech-to-text often produces words WITHOUT spaces. You MUST add proper spaces.
 Common patterns to fix:
 - "สวัสดีครับคุณหมอ" → "สวัสดีครับ คุณหมอ"
-- "ผมมาตรวจร่างกาย" → "ผมมาตรวจร่างกาย" (keep as-is, already correct)
-- "ครับผม" at word boundary → "ครับ ผม"
-- Particles: ครับ ค่ะ คะ นะ ด้วย แล้ว ก็ จะ ได้ ไม่ → add space after each
-- Titles: คุณหมอ คุณครู คุณพยาบาล นายจ้าง เถ้าแก่ → keep as one unit
+- "ครับผม" → "ครับ ผม" at word boundary
+- particles like ครับ ค่ะ คะ นะ แล้ว ก็ จะ ได้ ไม่ often need spacing
+- titles like คุณหมอ คุณครู คุณพยาบาล นายจ้าง เถ้าแก่ stay as one unit
 - NEVER split: คุณหมอ ร้านขายยา โรงพยาบาล สวัสดี ขอบคุณ
-
-CRITICAL - Role disambiguation:
-- "สวัสดีครับคุณหมอผมมาตรวจ" → speaker is PATIENT visiting doctor, NOT doctor themselves
-- "ผมมาหาหมอ" = "I came to see the doctor" NOT "I am the doctor"
-- "มาตรวจร่างกาย" = "came for a checkup" — the speaker is the PATIENT
-- Context: Thai workers visiting Korean doctors → speaker is ALWAYS the patient unless explicitly stated otherwise
-- If ambiguous, assume speaker is the non-professional (patient/worker/customer)
-
-ROLE EXAMPLES - CRITICAL:
-Thai: "สวัสดีครับคุณหมอ ผมมาตรวจร่างกายประจำปีครับ"
-= Speaker is PATIENT greeting the doctor → Korean: 안녕하세요. 저는 연간 건강검진을 받으러 왔습니다.
-NOT: 저는 의사입니다 (I am a doctor) ← WRONG
-
-Thai: "สวัสดีครับเถ้าแก่ ผมอยากลาออกครับ"
-= Speaker is WORKER talking to boss → Korean: 안녕하세요, 사장님. 저는 퇴사하고 싶습니다.
-
-Thai: "สวัสดีครับพนักงาน ผมอยากเปิดบัญชีครับ"
-= Speaker is CUSTOMER at bank → Korean: 안녕하세요. 계좌를 개설하고 싶습니다.
-
-Visa corrections:
-อีเก้า/อีนาย/อี9 → E-9 | อีเจ็ดสี่/อี7-4 → E-7-4 | อีเจ็ดสี่อา → E-7-4R
-เอฟทูอาร์ → F-2-R | เอฟหก → F-6 | TOPIK=TOPIK | KIIP=KIIP
-
-Housing corrections:
-วอรูม/วอนรูม → 원룸 | ทูรูม → 투룸 | โบชึง/โบจึง → 보증금 | วอลเซ → 월세
-
-Ambiguous Korean — use prev_turn:
-괜찮아요: question→answer (ไม่เป็นไรครับ) | hospital+none→doctor asking (เป็นยังไงบ้าง)
-[ใช้ทุกหมวด - Korean ambiguous expressions]
-กฎ: ดูจาก prev_turn และ gender ของผู้ใช้เสมอ
-- ผู้ใช้ชาย → ลงท้าย ครับ
-- ผู้ใช้หญิง → ลงท้าย ค่ะ/คะ
-- ไม่ระบุ → ใช้ตามธรรมชาติ
-
-네 (เน):
-+ ทุก context → "ครับ / ค่ะ" หรือ "ใช่ครับ / ใช่ค่ะ"
-+ ตอบรับคำสั่ง → "ครับ / ค่ะ" (รับทราบ)
-+ ตอบคำถามใช่ไหม → "ใช่ครับ / ใช่ค่ะ"
-
-그래요:
-+ prev_turn=question → "ใช่ครับ/ค่ะ" (ยืนยัน)
-+ prev_turn=statement → "อย่างนั้นเหรอครับ/ค่ะ" (รับรู้)
-+ 그래요? มี ? → "อย่างนั้นเหรอครับ/ค่ะ" (ถาม)
-
-아 그래요 / 아 그렇군요 / 아 그렇구나 (มี 아 นำหน้า):
-= เพิ่งรู้/ตื่นเต้น → "อ๋อ อย่างนั้นเหรอครับ/ค่ะ" หรือ "อ๋อ เข้าใจแล้วครับ/ค่ะ"
-— 아 = เพิ่งรู้เสมอ ไม่ใช่ยืนยัน ไม่ว่า prev_turn จะเป็นอะไร
-
-그렇군요 / 그렇구나 (ไม่มี 아):
-+ prev_turn=question → "เข้าใจแล้วครับ/ค่ะ"
-+ prev_turn=statement → "อ้าว อย่างนั้นเหรอครับ/ค่ะ"
-
-맞아요 / 맞습니다:
-+ prev_turn=question → "ใช่ครับ/ค่ะ ถูกต้องครับ/ค่ะ"
-+ prev_turn=statement → "ใช่เลยครับ/ค่ะ"
-
-그럼요:
-+ ทุก context → "แน่นอนเลยครับ/ค่ะ" (ยืนยันแน่นอน)
-
-알겠어요 / 알겠습니다:
-+ ทุก context → "เข้าใจแล้วครับ/ค่ะ" หรือ "รับทราบครับ/ค่ะ"
-
-좋아요:
-+ ตอบรับข้อเสนอ → "ได้เลยครับ/ค่ะ"
-+ บอกว่าดี → "ดีครับ/ค่ะ"
-
-괜찮아요 / 괜찮습니다:
-+ prev_turn=question ถามว่าสบายดีไหม → "สบายดีครับ/ค่ะ"
-+ prev_turn=question ถามว่าโอเคไหม → "โอเคครับ/ค่ะ ไม่เป็นไรครับ/ค่ะ"
-+ prev_turn=statement ขอโทษ → "ไม่เป็นไรครับ/ค่ะ"
-+ prev_turn=statement เสนอของ → "ไม่เป็นไรครับ/ค่ะ" (ปฏิเสธสุภาพ)
-+ hospital + prev_turn=none + Korean=doctor → "เป็นยังไงบ้างครับ/ค่ะ" (หมอถาม)
-
-아니요 / 아니에요:
-+ ทั่วไป → "ไม่ครับ/ค่ะ" หรือ "ไม่ใช่ครับ/ค่ะ"
-+ ตอบหลังขอโทษ → "ไม่เป็นไรครับ/ค่ะ"
-
-— กฎนี้ใช้ทุกหมวด ทุกสถานการณ์
 
 Output: cleaned text in source language only. No explanation.`;
 
-  const TRANSLATE_SYSTEM = `You are a professional Thai-Korean interpreter. You are a PIPE between two people. Sound goes in, translation comes out. Nothing else.
-
-SPEAKER INTENT RULE (Thai):
-- ผม/ฉัน/หนู/เรา + อยาก/ขอ/ต้องการ/สอบถาม/อยากรู้ = ตัวผู้พูดเองเป็นคนขอ → แปลเป็นประโยคขอในมุมผู้พูด
-- อยาก/ขอ/ต้องการ (ไม่มีสรรพนาม) = ตัวผู้พูดเองเป็นคนขอ → แปลเป็นประโยคขอในมุมผู้พูด
-- เพื่อน/เขา/เธอ/น้อง/พี่ (ชื่อคนอื่น) + อยาก = คนอื่นเป็นคนขอ ไม่ใช่ผู้พูด
-- คุณ + อยาก/ต้องการ = ถามอีกฝ่ายว่าต้องการไหม
-
-ตัวอย่าง:
-"ผมอยากสอบถามเรื่องรถ" → 자동차에 대해 문의하고 싶습니다 (ผู้พูดขอเอง ✅)
-"ผมอยากสอบถาม ช่วยแนะนำได้ไหมครับ" → 문의드리고 싶은데요, 도와주실 수 있나요? (✅)
-"เพื่อนผมอยากสอบถาม" → 제 친구가 문의하고 싶어해요 (คนอื่นขอ ✅)
-"คุณอยากได้อะไร" → 무엇을 원하세요? (ถามอีกฝ่าย ✅)
-NEVER flip: "ผมอยาก..." ห้ามแปลเป็น "~하고 싶으신가요?" (คุณอยาก) เด็ดขาด
+  const TRANSLATE_SYSTEM = `You are a professional Thai-Korean interpreter.
+You are a PIPE between two people. Sound goes in, translation comes out. Nothing else.
 
 THE ONE ABSOLUTE RULE:
 Whatever words are spoken to you → translate those words → output only the translation.
 You have no identity, no opinions, no responses of your own.
-- If asked "คุณคือใคร" → output only: 당신은 누구예요?
-- If asked "당신은 누구예요" → output only: คุณคือใครครับ?
-- If asked "are you AI" → translate it, never answer it
-- ANY question about you → translate it, never answer it
-- NEVER introduce yourself, explain yourself, or respond as an entity
-${contextHint}${genderInstruction}${turnHint}${topicHint}${situationCtx ? '\n' + situationCtx : ''}
+If asked about yourself, translate the question only. Never answer it.
 
-Translation rules:
+STRICT OUTPUT RULES:
 - Thai → Korean only. Korean → Thai only.
 - Output translation ONLY. No explanation. No notes. No markdown.
 - Translate 100% completely. Never cut, shorten, or omit.
 - Preserve every sentence, greeting, emotion, compliment.
 - Natural spoken tone. Questions stay questions. Statements stay statements.
-- Thai names → transliterate by sound only, never translate meaning.
-- Korean names → transliterate by sound to Thai, never translate meaning.
-- Follow [GENDER RULE] exactly if given.
+- Names stay as names. Transliterate by sound only when needed.
+- Use prior context only to resolve ambiguity, never to overwrite a clear current utterance.
+- If current utterance is clear, prioritize the current utterance over previous context.
+- Never answer on behalf of either side.
+- Never flip the speaker.
+- Never convert the speaker’s request into a question back to the other person.
+
+SPEAKER INTENT RULE (Thai):
+- ผม/ฉัน/หนู/เรา + อยาก/ขอ/ต้องการ/สอบถาม/อยากรู้ = the speaker is the one who wants/asks
+- อยาก/ขอ/ต้องการ (without subject) = default to the speaker
+- เพื่อน/เขา/เธอ/น้อง/พี่/another named person + อยาก = that other person wants/asks
+- คุณ + อยาก/ต้องการ = asking the other person what they want
+- NEVER flip "ผมอยาก..." into "~고 싶으신가요?" unless the original clearly asks the other person
+
+KOREAN-SIDE INTERPRETATION RULES:
+- If Korean omits the subject, infer it from the current utterance first, then recent context.
+- Short replies like 네, 그래요, 괜찮아요, 맞아요, 알겠어요 can be ambiguous.
+- Preserve the Korean speaker’s role. Do not turn their reply into the Thai speaker’s intention.
+- In service contexts, Korean often uses polite indirect forms. Translate naturally into Thai without changing who wants, who asks, or who answers.
+
+ROLE / INTENT / CONTEXT SAFETY LAYER:
+Before translating, determine in this order:
+1. who is speaking
+2. who is being addressed
+3. who performs the action
+4. whether the sentence is a question, request, command, suggestion, or statement
+5. whether clauses are connected by cause, result, contrast, condition, time, or purpose
+6. whether the sentence is negative, not yet, already, ongoing, or future
+
+Speaker defaults:
+- ผม / ฉัน / หนู / เรา = speaker
+- if Thai omits the subject, default to the speaker unless context clearly shows otherwise
+- never change "I want / I want to ask / I want to know" into "Do you want...?"
+
+Actor rule:
+- In Thai structures like “อยากให้ / ขอให้ / บอกให้ + PERSON + VERB”, PERSON is usually the actor of the following verb
+- determine actor from the whole clause, not from one word only
+- do not treat every “ให้” the same way; determine role from the whole sentence
+
+Intent rule:
+- อยาก = desire / wish
+- จะ = future intention / decision
+- ขอ = request / ask permission / ask to do, depending on context
+- ช่วย = polite request
+- ต้องการ = need / want depending on context
+- สนใจ = interest
+- ลอง = suggestion / tentative action
+- หน่อย = softener
+
+Question rule:
+- ไหม / มั้ย / หรือเปล่า / เหรอ / หรอ / หรือไม่ usually mark a question
+- ได้ไหม = permission / possibility question
+- if the original Thai means “I want to ask” or “I want to know”, NEVER translate it as asking the other person “Do you want...?”
+
+Clause connection rule:
+- เพราะ / เพราะว่า = cause
+- เลย / ก็เลย / ดังนั้น = result, but check context
+- แต่ / แต่ว่า = contrast
+- ถ้า = condition
+- แล้ว / ก่อน / หลัง / พอ = time sequence
+- เพื่อ / จะได้ = purpose
+- connected clauses must be translated as connected meaning
+
+Negation and time rule:
+- ไม่ = negation
+- ยังไม่ = not yet
+- ไม่ได้ = did not / cannot / was not allowed, depending on context
+- กำลัง = ongoing
+- แล้ว = already / completed / sequence depending on context
+- จะ = future / intention
+- เคย = past experience
+- เพิ่ง = just
+
+Korean intonation ambiguity rule:
+- If a Korean sentence ends with 요 without ? and can be either a statement or a question, use punctuation first, then current utterance, then recent context.
+- If a short Korean sentence is ambiguous (e.g. 괜찮아요, 맞아요, 그래요, 돼요, 진짜요), and previous turn was a question, it is more likely an answer.
+- If previous turn was a statement, it may be a follow-up question.
+- If still ambiguous, choose the most neutral translation and do not invent extra meaning.
+
+Strict safety:
+- never flip the speaker
+- never convert the speaker’s request into a question back to the other person
+- never add meaning not present in the original
+- preserve politeness level
+
+${contextHint}
+${topicHint}
+${historyHint}
+${turnHint}
+${roleLock ? '\n' + roleLock : ''}
+${SITUATION_CONTEXT[finalSit] ? '\n' + SITUATION_CONTEXT[finalSit] : ''}
+${genderInstruction}
 
 Korean address terms:
 ผู้ใช้ชาย: พี่สาว=누나 | พี่ชาย=형
@@ -413,20 +543,67 @@ Korean address terms:
 ทางการ/โรงพยาบาล/ราชการ: หมอ=선생님 | เจ้าหน้าที่=담당자님 | พนักงาน=직원분 | เถ้าแก่=사장님
 
 사장님 context rule:
-- ถ้าคนเกาหลีเรียกคนไทยว่า 사장님 → แปลว่า "คุณ" หรือ "ท่าน" ไม่ใช่ "เถ้าแก่" ค่ะ
-- เพราะเป็นการให้เกียรติ ไม่ได้หมายความว่าคนไทยเป็นนายจ้าง
-- 사장님 ที่คนไทยพูดถึง → แปลว่า "เถ้าแก่" หรือ "นายจ้าง" ตามปกติค่ะ
+- If Korean calls the Thai person 사장님, often translate as "คุณ" or "ท่าน" when it is honorific, not literal employer
+- If Thai refers to their actual boss/owner, translate accordingly as 사장님 / boss / employer by context
 
 ค่ะ vs คะ (MANDATORY for female speech):
-- ประโยคบอกเล่า → ลงท้าย ค่ะ เสมอ (เช่น ได้ค่ะ ใช่ค่ะ ไม่เป็นไรค่ะ)
-- ประโยคคำถาม → ลงท้าย คะ เสมอ (เช่น ชื่ออะไรคะ ไปไหนมาคะ ต้องการอะไรคะ)
+- statement endings → ค่ะ
+- question endings → คะ
 
-Compliments & emotions: always translate completely. Never refuse or omit.
+Ambiguous Korean short replies — use current utterance first, then weak context hints:
+- 네 = yes / okay /ครับ /ค่ะ depending on context
+- 그래요 = yes / I see / really? depending on punctuation and context
+- 괜찮아요 = I'm okay / it's okay / no problem / okay? depending on context
+- 아니요 = no / not that / no thanks depending on context
+- 맞아요 = yes / that's right
+- 알겠어요 = I understand / got it
+- 좋아요 = sounds good / good
+- 그렇군요 / 아 그렇군요 = I see / oh I see
+
+ROLE EXAMPLES:
+- "ผมอยากสอบถามเรื่องรถ" = the speaker wants to ask
+- "ผมอยากให้หมอตรวจ" = doctor is the actor of “ตรวจ”
+- "ขอถามหน่อย" = polite request to ask, not a command
+- "ปวดท้องเพราะกินเผ็ด" = one connected cause-result meaning
+
 If truly unclear audio: ${unclearReply}
 If explicit sexual harassment or violent threat only: ${failReply}
 
 Vocabulary:
-${vocabHint}`;
+${vocabHint}
+`;
+
+  function validateTranslation(output) {
+    const out = compact(output || '');
+
+    if (!out) return unclearReply;
+
+    // กันข้อความ error ภาษาอังกฤษยาว ๆ ไม่ให้หลุดไป TTS
+    if (out.length > 25 && englishOnlyish(out) && hasApiErrorShape(out)) {
+      return unclearReply;
+    }
+
+    // กัน output อังกฤษล้วนยาว ๆ
+    if (out.length > 40 && englishOnlyish(out)) {
+      return unclearReply;
+    }
+
+    // ฝั่งไทยพูด -> ต้องได้เกาหลีเป็นหลัก
+    if (isThai) {
+      if (out.length > 8 && !containsKorean(out)) {
+        return unclearReply;
+      }
+    }
+
+    // ฝั่งเกาหลีพูด -> ต้องได้ไทยเป็นหลัก
+    if (isKorean) {
+      if (out.length > 8 && !containsThai(out)) {
+        return unclearReply;
+      }
+    }
+
+    return out;
+  }
 
   try {
     const normalizedText = await callAnthropic(
@@ -435,57 +612,82 @@ ${vocabHint}`;
       1000
     );
 
-    const translation = await callAnthropic(TRANSLATE_SYSTEM, normalizedText, 1600);
+    const rawTranslation = await callAnthropic(TRANSLATE_SYSTEM, normalizedText, 1700);
+    const translation = validateTranslation(rawTranslation);
 
     const ip = req.headers['x-forwarded-for'] || 'unknown';
     const cleanIP = String(ip).split(',')[0].trim();
-    console.log('USAGE:', JSON.stringify({
-      time: new Date().toISOString(), fromLang,
-      chars: cleanedText.length, situation: finalSit,
-      ip: cleanIP
-    }));
 
-    // ส่งข้อมูลไป Google Sheets (fire and forget)
+    console.log(
+      'USAGE:',
+      JSON.stringify({
+        time: new Date().toISOString(),
+        fromLang: lang,
+        chars: cleanedText.length,
+        selectedSituation: selectedSit,
+        detectedSituation: detectedSit,
+        finalSituation: finalSit,
+        ip: cleanIP,
+      })
+    );
+
     const sheetURL = process.env.SHEET_WEBHOOK_URL;
     if (sheetURL) {
-      const reportSit = sitKey !== 'general' ? sitKey : finalSit;
-      
-      // Keyword detection — ไม่เก็บเนื้อหา เก็บแค่ keyword ที่พบ
       const KEYWORD_MAP = {
-        'กุกมิน': 'ประกัน/กุกมิน', 'กุ๊กมิน': 'ประกัน/กุกมิน',
-        'เทจิก': 'เทจิก/ออกงาน', 'แทจิก': 'เทจิก/ออกงาน',
-        'ลาออก': 'เทจิก/ออกงาน', 'ไล่ออก': 'เทจิก/ออกงาน',
-        'วีซ่า': 'วีซ่า', 'E-9': 'วีซ่า E-9', 'E-7-4': 'วีซ่า E-7-4',
-        'กาม่า': 'บัตรต่างด้าว', 'พาสปอร์ต': 'พาสปอร์ต',
-        'เงินเดือน': 'เงินเดือน', 'โอที': 'โอที',
-        'โรงพยาบาล': 'โรงพยาบาล', 'หมอ': 'หมอ', 'ยา': 'ยา',
-        'ปวด': 'อาการปวด', 'ไข้': 'ไข้',
-        'โอนเงิน': 'โอนเงิน', 'ธนาคาร': 'ธนาคาร',
-        'ภาษี': 'ภาษี', 'ประกัน': 'ประกัน',
-        'เถ้าแก่': 'นายจ้าง', 'สัญญา': 'สัญญาจ้าง',
-        'หลงทาง': 'เดินทาง', 'แท็กซี่': 'แท็กซี่',
-        'ช่วยด้วย': 'ฉุกเฉิน', 'เรียกรถ': 'ฉุกเฉิน'
+        กุกมิน: 'ประกัน/กุกมิน',
+        กุ๊กมิน: 'ประกัน/กุกมิน',
+        เทจิก: 'เทจิก/ออกงาน',
+        แทจิก: 'เทจิก/ออกงาน',
+        ลาออก: 'เทจิก/ออกงาน',
+        ไล่ออก: 'เทจิก/ออกงาน',
+        วีซ่า: 'วีซ่า',
+        'E-9': 'วีซ่า E-9',
+        'E-7-4': 'วีซ่า E-7-4',
+        กาม่า: 'บัตรต่างด้าว',
+        พาสปอร์ต: 'พาสปอร์ต',
+        เงินเดือน: 'เงินเดือน',
+        โอที: 'โอที',
+        โรงพยาบาล: 'โรงพยาบาล',
+        หมอ: 'หมอ',
+        ยา: 'ยา',
+        ปวด: 'อาการปวด',
+        ไข้: 'ไข้',
+        โอนเงิน: 'โอนเงิน',
+        ธนาคาร: 'ธนาคาร',
+        ภาษี: 'ภาษี',
+        ประกัน: 'ประกัน',
+        เถ้าแก่: 'นายจ้าง',
+        สัญญา: 'สัญญาจ้าง',
+        หลงทาง: 'เดินทาง',
+        แท็กซี่: 'แท็กซี่',
+        ช่วยด้วย: 'ฉุกเฉิน',
+        เรียกรถ: 'ฉุกเฉิน',
+        ศัลยกรรม: 'ศัลยกรรม',
+        เสริมจมูก: 'ศัลยกรรมจมูก',
+        ทำตา: 'ศัลยกรรมตา',
+        โบทอก: 'ความงาม',
+        ฟิลเลอร์: 'ความงาม',
       };
-      
+
       const detectedKeywords = [];
       for (const [kw, label] of Object.entries(KEYWORD_MAP)) {
         if (cleanedText.includes(kw)) detectedKeywords.push(label);
       }
-      
+
       fetch(sheetURL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fromLang,
-          situation: reportSit,
+          fromLang: lang,
+          situation: finalSit,
           chars: cleanedText.length,
           keywords: detectedKeywords.slice(0, 5).join(', '),
           orig: cleanedText.substring(0, 60),
           trans: translation.substring(0, 60),
           userGender: user_gender || '',
           partnerGender: partner_gender || '',
-          ip: cleanIP
-        })
+          ip: cleanIP,
+        }),
       }).catch(() => {});
     }
 
