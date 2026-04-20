@@ -83,11 +83,11 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 .log-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .log-clear{background:none;border:none;font-size:11px;color:#2e3450;cursor:pointer;font-family:'Sarabun',sans-serif}
 .log-clear:hover{color:var(--thai)}
-.log{background:var(--s1);border:1px solid var(--border);border-radius:14px;max-height:280px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.log{background:var(--s1);border:1px solid var(--border);border-radius:14px;max-height:320px;overflow-y:auto;padding:12px 12px 0;display:flex;flex-direction:column;gap:0}
 .log::-webkit-scrollbar{width:3px}
 .log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 .log-empty{text-align:center;color:#2e3450;font-size:13px;padding:24px;line-height:1.7}
-.log-item{display:flex;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px;animation:fadeUp .3s ease}
+.log-item{display:flex;gap:10px;border-bottom:1px solid var(--border);padding:10px 0;animation:fadeUp .3s ease}
 .log-item:last-child{border-bottom:none;padding-bottom:0}
 @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 .log-flag{font-size:18px;flex-shrink:0;margin-top:2px}
@@ -142,6 +142,10 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 </div>
 
 <div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
+<div id="installBanner" style="display:none;background:rgba(245,200,66,0.1);border:1px solid rgba(245,200,66,0.3);border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:10px">
+  <span style="font-size:13px">📲 เพิ่มเป็นแอปบนมือถือ</span>
+  <button id="installBtn" onclick="installPWA()" style="background:var(--gold);color:#000;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;font-family:'Kanit',sans-serif;cursor:pointer">ติดตั้ง</button>
+</div>
 
 <!-- CONTEXT: คู่สนทนา -->
 <div class="ctx-partner" id="ctxPartner">
@@ -333,6 +337,26 @@ function buildContext() {
   return parts.join(' | ');
 }
 
+// PWA Install
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBanner').style.display = 'flex';
+});
+window.addEventListener('appinstalled', () => {
+  document.getElementById('installBanner').style.display = 'none';
+});
+function installPWA() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else {
+    // iOS fallback
+    alert('เพื่อเพิ่มลงหน้าจอ:\niOS: กด Share → Add to Home Screen\nAndroid: กด Menu → Add to Home Screen');
+  }
+}
+
 window.onload = () => {
   loadVoices();
   initMic();
@@ -362,7 +386,6 @@ async function initMic() {
   const isLine = ua.includes('Line/') || ua.includes('KAKAOTALK') || ua.includes('FBAN') || ua.includes('FBAV');
   if (isLine) {
     document.getElementById('lineWarn').style.display = 'flex';
-    document.getElementById('mainContent').style.display = 'none';
     
     // สร้างปุ่มเปิดใน Chrome อัตโนมัติ
     const currentURL = window.location.href;
