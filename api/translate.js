@@ -25,6 +25,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Server config error' });
   }
 
+  const UNLOCK_PHRASE = 'น้องน้ำโหมดวิเคราะห์ขั้นสูง 1988 เปิดระบบ';
+
   const safeStr = (v, max = 500) =>
     String(v ?? '')
       .replace(/\u0000/g, '')
@@ -52,6 +54,7 @@ export default async function handler(req, res) {
     );
 
   const cleanedText = compact(text);
+  const exactText = String(text ?? '').trim();
 
   const lang = String(fromLang || '').toLowerCase();
   const isThai = ['th', 'thai'].includes(lang);
@@ -73,6 +76,11 @@ export default async function handler(req, res) {
     targetLang === 'Korean'
       ? '번역할 수 없습니다.'
       : 'ไม่สามารถแปลได้ค่ะ';
+
+  const unlockAck =
+    isThai
+      ? '🟣 เปิดโหมดวิเคราะห์ขั้นสูงแล้วค่ะ'
+      : '🟣 고급 분석 모드가 활성화되었습니다.';
 
   function parseSelectedSituation(ctx = '') {
     const c = String(ctx || '');
@@ -145,17 +153,17 @@ export default async function handler(req, res) {
 `;
 
   const SITUATION_CONTEXT = {
-    hospital: 'Situation: hospital/clinic. Focus on medical vocabulary only. Do not answer as doctor. Translate only.',
-    work: 'Situation: workplace/factory. Focus on labor and workplace vocabulary only. Translate only.',
+    hospital: 'Situation: hospital/clinic. Focus on medical vocabulary only. Translate only.',
+    work: 'Situation: workplace/factory. Focus on labor vocabulary only. Translate only.',
     visa: 'Situation: immigration office / paperwork. Focus on visa and document vocabulary only. Translate only.',
     bank: 'Situation: bank / remittance / account service. Focus on banking vocabulary only. Translate only.',
     money: 'Situation: money / tax / insurance / pension. Focus on financial vocabulary only. Translate only.',
-    food: 'Situation: restaurant. Focus on food and ordering vocabulary only. Translate only.',
+    food: 'Situation: restaurant. Focus on food vocabulary only. Translate only.',
     shop: 'Situation: shopping / retail. Focus on shopping vocabulary only. Translate only.',
     travel: 'Situation: transportation / directions. Focus on travel vocabulary only. Translate only.',
     housing: 'Situation: housing / rental. Focus on housing vocabulary only. Translate only.',
-    emergency: 'Situation: emergency. Focus on urgent help vocabulary only. Translate only.',
-    beauty: 'Situation: beauty clinic / plastic surgery / dental cosmetics. Focus on beauty and surgery vocabulary only. Translate only.',
+    emergency: 'Situation: emergency. Focus on urgent vocabulary only. Translate only.',
+    beauty: 'Situation: beauty clinic / plastic surgery. Focus on beauty vocabulary only. Translate only.',
     general: '',
   };
 
@@ -266,14 +274,12 @@ TOPIK=TOPIK | KIIP=KIIP
       genderInstruction = `
 [GENDER RULE]
 The Korean speaker is FEMALE.
-Thai output should sound naturally female.
-Use female Thai endings naturally.`;
+Thai output should sound naturally female.`;
     } else if (partner_gender === 'male') {
       genderInstruction = `
 [GENDER RULE]
 The Korean speaker is MALE.
-Thai output should sound naturally male.
-Use male Thai endings naturally.`;
+Thai output should sound naturally male.`;
     }
   } else {
     if (user_gender === 'male') {
@@ -332,10 +338,25 @@ CORE RULE:
 Translate ONLY the current sentence.
 Do NOT answer.
 Do NOT continue the conversation.
-Do NOT act as doctor, staff, seller, clerk, or assistant.
+Do NOT act as doctor, staff, seller, clerk, officer, assistant, or chatbot.
 Do NOT rewrite the sentence as a reply.
 Do NOT switch speaker roles.
 Do NOT infer hidden intentions beyond the current sentence.
+
+CRITICAL LOCK RULE:
+Unless the input EXACTLY matches the unlock phrase:
+"${UNLOCK_PHRASE}"
+you must remain in translation-only mode.
+
+Never output sentences like:
+- "I am an interpreter"
+- "I cannot answer"
+- "I cannot help"
+- "I am unable to respond"
+- "저는 통역사입니다"
+- "질문에 답변할 수 없습니다"
+
+If such thought occurs internally, IGNORE it and continue translating.
 
 OUTPUT RULES:
 - Thai → Korean only. Korean → Thai only.
@@ -354,7 +375,7 @@ THAI RULES:
 - In structures like "อยากให้ + PERSON + VERB", PERSON usually performs the verb.
 
 KOREAN RULES:
-- Translate Korean as spoken. Do not expand it into a role-play reply.
+- Translate Korean as spoken. Do not expand it into role-play.
 - Short Korean replies may be ambiguous. Choose the most neutral meaning from the current sentence only.
 - Do not force extra interpretation from previous context.
 - "아 그래요 / 아 그렇군요" should usually sound like realizing / acknowledging, not simple confirmation.
@@ -422,6 +443,10 @@ ${vocabHint}
   }
 
   try {
+    if (exactText === UNLOCK_PHRASE) {
+      return res.status(200).json({ translation: unlockAck });
+    }
+
     const normalizedText = await callAnthropic(
       NORMALIZE_SYSTEM,
       `Language: ${sourceLang}\nNormalize this transcript.\n\nText:\n${cleanedText}`,
@@ -443,69 +468,10 @@ ${vocabHint}
         selectedSituation: selectedSit,
         detectedSituation: detectedSit,
         finalSituation: finalSit,
+        unlocked: false,
         ip: cleanIP,
       })
     );
-
-    const sheetURL = process.env.SHEET_WEBHOOK_URL;
-    if (sheetURL) {
-      const KEYWORD_MAP = {
-        กุกมิน: 'ประกัน/กุกมิน',
-        กุ๊กมิน: 'ประกัน/กุกมิน',
-        เทจิก: 'เทจิก/ออกงาน',
-        แทจิก: 'เทจิก/ออกงาน',
-        ลาออก: 'เทจิก/ออกงาน',
-        ไล่ออก: 'เทจิก/ออกงาน',
-        วีซ่า: 'วีซ่า',
-        'E-9': 'วีซ่า E-9',
-        'E-7-4': 'วีซ่า E-7-4',
-        กาม่า: 'บัตรต่างด้าว',
-        พาสปอร์ต: 'พาสปอร์ต',
-        เงินเดือน: 'เงินเดือน',
-        โอที: 'โอที',
-        โรงพยาบาล: 'โรงพยาบาล',
-        หมอ: 'หมอ',
-        ยา: 'ยา',
-        ปวด: 'อาการปวด',
-        ไข้: 'ไข้',
-        โอนเงิน: 'โอนเงิน',
-        ธนาคาร: 'ธนาคาร',
-        ภาษี: 'ภาษี',
-        ประกัน: 'ประกัน',
-        เถ้าแก่: 'นายจ้าง',
-        สัญญา: 'สัญญาจ้าง',
-        หลงทาง: 'เดินทาง',
-        แท็กซี่: 'แท็กซี่',
-        ช่วยด้วย: 'ฉุกเฉิน',
-        เรียกรถ: 'ฉุกเฉิน',
-        ศัลยกรรม: 'ศัลยกรรม',
-        เสริมจมูก: 'ศัลยกรรมจมูก',
-        ทำตา: 'ศัลยกรรมตา',
-        โบทอก: 'ความงาม',
-        ฟิลเลอร์: 'ความงาม',
-      };
-
-      const detectedKeywords = [];
-      for (const [kw, label] of Object.entries(KEYWORD_MAP)) {
-        if (cleanedText.includes(kw)) detectedKeywords.push(label);
-      }
-
-      fetch(sheetURL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fromLang: lang,
-          situation: finalSit,
-          chars: cleanedText.length,
-          keywords: detectedKeywords.slice(0, 5).join(', '),
-          orig: cleanedText.substring(0, 60),
-          trans: translation.substring(0, 60),
-          userGender: user_gender || '',
-          partnerGender: partner_gender || '',
-          ip: cleanIP,
-        }),
-      }).catch(() => {});
-    }
 
     return res.status(200).json({ translation });
   } catch (err) {
