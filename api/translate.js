@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     /^[a-zA-Z0-9\s.,!?'"():;/\\\-_[\]{}@#$%^&*+=<>|`~]+$/.test(String(s || '').trim());
 
   const isMetaReply = (s) =>
-    /(저는 통역사입니다|질문에 답변할 수 없습니다|i am an interpreter|i cannot answer|i cannot help|unable to respond)/i.test(
+    /(저는 통역사입니다|질문에 답변할 수 없습니다|질문에 답변해 드릴 수 없습니다|저는 ai입니다|저는 인공지능입니다|i am an interpreter|i cannot answer|i cannot help|unable to respond|i am ai|i am an ai)/i.test(
       String(s || '')
     );
 
@@ -195,7 +195,6 @@ TOPIK=TOPIK | KIIP=KIIP`,
     return sitKey;
   };
 
-  // ใช้หมวดที่ผู้ใช้กดก่อน ถ้าไม่ได้กดค่อย auto-detect
   const finalSit = sitKey !== 'general' ? sitKey : autoDetect(cleanedText);
 
   const situationCtx = SITUATION_CONTEXT[finalSit] || '';
@@ -292,7 +291,7 @@ Thai speech-to-text often produces words WITHOUT spaces. You MUST add proper spa
 Common patterns to fix:
 - "สวัสดีครับคุณหมอ" → "สวัสดีครับ คุณหมอ"
 - "ครับผม" at word boundary → "ครับ ผม"
-- Titles: คุณหมอ คุณครู คุณพยาบาล นายจ้าง เถ้าแก่ → keep as one unit
+- Titles: คุณหมอ คุณครู คุณพยาบাল นายจ้าง เถ้าแก่ → keep as one unit
 - NEVER split: คุณหมอ ร้านขายยา โรงพยาบาล สวัสดี ขอบคุณ
 
 CRITICAL - Role disambiguation:
@@ -340,8 +339,10 @@ You have no identity, no opinions, no responses of your own.
 - NEVER output lines like:
   "저는 통역사입니다"
   "질문에 답변할 수 없습니다"
+  "질문에 답변해 드릴 수 없습니다"
   "I am an interpreter"
   "I cannot answer"
+  "I cannot help"
 
 ${contextHint}${genderInstruction}${turnHint}${topicHint}${situationCtx ? '\n' + situationCtx : ''}
 
@@ -367,6 +368,136 @@ Korean address terms:
 ค่ะ vs คะ (MANDATORY for female speech):
 - ประโยคบอกเล่า → ลงท้าย ค่ะ เสมอ
 - ประโยคคำถาม → ลงท้าย คะ เสมอ
+
+KOREAN REACTION / SURPRISE RULES:
+- "아" at the beginning often signals realization, surprise, recognition, or reaction to newly understood information.
+- Do NOT automatically translate "아" as confirmation.
+- If "아" appears before a reaction phrase, prefer a Thai reaction tone such as:
+  - "อ๋อ..."
+  - "อ้าว..."
+  - "อ้อ..."
+  - "อ๋อ เข้าใจแล้ว..."
+  depending on the sentence.
+
+Examples:
+- "아 그래요" → usually "อ๋อ อย่างนั้นเหรอครับ/ค่ะ" or "อ๋อ ครับ/ค่ะ"
+- "아 그렇군요" → usually "อ๋อ เข้าใจแล้วครับ/ค่ะ" or "อ๋อ อย่างนี้นี่เองครับ/ค่ะ"
+- "아 진짜요?" → usually "อ้าว จริงเหรอครับ/ค่ะ?" or "อ๋อ จริงเหรอครับ/ค่ะ?"
+- "아 네" → usually "อ๋อ ครับ/ค่ะ" not just "ใช่ครับ/ค่ะ"
+
+Important:
+- "아 + reaction phrase" usually means the speaker just realized or acknowledged something.
+- It should NOT be translated as plain agreement unless the whole sentence clearly shows agreement.
+
+Differentiate these carefully:
+
+1. Plain agreement / confirmation
+- 네
+- 맞아요
+- 그렇습니다
+→ can mean "ครับ/ค่ะ", "ใช่ครับ/ค่ะ", "ถูกต้องครับ/ค่ะ"
+
+2. Realization / surprised acknowledgement
+- 아 그래요
+- 아 그렇군요
+- 아 그렇네요
+- 아 네
+→ should sound like realization, not plain agreement
+
+3. Mild surprise question
+- 아 그래요?
+- 아 진짜요?
+- 아 그런가요?
+→ should sound like "อ๋อ/อ้าว ... เหรอครับ/ค่ะ?"
+
+4. Simple listening response without strong surprise
+- 그래요
+- 그렇군요
+- 그렇네요
+→ decide from previous context whether it means:
+   - "อย่างนั้นเหรอครับ/ค่ะ"
+   - "เข้าใจแล้วครับ/ค่ะ"
+   - "อ๋อ ครับ/ค่ะ"
+Do not force "ใช่ครับ/ค่ะ" unless confirmation is clearly intended.
+
+PUNCTUATION / TONE RULES FOR KOREAN REACTIONS:
+- If the Korean reaction has "?" then preserve question tone in Thai.
+- If there is no "?" and the phrase is a reaction, prefer acknowledgement tone rather than a full question.
+- Example:
+  - "아 그래요?" → "อ๋อ อย่างนั้นเหรอครับ/ค่ะ?"
+  - "아 그래요." → "อ๋อ อย่างนั้นเหรอครับ/ค่ะ"
+  - "아 그렇군요." → "อ๋อ เข้าใจแล้วครับ/ค่ะ"
+
+CONNECTOR RULES (คำเชื่อม):
+Do not split connected meaning into separate unrelated sentences.
+
+1. Cause / reason
+- เพราะ / เพราะว่า / เนื่องจาก
+→ preserve reason relationship
+Example:
+ผมปวดท้องเพราะกินเผ็ด
+→ 매운 음식을 먹어서 배가 아파요
+
+2. Result / consequence
+- เลย / ก็เลย / ดังนั้น / เพราะฉะนั้น
+→ preserve result relationship
+Example:
+ผมปวดท้อง เลยไปโรงพยาบาล
+→ 배가 아파서 병원에 갔어요
+
+3. Contrast
+- แต่ / แต่ว่า / อย่างไรก็ตาม / ถึงแม้...แต่...
+→ preserve contrast
+Example:
+อยากไป แต่ไม่มีเวลา
+→ 가고 싶지만 시간이 없어요
+
+4. Condition
+- ถ้า / ถ้าหาก / ถ้า...จะ... / ถ้าไม่...
+→ preserve condition
+Example:
+ถ้าปวดมาก ให้ไปหาหมอ
+→ 많이 아프면 병원에 가세요
+
+5. Time sequence
+- แล้ว / ก่อน / หลัง / หลังจาก / พอ / แล้วก็
+→ preserve order of events
+Example:
+กินข้าวแล้วไปนอน
+→ 밥 먹고 잤어요
+
+6. Purpose
+- เพื่อ / เพื่อที่จะ / จะได้
+→ preserve purpose
+Example:
+ไปโรงพยาบาลเพื่อตรวจร่างกาย
+→ 건강검진을 받기 위해 병원에 갔어요
+
+7. Addition
+- และ / กับ / รวมถึง / ทั้ง...และ...
+→ add information without changing speaker roles
+
+8. Emphasis
+- เอง / เลย / จริงๆ / มากๆ
+→ preserve emphasis without creating new meaning
+
+TIME / NEGATION / STATUS RULES:
+- ไม่ = not
+- ยังไม่ = not yet
+- ไม่ได้ = cannot / did not / was not allowed depending on context
+- กำลัง = ongoing
+- แล้ว = already / completed / sequence depending on context
+- จะ = future / intention
+- เคย = past experience
+- เพิ่ง = just now / recently
+
+Examples:
+- ผมยังไม่ได้กินยา
+→ 저는 아직 약을 먹지 않았습니다
+- ผมกำลังรอผลตรวจ
+→ 저는 검사 결과를 기다리고 있습니다
+- ผมจะไปโรงพยาบาลพรุ่งนี้
+→ 저는 내일 병원에 갈 거예요
 
 Compliments & emotions: always translate completely. Never refuse or omit.
 If truly unclear audio: ${unclearReply}
@@ -399,7 +530,7 @@ ${vocabHint}`;
       1000
     );
 
-    const rawTranslation = await callAnthropic(TRANSLATE_SYSTEM, normalizedText, 1600);
+    const rawTranslation = await callAnthropic(TRANSLATE_SYSTEM, normalizedText, 1800);
     const translation = validateTranslation(rawTranslation);
 
     const ip = req.headers['x-forwarded-for'] || 'unknown';
