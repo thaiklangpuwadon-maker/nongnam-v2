@@ -633,6 +633,27 @@ function getRecentHistory(n) {
 }
 
 async function translate(text, fromLang) {
+  // ตรวจ input ก่อนเลย — ถ้าภาษาไม่ตรงช่องที่กด ไม่ต้องส่งไป API
+  const hasKorean = /[가-힣]/.test(text);
+  const hasThai = /[ก-๙]/.test(text);
+  const koreanCount = (text.match(/[가-힣]/g) || []).length;
+  const thaiCount = (text.match(/[ก-๙]/g) || []).length;
+  
+  // ตรวจเฉพาะกรณีที่ชัดเจนจริงๆ ค่ะ (ไม่มีภาษาที่ถูกต้องเลย)
+  // ถ้ามีปนกัน → ให้แปลไปเลย เพราะอาจเป็นเสียงแวดล้อม
+  if (fromLang === 'th' && hasKorean && !hasThai && koreanCount > 3) {
+    showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
+    setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
+    document.getElementById('liveBox').className = 'live-box';
+    return;
+  }
+  if (fromLang === 'kr' && hasThai && !hasKorean && thaiCount > 3) {
+    showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
+    setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
+    document.getElementById('liveBox').className = 'live-box';
+    return;
+  }
+
   setStatus('thinking', '⏳ น้องน้ำกำลังแปล...');
   document.getElementById('liveBox').className = 'live-box';
   hideNotice();
@@ -666,9 +687,9 @@ async function translate(text, fromLang) {
     if (!res.ok) {
       const msg = data?.error || '';
       if (msg.includes('overload') || res.status === 529) {
-        showNotice('⚠️ ระบบยุ่งอยู่ค่ะ รอแป๊บแล้วลองใหม่นะคะ', 'err');
+        showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
       } else {
-        showNotice('⚠️ เกิดข้อผิดพลาด ลองใหม่อีกครั้งนะคะ', 'err');
+        showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
       }
       setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
       return;
@@ -681,8 +702,7 @@ async function translate(text, fromLang) {
     const expectedThai = fromLang === 'kr' && /[ก-๙]/.test(out);
     
     if (isEnglishOnly && out.length > 30) {
-      // ได้ภาษาอังกฤษยาวๆ มา = น่าจะกดผิดช่อง
-      showNotice('⚠️ กดผิดช่องหรือเปล่าคะ? ลองกดปุ่มอีกฝั่งแทนนะคะ', 'err');
+      showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
       setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
       return;
     }
@@ -695,9 +715,9 @@ async function translate(text, fromLang) {
 
   } catch(err) {
     if (err.name === 'AbortError') {
-      showNotice('⚠️ ใช้เวลานานเกินไปค่ะ ลองใหม่อีกครั้งนะคะ', 'err');
+      showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
     } else {
-      showNotice('⚠️ ไม่สามารถเชื่อมต่อได้ค่ะ ลองใหม่อีกครั้งนะคะ', 'err');
+      showNotice('⚠️ เชื่อมต่อไม่ได้ค่ะ ลองใหม่สักครู่นะคะ', 'err');
     }
     setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
   }
