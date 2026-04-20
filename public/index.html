@@ -175,6 +175,7 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <button class="ctx-btn" id="cs-travel" onclick="setSituation('travel')">🚌 เดินทาง</button>
   <button class="ctx-btn" id="cs-housing" onclick="setSituation('housing')">🏠 ที่พัก</button>
   <button class="ctx-btn" id="cs-emergency" onclick="setSituation('emergency')">🆘 ฉุกเฉิน</button>
+  <button class="ctx-btn" id="cs-beauty" onclick="setSituation('beauty')">💄 ศัลยกรรม</button>
 </div>
 
 <!-- LANDING PAGE -->
@@ -184,6 +185,9 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
   <div class="landing-sub">TH · KR LIVE INTERPRETER</div>
   <div class="landing-desc">ล่าม AI ไทย-เกาหลี<br>สำหรับแรงงานไทยในเกาหลี<br>ใช้งานฟรี ไม่ต้องสมัครสมาชิก</div>
   <button class="landing-btn" onclick="startApp()">🚀 เริ่มใช้งาน</button>
+  <button id="addHomeBtn" onclick="addToHome()" style="width:100%;max-width:320px;background:transparent;border:1px solid var(--border);border-radius:14px;padding:13px;font-size:14px;font-weight:600;font-family:'Kanit',sans-serif;cursor:pointer;color:var(--muted);margin-bottom:8px">
+    📲 เพิ่มลงหน้าจอมือถือ
+  </button>
   <div style="font-size:11px;color:var(--muted);opacity:.5">nongnam-v2.vercel.app</div>
   <div class="landing-warn" id="landingWarn">
     <div class="landing-warn-title">⚠️ กรุณาเปิดใน Chrome หรือ Safari</div>
@@ -298,6 +302,19 @@ function copyLandingURL() {
     prompt('คัดลอก URL นี้แล้วเปิดใน Chrome/Safari ค่ะ:', url);
   });
 }
+function addToHome() {
+  const ua = navigator.userAgent || '';
+  const isIOS = /iphone|ipad|ipod/i.test(ua);
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else if (isIOS) {
+    alert('วิธีเพิ่มลงหน้าจอ iPhone/iPad ค่ะ\n\n1. กดปุ่ม Share (□↑) ด้านล่างค่ะ\n2. เลื่อนลงหา "Add to Home Screen"\n3. กด "Add" ค่ะ\n\nจะได้ไอคอนน้องน้ำบนหน้าจอเลยค่ะ');
+  } else {
+    alert('วิธีเพิ่มลงหน้าจอ Android ค่ะ\n\n1. กดเมนู ⋮ มุมขวาบนค่ะ\n2. เลือก "Add to Home screen"\n3. กด "Add" ค่ะ');
+  }
+}
+
 function startApp() {
   // ตรวจสอบว่าเบราว์เซอร์รองรับไมโครโฟนหรือเปล่า
   const ua = navigator.userAgent || '';
@@ -381,7 +398,7 @@ function setSituation(s) {
     document.getElementById('liveBox').className = 'live-box';
   }
   situation = s;
-  ['general','hospital','work','visa','money','bank','food','shop','travel','housing','emergency'].forEach(id => {
+  ['general','hospital','work','visa','money','bank','food','shop','travel','housing','emergency','beauty'].forEach(id => {
     const el = document.getElementById('cs-' + id);
     if (el) el.className = 'ctx-btn' + (id === s ? ' active' : '');
   });
@@ -403,6 +420,7 @@ function buildContext() {
     travel: 'เดินทาง รถไฟ แท็กซี่',
     housing: 'เรื่องที่พัก บ้านเช่า',
     emergency: 'เหตุฉุกเฉิน ต้องการความช่วยเหลือ',
+    beauty: 'คลินิกศัลยกรรม/ความงาม เน้นศัพท์ศัลยกรรมและความงาม',
     general: ''
   };
   if (sitMap[situation]) parts.push(sitMap[situation]);
@@ -507,7 +525,11 @@ function setupHoldButtons() {
 function startHold(lang) {
   if (!micOK) { document.getElementById('permBox').style.display = 'block'; return; }
   if (isListening) return;
-  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+  // หยุดเสียงทันทีเมื่อกดปุ่ม ไม่ต้องรอให้พูดจบ
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    setStatus('idle', '');
+  }
 
   currentLang = lang;
   isListening = true;
@@ -652,6 +674,18 @@ async function translate(text, fromLang) {
     }
 
     const out = data.translation;
+    // ตรวจว่า output ผิดภาษาไหม เช่น พูดเกาหลีในช่องไทย
+    const isEnglishOnly = /^[a-zA-Z\s.,!?'"()-]+$/.test(out.trim());
+    const expectedKorean = fromLang === 'th' && /[가-힣]/.test(out);
+    const expectedThai = fromLang === 'kr' && /[ก-๙]/.test(out);
+    
+    if (isEnglishOnly && out.length > 30) {
+      // ได้ภาษาอังกฤษยาวๆ มา = น่าจะกดผิดช่อง
+      showNotice('⚠️ กดผิดช่องหรือเปล่าคะ? ลองกดปุ่มอีกฝั่งแทนนะคะ', 'err');
+      setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
+      return;
+    }
+    
     lastTrans = out;
     showTranslation(out, fromLang);
     speakOut(out, fromLang === 'th' ? 'ko-KR' : 'th-TH', fromLang);
@@ -698,6 +732,7 @@ function getVoice(lang) {
 function speakOut(text, lang, fromLang) {
   setStatus('speaking', fromLang === 'th' ? '🔊 กำลังพูดภาษาเกาหลี...' : '🔊 กำลังพูดภาษาไทย...');
   if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+  const ttsTimeout = null;
 
   // แบ่งเฉพาะจุดจบประโยค ไม่แบ่งตาม , เพราะทำให้ชิ้นสั้นเกินจน iOS ไม่ speak
   let parts = text
