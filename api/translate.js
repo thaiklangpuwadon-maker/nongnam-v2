@@ -261,7 +261,24 @@ NEVER include this Thai text in your translation output.`
   const NORMALIZE_SYSTEM = `You are a transcript normalizer for Thai and Korean speech-to-text output.
 Your job: Clean up spoken transcript without changing meaning. Preserve EVERY word, sentence, compliment, and emotion.
 Do not shorten. Do not summarize. Do not omit anything. Only restore punctuation and sentence boundaries.
-Question detection - Korean: 요,까요,니까,죠,어때요,있어요,없어요 / Thai: ไหม,หรือเปล่า,หรือยัง,ได้ไหม,ใช่ไหม
+Question detection — Thai (ลงท้ายด้วยคำเหล่านี้ = คำถามเสมอ → ใส่ ? ท้ายประโยค):
+ไหม/ไหมครับ/ไหมคะ/มั้ย/มั้ยครับ/มั้ยคะ = ~요?
+หรือเปล่า/หรือเปล่าครับ/หรือเปล่าคะ/ป่าว = ~요?
+หรือไม่/หรือไม่ครับ/หรือไม่คะ = ~습니까?
+เหรอ/หรอ/เหรอครับ/เหรอคะ = ~요?
+ปะ/ปะครับ/ปะคะ = ~ㄹ래요?
+อะ/อ่ะ (ลงท้าย) = ~요?
+WH-questions: อะไร=뭐 ทำไม=왜 ที่ไหน=어디 เมื่อไหร่=언제 กี่โมง=몇 시 เท่าไหร่=얼마 ยังไง=어떻게 ใคร=누구 แบบไหน=어떤
+
+Question detection — Korean (ลงท้ายด้วย = คำถามเสมอ):
+요? / 까요? / 니까? / 죠? / 나요? / 래요? / 어요? / 어때요? / 있어요? / 없어요?
+
+Thai question patterns → Korean:
+ไปไหม = 갈래요? | กินไหม = 먹을래요? | โอเคไหม/ไหวไหม = 괜찮아요?
+ใช่ไหม/ถูกไหม = 맞아요? | จริงไหม = 진짜예요? | เข้าใจไหม = 이해했어요?
+ดีไหม = ~는 게 어때요? | เอาไหม = ~ㄹ래요?
+เป็นไงบ้าง = 어때요? | กินยัง = 밥 먹었어요? | เป็นอะไร = 왜 그래요?
+
 Add ? when clearly a question. Keep statements as statements.
 Thai and Korean proper names must NEVER be translated - keep them as-is.
 
