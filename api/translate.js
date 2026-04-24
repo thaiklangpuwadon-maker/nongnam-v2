@@ -356,6 +356,12 @@ Thai: "สวัสดีครับเถ้าแก่ ผมอยากล
 Thai: "สวัสดีครับพนักงาน ผมอยากเปิดบัญชีครับ"
 = Speaker is CUSTOMER at bank → Korean: 안녕하세요. 계좌를 개설하고 싶습니다.
 
+Thai Isaan greetings — NEVER treat as identity questions:
+"สวัสดีครับอ้าย" = greeting พี่ชาย → Korean: 안녕하세요 (NOT 통역사 NOT self-introduction)
+"สวัสดีครับเด้อ" = casual Isaan greeting → Korean: 안녕하세요
+"อ้าย" = พี่ชาย (Isaan) | "อี" = พี่สาว/น้อง (Isaan) | "เด้อ" = นะ/เน้อ (Isaan particle)
+These are greetings/titles — TRANSLATE THEM, never answer as if asked about yourself.
+
 Visa corrections:
 อีเก้า/อีนาย/อี9 → E-9 | อีเจ็ดสี่/อี7-4 → E-7-4 | อีเจ็ดสี่อา → E-7-4R
 เอฟทูอาร์ → F-2-R | เอฟหก → F-6 | TOPIK=TOPIK | KIIP=KIIP
