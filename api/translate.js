@@ -24,6 +24,15 @@ export default async function handler(req, res) {
     ? '번역할 수 없습니다.'
     : 'ไม่สามารถแปลได้ค่ะ';
 
+  const containsThai = (s) => /[ก-๙]/.test(String(s || ''));
+  const containsKorean = (s) => /[가-힣]/.test(String(s || ''));
+  const englishOnlyish = (s) =>
+    /^[a-zA-Z0-9\s.,!?'"():;\/\\\-_\[\]{}@#$%^&*+=<>|~]+$/.test(String(s || '').trim());
+  const isMetaReply = (s) =>
+    /(저는 통역사입니다|질문에 답변할 수 없습니다|저는 ai입니다|i am an interpreter|i cannot answer)/i.test(String(s || ''));
+  const looksLikeApiError = (s) =>
+    /(error|invalid_request|authentication|overloaded|rate limit|bad request|server error|api)/i.test(String(s || ''));
+
   const VOCAB_CORE = `
 เถ้าแก่/ซาจัง/ซาจังนิม/นายจ้าง=사장님 | หัวหน้า/พันจัง/บันจัง=반장님
 โรงงาน/คงจัง/กงจัง=공장 | เงินเดือน=월급 | สลิปเงินเดือน=급여명세서
