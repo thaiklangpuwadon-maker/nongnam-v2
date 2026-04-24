@@ -96,8 +96,6 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 .log-item.kr .log-trans{color:#93c0ff}
 .log-actions{display:flex;gap:8px;align-items:center;margin-top:5px}
 .log-copy{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;color:var(--muted);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s}
-.log-replay{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;color:var(--kr);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s;margin-left:4px}
-.log-replay:hover{border-color:var(--kr);background:rgba(91,156,246,.1)}
 .log-copy:hover{border-color:var(--gold);color:var(--text)}
 .log-time{font-size:10px;color:#2e3450;font-family:monospace}
 
@@ -167,7 +165,6 @@ body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(
 <!-- CONTEXT: สถานการณ์ -->
 <div class="ctx-bar" id="ctxBar">
   <button class="ctx-btn active" id="cs-general" onclick="setSituation('general')">💬 ทั่วไป</button>
-  <button class="ctx-btn" id="cs-isaan" onclick="setSituation('isaan')" style="border-color:rgba(255,165,0,.4);color:#ffa500">🌶️ ภาษาอีสาน ✨</button>
   <button class="ctx-btn" id="cs-hospital" onclick="setSituation('hospital')">🏥 โรงพยาบาล</button>
   <button class="ctx-btn" id="cs-work" onclick="setSituation('work')">🏭 ที่ทำงาน</button>
   <button class="ctx-btn" id="cs-visa" onclick="setSituation('visa')">🏛️ วีซ่า/ราชการ</button>
@@ -402,7 +399,7 @@ function setSituation(s) {
     document.getElementById('liveBox').className = 'live-box';
   }
   situation = s;
-  ['general','hospital','work','visa','money','bank','food','shop','travel','housing','emergency','beauty','isaan'].forEach(id => {
+  ['general','hospital','work','visa','money','bank','food','shop','travel','housing','emergency','beauty'].forEach(id => {
     const el = document.getElementById('cs-' + id);
     if (el) el.className = 'ctx-btn' + (id === s ? ' active' : '');
   });
@@ -425,7 +422,6 @@ function buildContext() {
     housing: 'เรื่องที่พัก บ้านเช่า',
     emergency: 'เหตุฉุกเฉิน ต้องการความช่วยเหลือ',
     beauty: 'คลินิกศัลยกรรม/ความงาม เน้นศัพท์ศัลยกรรมและความงาม',
-    isaan: 'ผู้ใช้พูดภาษาอีสาน ใช้คำอีสานเมื่อแปลเป็นภาษาไทย',
     general: ''
   };
   if (sitMap[situation]) parts.push(sitMap[situation]);
@@ -829,8 +825,7 @@ function addLogItem(orig, trans, fromLang, timeStr) {
   document.querySelector('.log-empty')?.remove();
   const div = document.createElement('div');
   div.className = 'log-item ' + fromLang;
-  const replayLang = fromLang === 'th' ? 'ko-KR' : 'th-TH';
-  div.innerHTML = `<div class="log-flag">${fromLang==='th'?'🇹🇭':'🇰🇷'}</div><div class="log-body"><div class="log-orig">${esc(orig)}</div><div class="log-trans">${esc(trans)}</div><div class="log-actions"><button class="log-copy" onclick="copyText('${esc(trans)}',this)">📋 คัดลอก</button><button class="log-replay" onclick="replayAudio('${esc(trans)}','${replayLang}','${fromLang}')">🔊 ฟังอีกครั้ง</button><span class="log-time">${timeStr}</span></div></div>`;
+  div.innerHTML = `<div class="log-flag">${fromLang==='th'?'🇹🇭':'🇰🇷'}</div><div class="log-body"><div class="log-orig">${esc(orig)}</div><div class="log-trans">${esc(trans)}</div><div class="log-actions"><button class="log-copy" onclick="copyText('${esc(trans)}',this)">📋 คัดลอก</button><span class="log-time">${timeStr}</span></div></div>`;
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
@@ -864,11 +859,6 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
-}
-
-function replayAudio(text, lang, fromLang) {
-  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-  speakOut(text, lang, fromLang);
 }
 
 function beep(f,v){try{const ctx=new(AudioContext||webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(v,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);o.start();o.stop(ctx.currentTime+.15)}catch(e){}}
