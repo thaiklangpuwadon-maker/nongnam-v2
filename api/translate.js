@@ -1,21 +1,25 @@
 // api/translate.js
 // ============================================================
 // Nongnam Thai-Korean Interpreter API
-// Version: Trigger-based Isan / Food / Ceremony optimized
-// Goal:
-// - Translate Thai <-> Korean only
-// - One AI call per translation
-// - Load vocabulary only when triggered
-// - Keep Google Sheet logging backward-compatible
+// Real-user improved version
+// Trigger-based vocabulary:
+// - Isan dialect
+// - Isan food
+// - Isan ceremony/festival
+// - SIM / mobile / telecom
+// - Used car trade / car repair
+// - Hobby / fishing / fishing gear / snooker / leisure
+// - Thai ambiguity: เสีย / ซะ / สิ / lost / damaged
+// - Google Sheet logging
 // ============================================================
 
 export default async function handler(req, res) {
-  // ---------- CORS ----------
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -29,7 +33,14 @@ export default async function handler(req, res) {
       last_th,
       user_gender,
       partner_gender,
-      history
+      history,
+
+      // Optional analytics fields from frontend
+      clientId,
+      sessionId,
+      visitCount,
+      firstSeen,
+      deviceInfo
     } = req.body || {};
 
     if (!text || !fromLang) {
@@ -43,7 +54,6 @@ export default async function handler(req, res) {
 
     const model = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
 
-    // ---------- Clean input ----------
     let cleanedText = String(text)
       .replace(/\r\n/g, '\n')
       .replace(/\u00A0/g, ' ')
@@ -53,6 +63,7 @@ export default async function handler(req, res) {
 
     cleanedText = preNormalizeCommon(cleanedText);
     cleanedText = preNormalizeIsan(cleanedText);
+    cleanedText = preNormalizeHobby(cleanedText);
     cleanedText = addQuestionMarksLight(cleanedText, fromLang);
 
     const sourceLang = isThaiLang(fromLang) ? 'Thai' : 'Korean';
@@ -68,40 +79,39 @@ export default async function handler(req, res) {
         ? '번역할 수 없습니다.'
         : 'ไม่สามารถแปลได้ค่ะ';
 
-    // ---------- Context detection ----------
     const sitKeyFromUI = detectSituationFromUIContext(context);
     const finalSit = autoDetectSituation(cleanedText, sitKeyFromUI);
 
-    const situationCtx = SITUATION_CONTEXT[finalSit] || SITUATION_CONTEXT[sitKeyFromUI] || '';
+    const situationCtx =
+      SITUATION_CONTEXT[finalSit] ||
+      SITUATION_CONTEXT[sitKeyFromUI] ||
+      '';
+
     const genderInstruction = buildGenderInstruction(fromLang, user_gender, partner_gender);
     const turnHint = buildTurnHint(fromLang, prev_turn);
     const topicHint = buildTopicHint(fromLang, last_th);
     const historyHint = buildHistoryHint(history);
 
-    // ---------- Build vocab by trigger ----------
     const vocabSections = [];
 
     vocabSections.push(VOCAB_CORE);
 
-    // Always add compact Isan core when user is in Isan mode or text looks Isan
     if (finalSit === 'isaan' || looksLikeIsan(cleanedText)) {
       vocabSections.push(ISAN_CORE_COMPACT);
+      vocabSections.push(ISAN_AMBIGUITY_RULES);
     }
 
-    // Situation-specific compact vocab
     if (VOCAB_BY_SITUATION[finalSit]) {
       vocabSections.push(VOCAB_BY_SITUATION[finalSit]);
     } else if (VOCAB_BY_SITUATION[sitKeyFromUI]) {
       vocabSections.push(VOCAB_BY_SITUATION[sitKeyFromUI]);
     }
 
-    // Trigger-based extra vocab
     const extraTriggeredVocab = buildExtraVocabByTriggers(cleanedText, finalSit, sitKeyFromUI);
     vocabSections.push(...extraTriggeredVocab);
 
     const vocabHint = vocabSections.filter(Boolean).join('\n\n');
 
-    // ---------- Build system prompt ----------
     const systemPrompt = buildSystemPrompt({
       sourceLang,
       targetLang,
@@ -116,8 +126,7 @@ export default async function handler(req, res) {
       failReply
     });
 
-    // ---------- Call Claude once ----------
-    const translationRaw = await callAnthropic({
+    const aiResult = await callAnthropic({
       apiKey,
       model,
       system: systemPrompt,
@@ -126,20 +135,14 @@ export default async function handler(req, res) {
       temperature: 0
     });
 
-    const translation = sanitizeTranslation(translationRaw.text, unclearReply);
+    const translation = sanitizeTranslation(aiResult.text, unclearReply);
 
-    // ---------- Usage ----------
-    const usage = translationRaw.usage || {};
+    const usage = aiResult.usage || {};
     const inputTokens = Number(usage.input_tokens || usage.inputTokens || 0);
     const outputTokens = Number(usage.output_tokens || usage.outputTokens || 0);
     const totalTokens = inputTokens + outputTokens;
-
-    // Optional estimated cost from env. If not set, leave 0.
-    // Set these in Vercel only if you know your exact model pricing:
-    // COST_PER_1K_INPUT, COST_PER_1K_OUTPUT
     const estimatedCost = estimateCost(inputTokens, outputTokens);
 
-    // ---------- IP ----------
     const ipHeader =
       req.headers['x-forwarded-for'] ||
       req.headers['x-real-ip'] ||
@@ -148,7 +151,6 @@ export default async function handler(req, res) {
 
     const cleanIP = String(ipHeader).split(',')[0].trim();
 
-    // ---------- Log to console ----------
     console.log('USAGE:', JSON.stringify({
       time: new Date().toISOString(),
       fromLang,
@@ -161,14 +163,14 @@ export default async function handler(req, res) {
       ip: cleanIP
     }));
 
-    // ---------- Fire-and-forget Google Sheet logging ----------
     logToSheet({
       fromLang,
       situation: finalSit,
       chars: cleanedText.length,
       keywords: detectKeywords(cleanedText, finalSit).join(', '),
-      orig: cleanedText.substring(0, 120),
-      trans: translation.substring(0, 120),
+      orig: cleanedText.substring(0, 160),
+      trans: translation.substring(0, 160),
+      normalized: cleanedText.substring(0, 160),
       userGender: user_gender || '',
       partnerGender: partner_gender || '',
       ip: cleanIP,
@@ -177,7 +179,12 @@ export default async function handler(req, res) {
       totalTokens,
       model,
       estimatedCost,
-      normalized: cleanedText.substring(0, 120)
+
+      clientId: clientId || '',
+      sessionId: sessionId || '',
+      visitCount: visitCount || '',
+      firstSeen: firstSeen || '',
+      deviceInfo: deviceInfo || ''
     });
 
     return res.status(200).json({
@@ -194,7 +201,6 @@ export default async function handler(req, res) {
         chars: cleanedText.length
       }
     });
-
   } catch (err) {
     console.error('TRANSLATE_ERROR:', err?.message || err);
     return res.status(500).json({ error: 'Server error' });
@@ -202,7 +208,7 @@ export default async function handler(req, res) {
 }
 
 // ============================================================
-// Utility: Language
+// Language helpers
 // ============================================================
 
 function isThaiLang(fromLang) {
@@ -231,6 +237,21 @@ function preNormalizeCommon(text) {
     .replace(/มัยคะ/g, 'ไหมคะ')
     .replace(/หรือปล่าว/g, 'หรือเปล่า')
     .replace(/ป่าว/g, 'หรือเปล่า')
+
+    // Telecom speech variations
+    .replace(/แอลจี/g, 'LG')
+    .replace(/เเอลจี/g, 'LG')
+    .replace(/เคที/g, 'KT')
+    .replace(/เอสเคที/g, 'SKT')
+    .replace(/ยูซิม/g, '유심')
+    .replace(/ยู ซิม/g, '유심')
+
+    // Car speech variations
+    .replace(/ไฟแน้น/g, 'ไฟแนนซ์')
+    .replace(/ไฟแนน/g, 'ไฟแนนซ์')
+    .replace(/เลขไม/g, 'เลขไมล์')
+    .replace(/ใบตรวจสภาพรถ/g, 'ใบตรวจสภาพ')
+    .replace(/ใบเช็คสภาพรถ/g, 'ใบตรวจสภาพ')
     .trim();
 }
 
@@ -241,29 +262,68 @@ function preNormalizeIsan(text) {
     .replace(/สิบ\s*เบ็ด/g, 'ซิดเบ็ด')
     .replace(/ซิส\s*เบ็ด/g, 'ซิดเบ็ด')
     .replace(/สิด\s*เบ็ด/g, 'ซิดเบ็ด')
+    .replace(/สิท\s*เบ็ด/g, 'ซิดเบ็ด')
     .replace(/ซิสเบ็ด/g, 'ซิดเบ็ด')
     .replace(/สิดเบ็ด/g, 'ซิดเบ็ด')
+    .replace(/สิทเบ็ด/g, 'ซิดเบ็ด')
     .replace(/ตก\s*เบ็ด/g, 'ตกเบ็ด')
 
-    // Common speech recognition fixes
+    // Isan time / ceremony
     .replace(/มื้อ นี่/g, 'มื้อนี้')
     .replace(/มื้อ นี้/g, 'มื้อนี้')
     .replace(/มื้อ อื่น/g, 'มื้ออื่น')
     .replace(/มื้อ วาน/g, 'มื้อวาน')
     .replace(/บ้าน งาน/g, 'บ้านงาน')
     .replace(/กิน ดอง/g, 'กินดอง')
+
+    // Isan food
     .replace(/ก้อย เนื้อ/g, 'ก้อยเนื้อ')
+    .replace(/ก้อย กุ้ง/g, 'ก้อยกุ้ง')
     .replace(/ปลา ร้า/g, 'ปลาร้า')
     .replace(/ปลา แดก/g, 'ปลาแดก')
     .replace(/ตำ บัก หุ่ง/g, 'ตำบักหุ่ง')
+    .replace(/ปลาร้า บอง/g, 'ปลาร้าบอง')
+    .replace(/แจ่ว บอง/g, 'แจ่วบอง')
+    .trim();
+}
+
+function preNormalizeHobby(text) {
+  return String(text || '')
+    // Fishing / hobby words often misheard
+    .replace(/คัน เบ็ด/g, 'คันเบ็ด')
+    .replace(/คัน เบ็ดตกปลา/g, 'คันเบ็ดตกปลา')
+    .replace(/รอก ตกปลา/g, 'รอกตกปลา')
+    .replace(/สาย เอ็น/g, 'สายเอ็น')
+    .replace(/ตัว เบ็ด/g, 'ตัวเบ็ด')
+    .replace(/เหยื่อ ปลา/g, 'เหยื่อปลา')
+    .replace(/เหยื่อ ปลอม/g, 'เหยื่อปลอม')
+    .replace(/เหยื่อ สด/g, 'เหยื่อสด')
+    .replace(/ไส้ เดือน/g, 'ไส้เดือน')
+    .replace(/กุ้ง ฝอย/g, 'กุ้งฝอย')
+    .replace(/ส่อน กุ้ง/g, 'ส่อนกุ้ง')
+    .replace(/ช้อน กุ้ง/g, 'ส่อนกุ้ง')
+    .replace(/ซ่อน กุ้ง/g, 'ส่อนกุ้ง')
+    .replace(/บ่อ ตก ปลา/g, 'บ่อตกปลา')
+    .replace(/บ่อ ตกปลา/g, 'บ่อตกปลา')
+    .replace(/ตก ปลา ทะเล/g, 'ตกปลาทะเล')
+    .replace(/ตก ปลา น้ำจืด/g, 'ตกปลาน้ำจืด')
+
+    // Snooker
+    .replace(/แทง สนุ๊ก/g, 'แทงสนุ๊ก')
+    .replace(/แทง สนุ้ก/g, 'แทงสนุ้ก')
+    .replace(/เล่น สนุ๊ก/g, 'เล่นสนุ๊ก')
+    .replace(/เล่น สนุ้ก/g, 'เล่นสนุ้ก')
+    .replace(/โต๊ะ สนุ๊ก/g, 'โต๊ะสนุ๊ก')
+    .replace(/โต๊ะ สนุ้ก/g, 'โต๊ะสนุ้ก')
+    .replace(/ไม้ คิว/g, 'ไม้คิว')
+    .replace(/ลูก สนุ๊ก/g, 'ลูกสนุ๊ก')
+    .replace(/ลูก สนุ้ก/g, 'ลูกสนุ้ก')
     .trim();
 }
 
 function addQuestionMarksLight(text, fromLang) {
   const t = String(text || '').trim();
   if (!t) return t;
-
-  // Do not add if already ends with punctuation
   if (/[?？]$/.test(t)) return t;
 
   if (isThaiLang(fromLang)) {
@@ -272,12 +332,13 @@ function addQuestionMarksLight(text, fromLang) {
 
     if (thaiQuestion.test(t)) return `${t}?`;
 
-    // If one utterance has a statement + question, add final ?
-    if (/(ไหม|มั้ย|หรือเปล่า|ได้ไหม|ได้บ่|อยู่ไส|ไปไส|ชื่อหยัง|ซื่อหยัง|ยามใด๋|เท่าไหร่)(ครับ|ค่ะ|คะ|เด้อ|เนาะ)?/.test(t)) {
+    if (/(ไหม|มั้ย|หรือเปล่า|ได้ไหม|ได้บ่|อยู่ไส|ไปไส|ชื่อหยัง|ซื่อหยัง|ยามใด๋|เท่าไหร่|ใช่ไหม|ถูกไหม)(ครับ|ค่ะ|คะ|เด้อ|เนาะ)?/.test(t)) {
       return `${t}?`;
     }
   } else {
-    const koreanQuestion = /(까요|니까|나요|어요|예요|이에요|있어요|없어요|어때요|뭐예요|누구예요|어디예요|얼마예요)\??$/;
+    const koreanQuestion =
+      /(까요|니까|나요|어요|예요|이에요|있어요|없어요|어때요|뭐예요|누구예요|어디예요|얼마예요)\??$/;
+
     if (koreanQuestion.test(t)) return `${t}?`;
   }
 
@@ -285,7 +346,7 @@ function addQuestionMarksLight(text, fromLang) {
 }
 
 // ============================================================
-// Situation Detection
+// Situation detection
 // ============================================================
 
 function detectSituationFromUIContext(context) {
@@ -310,31 +371,29 @@ function detectSituationFromUIContext(context) {
 function autoDetectSituation(text, fallback = 'general') {
   const t = String(text || '');
 
-  // Emergency first
   if (/ช่วยด้วย|ฉุกเฉิน|รถพยาบาล|ตำรวจ|โดนทำร้าย|ไฟไหม้|หมดสติ|119|112/.test(t)) return 'emergency';
   if (/응급|구급차|경찰|도와|화재|의식/.test(t)) return 'emergency';
 
-  // Isan activity
-  if (/ซิดเบ็ด|ซิสเบ็ด|สิดเบ็ด|สิบเบ็ด|10เบ็ด|ตกเบ็ด|ตกปลา|หาปลา|ใส่เบ็ด/.test(t)) return 'isaan';
+  if (shouldLoadMobileVocab(t)) return 'mobile';
+  if (shouldLoadCarTradeVocab(t)) return 'car';
+  if (shouldLoadHobbyVocab(t)) return 'hobby';
 
-  // Isan ceremony / festival
+  if (/ซิดเบ็ด|ซิสเบ็ด|สิดเบ็ด|สิทเบ็ด|สิบเบ็ด|10เบ็ด|ตกเบ็ด|ตกปลา|หาปลา|ใส่เบ็ด/.test(t)) return 'hobby';
+
   if (/บ้านงาน|กินดอง|งานกินดอง|งานบุญ|บุญบ้าน|บุญข้าวจี่|บุญบั้งไฟ|บุญผะเหวด|กฐิน|ผ้าป่า|เข้าพรรษา|ออกพรรษา|สงกรานต์|ลอยกระทง|บายศรี|สู่ขวัญ|ผูกแขน|งานศพ|เผาศพ|สวดศพ|ใส่ซอง|หมอลำ|ลำซิ่ง/.test(t)) return 'isaan';
 
-  // Isan food
   if (/ก้อย|ลาบ|ต้มแซ่บ|ต้มส้ม|แกงอ่อม|ตำบักหุ่ง|ปลาแดก|ปลาร้า|แจ่วบอง|ปลาจ่อม|กุ้งจ่อม|ส้มหมู|ส้มเนื้อ|ส้มปลา|กุ้งเต้น|ซอยจุ๊|ดีขม/.test(t)) return 'isan_food';
 
-  // Thai domains
   if (/ปวด|หมอ|ยา|โรงพยาบาล|ไข้|เจ็บ|คลินิก|ใบรับรองแพทย์|ตรวจเลือด|เอ็กซเรย์|ผ่าตัด|ท้องเสีย|แพ้ยา/.test(t)) return 'hospital';
-  if (/เถ้าแก่|นายจ้าง|หัวหน้า|ลาออก|เงินเดือน|สัญญา|โรงงาน|โอที|สลิปเงินเดือน|ทำงาน|กะกลางคืน|กะเช้า/.test(t)) return 'work';
+  if (/เถ้าแก่|นายจ้าง|หัวหน้า|ลาออก|เงินเดือน|สัญญา|โรงงาน|โอที|สลิปเงินเดือน|ทำงาน|กะกลางคืน|กะเช้า|ของเสีย|งานเสีย|เครื่องเสีย/.test(t)) return 'work';
   if (/วีซ่า|กาม่า|บัตรต่างด้าว|ตม|พาสปอร์ต|ต่อวีซ่า|สถานทูต|กงสุล|ใบรับรองโสด|หนังสือมอบอำนาจ|ไฮโคเรีย|HiKorea|ทะเบียนบ้าน|สูติบัตร/.test(t)) return 'visa';
   if (/ธนาคาร|เปิดบัญชี|โอนเงิน|รายการเดินบัญชี|statement|ใบรับรองยอดเงิน|บัตรเอทีเอ็ม|สมุดบัญชี/.test(t)) return 'bank';
   if (/กุกมิน|กุ๊กมิน|เทจิก|แทจิก|ภาษี|ประกัน|คืนภาษี|ประกันสุขภาพ/.test(t)) return 'money';
   if (/ร้านอาหาร|เมนู|สั่งอาหาร|ห่อกลับ|กินข้าว|หิว|อยากกิน/.test(t)) return 'food';
   if (/แท็กซี่|รถเมล์|รถไฟ|สถานี|หลงทาง|ไปทางไหน|เดินทาง/.test(t)) return 'travel';
-  if (/ห้องเช่า|บ้านเช่า|ค่าเช่า|มัดจำ|วอลเซ|โบ증|ย้ายบ้าน|น้ำไม่ไหล|ไฟดับ/.test(t)) return 'housing';
+  if (/ห้องเช่า|บ้านเช่า|ค่าเช่า|มัดจำ|วอลเซ|โบจึง|ย้ายบ้าน|น้ำไม่ไหล|ไฟดับ/.test(t)) return 'housing';
   if (/ศัลยกรรม|เสริมจมูก|ทำตา|โบทอก|ฟิลเลอร์|ดูดไขมัน|ทำนม|จัดฟัน|เลเซอร์/.test(t)) return 'beauty';
 
-  // Korean domains
   if (/아프|병원|의사|약|증상|진료|진단서|처방전|수술|검사/.test(t)) return 'hospital';
   if (/사장|공장|월급|계약|퇴사|야근|급여|근무/.test(t)) return 'work';
   if (/비자|여권|외국인등록|출입국|하이코리아|대사관|영사관/.test(t)) return 'visa';
@@ -350,16 +409,17 @@ function autoDetectSituation(text, fallback = 'general') {
 
 function looksLikeIsan(text) {
   const t = String(text || '');
-  return /ข่อย|เจ้า|เฮา|เพิ่น|อ้าย|เอื้อย|บ่|แม่น|หยัง|ไผ|ไส|อยู่ไส|ไปไส|เว้า|เบิ่ง|เฮ็ด|ฟ้าว|พ้อ|เมือ|คัก|ม่วน|แซ่บ|เด้อ|เนาะ|น้อ|ซื่อหยัง|มื้อนี้|มื้ออื่น|มื้อวาน/.test(t);
+
+  return /ข่อย|เจ้า|เฮา|เพิ่น|อ้าย|เอื้อย|บ่|แม่น|หยัง|ไผ|ไส|อยู่ไส|ไปไส|เว้า|เบิ่ง|เฮ็ด|ฟ้าว|พ้อ|เมือ|คัก|ม่วน|แซ่บ|เด้อ|เนาะ|น้อ|ซื่อหยัง|มื้อนี้|มื้ออื่น|มื้อวาน|เกิบ|ข่อยเสีย/.test(t);
 }
 
 // ============================================================
 // Trigger-based vocab controls
 // ============================================================
 
-function shouldLoadIsanActivityVocab(text, situation) {
+function shouldLoadIsanActivityVocab(text) {
   const t = String(text || '');
-  return /ซิดเบ็ด|ซิสเบ็ด|สิดเบ็ด|สิบเบ็ด|10เบ็ด|ตกเบ็ด|ตกปลา|หาปลา|ใส่เบ็ด|เบ็ด|หนอง|คลอง|บ่อปลา|แม่น้ำ/.test(t);
+  return /ซิดเบ็ด|ซิสเบ็ด|สิดเบ็ด|สิทเบ็ด|สิบเบ็ด|10เบ็ด|ตกเบ็ด|ตกปลา|หาปลา|ใส่เบ็ด|เบ็ด|หนอง|คลอง|บ่อปลา|แม่น้ำ/.test(t);
 }
 
 function shouldLoadIsanFoodVocab(text, situation, uiSituation) {
@@ -393,10 +453,38 @@ function shouldLoadIsanCeremonyVocab(text, situation, uiSituation) {
   return ceremonyWords || ((situation === 'isaan' || uiSituation === 'isaan') && isanTimeOrSocial);
 }
 
+function shouldLoadMobileVocab(text) {
+  const t = String(text || '');
+
+  return /ซิม|ซิมการ์ด|ยูซิม|유심|เบอร์|เบอร์โทร|โทรศัพท์|มือถือ|ค่าโทร|ค่าเน็ต|อินเทอร์เน็ต|เน็ตไม่ขึ้น|เน็ตช้า|ไม่มีสัญญาณ|เปิดซิม|เปิดเบอร์|ยกเลิกเบอร์|ยกเลิกซิม|เติมเงิน|ข้อความยืนยัน|รหัสยืนยัน|LG|KT|SKT|แอลจี|เคที|เอสเคที|통신사|휴대폰|전화번호|인증번호|미납|자동이체|명의/.test(t);
+}
+
+function shouldLoadCarTradeVocab(text) {
+  const t = String(text || '');
+
+  return /รถ|รถยนต์|รถมือสอง|ทะเบียน|เลขไมล์|ไมล์แท้|กิโล|โอนรถ|เล่มรถ|ประกันรถ|ประกันเหลือ|ภาษีรถ|ตรวจสภาพ|ใบตรวจสภาพ|อุบัติเหตุ|ชนหนัก|ชนเบา|ทำสี|สีเดิม|น้ำท่วม|จำนำ|ไฟแนนซ์|ผ่อน|ดาวน์|ดอกเบี้ย|ค่างวด|เจ้าของเดิม|ขายดาวน์|เปลี่ยนชื่อ|ค่าธรรมเนียมโอน|ยาง|แบตเตอรี่|เครื่องยนต์|เกียร์|เบรก|ช่วงล่าง|หม้อน้ำ|แอร์รถ|น้ำมันเครื่อง|ซ่อมรถ|อู่|ศูนย์บริการ|카센터|중고차|명의이전|보험|자동차세|사고차|무사고|침수차|주행거리|할부|리스|압류|저당/.test(t);
+}
+
+function shouldLoadHobbyVocab(text) {
+  const t = String(text || '');
+
+  return /งานอดิเรก|เวลาว่าง|พักผ่อน|ไปเที่ยว|เล่นกีฬา|ออกกำลังกาย|เล่นเกม|ดูหนัง|ถ่ายรูป|ร้องเพลง|คาราโอเกะ|노래방|취미|운동|게임|영화|사진|ตกปลา|ซิดเบ็ด|ซิสเบ็ด|สิดเบ็ด|สิทเบ็ด|สิบเบ็ด|10เบ็ด|คันเบ็ด|รอกตกปลา|รอก|สายเอ็น|ตัวเบ็ด|ทุ่น|ตะกั่ว|เหยื่อ|เหยื่อปลา|เหยื่อสด|เหยื่อปลอม|ไส้เดือน|กุ้งฝอย|ส่อนกุ้ง|ช้อนกุ้ง|ซ่อนกุ้ง|เหยื่อหมัก|บ่อตกปลา|ตกปลาทะเล|ตกปลาน้ำจืด|ปลากินเบ็ด|ปลาไม่กินเบ็ด|ปลาหลุด|낚시|낚싯대|릴|낚싯줄|미끼|지렁이|루어|낚시터|แทงสนุ๊ก|แทงสนุ้ก|เล่นสนุ๊ก|เล่นสนุ้ก|สนุ๊กเกอร์|สนุ้กเกอร์|โต๊ะสนุ๊ก|โต๊ะสนุ้ก|ไม้คิว|ลูกสนุ๊ก|ลูกสนุ้ก|ลูกขาว|ลูกแดง|แทงพลาด|แทงแม่น|당구|스누커|큐대|당구공/.test(t);
+}
+
+function shouldLoadThaiSiaAmbiguity(text, situation, uiSituation) {
+  const t = String(text || '');
+
+  return /เสีย|ซะ|สิ|ซิ|ของเสีย|งานเสีย|ทำงานเสีย|เครื่องเสีย|รถเสีย|เกิบเสีย|ข่อยเสีย|เสียเงิน|เสียเวลา|สูญหาย|หาย|พัง|ขาด|แตก|ใช้บ่ได้/.test(t);
+}
+
 function buildExtraVocabByTriggers(cleanedText, finalSit, uiSituation) {
   const extras = [];
 
-  if (shouldLoadIsanActivityVocab(cleanedText, finalSit)) {
+  if (shouldLoadThaiSiaAmbiguity(cleanedText, finalSit, uiSituation)) {
+    extras.push(THAI_SIA_AMBIGUITY_VOCAB);
+  }
+
+  if (shouldLoadIsanActivityVocab(cleanedText)) {
     extras.push(ISAN_ACTIVITY_FIXES);
   }
 
@@ -408,11 +496,23 @@ function buildExtraVocabByTriggers(cleanedText, finalSit, uiSituation) {
     extras.push(ISAN_CEREMONY_FESTIVAL_VOCAB);
   }
 
+  if (shouldLoadMobileVocab(cleanedText)) {
+    extras.push(MOBILE_SIM_VOCAB);
+  }
+
+  if (shouldLoadCarTradeVocab(cleanedText)) {
+    extras.push(CAR_TRADE_VOCAB);
+  }
+
+  if (shouldLoadHobbyVocab(cleanedText)) {
+    extras.push(HOBBY_FISHING_SNOOKER_VOCAB);
+  }
+
   return extras;
 }
 
 // ============================================================
-// Prompt pieces
+// Prompt construction
 // ============================================================
 
 function buildGenderInstruction(fromLang, userGender, partnerGender) {
@@ -557,14 +657,13 @@ THAI QUESTION DETECTION:
 Words such as ไหม, มั้ย, หรือเปล่า, เหรอ, หรอ, อะไร, ใคร, ที่ไหน, อยู่ไส, ไปไส, เท่าไหร่, กี่โมง, เมื่อไหร่, ทำไม, ยังไง, ได้ไหม, ได้บ่, เบาะ, แม่นบ่ usually make the sentence a question.
 
 ISAN CONTEXT RULES:
-- ซิดเบ็ด / ซิสเบ็ด / สิดเบ็ด / สิบเบ็ด / 10เบ็ด means ตกเบ็ด / ตกปลา / 낚시하다. Never treat 10เบ็ด as number ten.
+- ซิดเบ็ด / ซิสเบ็ด / สิดเบ็ด / สิทเบ็ด / สิบเบ็ด / 10เบ็ด means ตกเบ็ด / ตกปลา / 낚시하다. Never treat 10เบ็ด as number ten.
 - มื้อนี้ means วันนี้, not meal.
 - มื้ออื่น means พรุ่งนี้, not another meal.
 - มื้อวาน means เมื่อวาน.
 - กินดอง means wedding feast / wedding ceremony, not eating pickled food.
 - บ้านงาน means a house where a ceremony/event is held, not workplace house.
-- ผูกแขน means blessing wrist-tying ritual, not physically tying someone up.
-- ซองงาน depends on context: wedding = 축의금, funeral = 부의금, temple merit = 기부금/시주금.
+- เกิบ means shoes.
 - If input is Isan slang or rural cultural context, translate meaning by context. Do not translate word-by-word.
 
 REQUEST VS OFFER:
@@ -576,6 +675,12 @@ Do not flip request into offer.
 
 HOSPITAL ROLE:
 If Thai speaker says คุณหมอ / ผมมาหาหมอ / มาตรวจร่างกาย, the Thai speaker is the patient, not the doctor.
+
+HOBBY CONTEXT:
+- เหยื่อ in fishing context means bait, not victim.
+- รอก in fishing context means fishing reel, not waiting.
+- แทงสนุ๊ก / แทงสนุ้ก means playing snooker/billiards, not stabbing.
+- ส่อนกุ้ง means catching small shrimp with a net/basket, not hiding shrimp.
 
 VOCABULARY:
 ${vocabHint}
@@ -628,6 +733,7 @@ async function callAnthropic({ apiKey, model, system, userContent, maxTokens = 1
 
 function chooseMaxTokens(text) {
   const len = String(text || '').length;
+
   if (len <= 80) return 500;
   if (len <= 250) return 900;
   return 1400;
@@ -643,7 +749,6 @@ function sanitizeTranslation(output, unclearReply) {
 
   if (badReply.test(s)) return unclearReply;
 
-  // Remove accidental surrounding quotes only if entire output is quoted
   return s.replace(/^["“”]+|["“”]+$/g, '').trim();
 }
 
@@ -656,11 +761,24 @@ function detectKeywords(text, situation) {
   const found = [];
 
   const keywordMap = {
-    'ซิดเบ็ด': 'ซิดเบ็ด/ตกปลา',
-    'ซิสเบ็ด': 'ซิดเบ็ด/ตกปลา',
-    'สิดเบ็ด': 'ซิดเบ็ด/ตกปลา',
-    '10เบ็ด': 'ซิดเบ็ด/ตกปลา',
-    'ตกปลา': 'ซิดเบ็ด/ตกปลา',
+    'ซิดเบ็ด': 'ตกปลา/ซิดเบ็ด',
+    'ซิสเบ็ด': 'ตกปลา/ซิดเบ็ด',
+    'สิดเบ็ด': 'ตกปลา/ซิดเบ็ด',
+    'สิทเบ็ด': 'ตกปลา/ซิดเบ็ด',
+    '10เบ็ด': 'ตกปลา/ซิดเบ็ด',
+    'ตกปลา': 'ตกปลา',
+    'คันเบ็ด': 'อุปกรณ์ตกปลา',
+    'รอกตกปลา': 'อุปกรณ์ตกปลา',
+    'รอก': 'อุปกรณ์ตกปลา',
+    'สายเอ็น': 'อุปกรณ์ตกปลา',
+    'เหยื่อ': 'เหยื่อตกปลา',
+    'ไส้เดือน': 'เหยื่อตกปลา',
+    'กุ้งฝอย': 'เหยื่อตกปลา',
+    'ส่อนกุ้ง': 'จับกุ้ง/ตกปลา',
+    'แทงสนุ๊ก': 'สนุ๊กเกอร์',
+    'แทงสนุ้ก': 'สนุ๊กเกอร์',
+    'สนุ๊กเกอร์': 'สนุ๊กเกอร์',
+    'งานอดิเรก': 'งานอดิเรก',
 
     'ก้อย': 'อาหารอีสาน',
     'ก้อยเนื้อ': 'อาหารอีสาน',
@@ -685,6 +803,31 @@ function detectKeywords(text, situation) {
     'มื้อนี้': 'คำบอกเวลาอีสาน',
     'มื้ออื่น': 'คำบอกเวลาอีสาน',
     'มื้อวาน': 'คำบอกเวลาอีสาน',
+
+    'เกิบ': 'อีสาน/รองเท้า',
+    'เสีย': 'คำกำกวม/เสีย',
+
+    'ซิม': 'มือถือ/ซิม',
+    'เบอร์': 'มือถือ/เบอร์โทร',
+    'ค่าโทร': 'มือถือ/ค่าโทร',
+    'ยอดค้าง': 'มือถือ/ยอดค้าง',
+    'LG': 'มือถือ/LG',
+    'KT': 'มือถือ/KT',
+    'SKT': 'มือถือ/SKT',
+    'หักเงินอัตโนมัติ': 'มือถือ/หักเงิน',
+
+    'รถมือสอง': 'ซื้อขายรถยนต์',
+    'โอนรถ': 'โอนรถ',
+    'เลขไมล์': 'เลขไมล์',
+    'ไมล์แท้': 'เลขไมล์',
+    'ใบตรวจสภาพ': 'ใบตรวจสภาพรถ',
+    'ประกันรถ': 'ประกันรถ',
+    'ไฟแนนซ์': 'ไฟแนนซ์รถ',
+    'ผ่อน': 'ผ่อนรถ',
+    'ขายดาวน์': 'ขายดาวน์รถ',
+    'ชนหนัก': 'ประวัติอุบัติเหตุ',
+    'น้ำท่วม': 'รถน้ำท่วม',
+    'ซ่อมรถ': 'ซ่อมรถ',
 
     'บัตรกาม่า': 'บัตรต่างด้าว',
     'กาม่า': 'บัตรต่างด้าว',
@@ -726,7 +869,7 @@ function detectKeywords(text, situation) {
     found.unshift(`หมวด:${situation}`);
   }
 
-  return found.slice(0, 8);
+  return found.slice(0, 10);
 }
 
 function logToSheet(payload) {
@@ -749,12 +892,12 @@ function estimateCost(inputTokens, outputTokens) {
   if (!inputPer1k && !outputPer1k) return 0;
 
   const cost = (inputTokens / 1000) * inputPer1k + (outputTokens / 1000) * outputPer1k;
+
   return Number(cost.toFixed(8));
 }
 
 // ============================================================
 // Vocabulary
-// Keep compact core. Extra vocab is trigger-loaded.
 // ============================================================
 
 const VOCAB_CORE = `
@@ -815,6 +958,7 @@ const ISAN_CORE_COMPACT = `
 เมื่อย=เหนื่อย
 ฮ้อน=ร้อน
 หนาว=หนาว
+เกิบ=รองเท้า
 เด้อ/เน้อ/น้อ=คำลงท้าย
 เบาะ=เหรอ/ไหม
 แม่นบ่=ใช่ไหม
@@ -826,10 +970,58 @@ const ISAN_CORE_COMPACT = `
 วาแท้=จริงๆนะ / ว่าจริงๆ
 `;
 
+const ISAN_AMBIGUITY_RULES = `
+[Isan ambiguity rules]
+อ้าย at beginning or end = older brother / friendly male address, not AI.
+เอื้อย = older sister / friendly female address.
+เกิบ = shoes.
+เกิบเสีย = shoes are missing/lost, unless context says broken.
+เกิบข่อยเสีย = my shoes are missing/lost.
+เกิบข่อยขาด = my shoes are torn.
+เกิบพื้นหลุด = shoe sole came off.
+มื้อนี้ = today.
+มื้ออื่น = tomorrow.
+มื้อวาน = yesterday.
+`;
+
+const THAI_SIA_AMBIGUITY_VOCAB = `
+[Thai/Isan ambiguity: เสีย / ซะ / สิ]
+Do NOT automatically replace "เสีย" with "สิ".
+The word "เสีย" has multiple meanings depending on context.
+
+1) Damage / broken / mistake:
+คุณทำงานเสีย=당신이 일을 망쳤어요 / 당신 때문에 작업에 문제가 생겼어요
+คุณทำงานเสียหาย=당신이 작업에 손해를 끼쳤어요
+คุณทำของเสีย=당신이 불량품을 만들었어요
+งานเสีย=작업에 문제가 생겼어요 / 일이 망쳤어요
+เครื่องเสีย=기계가 고장 났어요
+รถเสีย=차가 고장 났어요
+ระบบเสีย=시스템에 문제가 생겼어요
+
+2) Lost / missing / wasted:
+เกิบเสีย=신발이 없어졌어요 / 신발을 잃어버렸어요
+เกิบข่อยเสีย=제 신발이 없어졌어요 / 제 신발을 잃어버렸어요
+กระเป๋าข่อยเสีย=제 가방이 없어졌어요 / 제 가방을 잃어버렸어요
+โทรศัพท์ข่อยเสีย=제 휴대폰이 없어졌어요 / 제 휴대폰을 잃어버렸어요, if context means missing
+เสียเงิน=돈이 들었어요 / 돈을 잃었어요
+เสียเวลา=시간을 낭비했어요
+เสียโอกาส=기회를 잃었어요
+
+3) Command particle:
+Only interpret "เสีย" as "ซะ/สิ" when clear command markers exist:
+รีบ..., ไป..., ทำให้เสร็จ..., กิน..., พูด..., ลอง..., เอา..., รีบทำ...
+คุณรีบทำงานเสียสิ=빨리 일하세요
+รีบทำงานซะสิ=빨리 일하세요
+ไปทำงานเสีย=일하러 가세요 / 일하세요
+ทำให้เสร็จเสีย=끝내세요
+
+If context is workplace and sentence is only "คุณทำงานเสีย", interpret as damage/mistake, NOT command.
+`;
+
 const SITUATION_CONTEXT = {
   general: '',
   hospital: 'Hospital/clinic. Thai user is usually the patient. Korean speaker may be doctor/nurse.',
-  work: 'Workplace/factory. Focus on labor, boss, salary, overtime, resignation, contract.',
+  work: 'Workplace/factory. Focus on labor, boss, salary, overtime, resignation, contract, defective work, broken machine.',
   visa: 'Immigration/government/embassy. Focus on visa, alien registration card, documents, appointments.',
   bank: 'Bank. Focus on account, bank statement, transfer, balance certificate.',
   money: 'Money/insurance/tax. Focus on pension, severance pay, tax refund, insurance.',
@@ -840,7 +1032,10 @@ const SITUATION_CONTEXT = {
   emergency: 'Emergency. Prioritize urgent help.',
   beauty: 'Beauty clinic/plastic surgery.',
   isaan: 'Isan dialect mode. Translate Isan meaning by context.',
-  isan_food: 'Thai-Isan food context. Translate food names by meaning, not word-by-word.'
+  isan_food: 'Thai-Isan food context. Translate food names by meaning, not word-by-word.',
+  mobile: 'Mobile phone / SIM card / telecom / phone bill / authentication code.',
+  car: 'Used car buying/selling, car transfer, insurance, repair, vehicle inspection, financing.',
+  hobby: 'Hobby/leisure context. Focus on fishing, fishing gear, bait, snooker, sports, karaoke, games, free-time activities.'
 };
 
 const VOCAB_BY_SITUATION = {
@@ -896,6 +1091,10 @@ CT=CT
 ใบรับรองการทำงาน=재직증명서
 ใบหักภาษี=원천징수영수증
 เงินเดือนค้าง=임금 체불
+ของเสีย=불량품
+งานเสีย=작업에 문제가 생겼어요
+เครื่องเสีย=기계가 고장 났어요
+คุณทำงานเสีย=당신이 일을 망쳤어요 / 당신 때문에 작업에 문제가 생겼어요
 `,
 
   visa: `
@@ -1069,6 +1268,16 @@ statement=거래내역서
 ส้มตำ/ตำบักหุ่ง=쏨땀 / 파파야 샐러드
 ปลาร้า/ปลาแดก=태국식 발효 생선 소스
 ส้มหมู/ส้มเนื้อ/ส้มปลา=태국식 발효 고기/생선
+`,
+
+  hobby: `
+[Hobby Minimal]
+งานอดิเรก=취미
+ตกปลา=낚시하다
+ซิดเบ็ด=낚시하다
+คันเบ็ด=낚싯대
+เหยื่อปลา=낚시 미끼
+แทงสนุ๊ก=당구 치다 / 스누커 치다
 `
 };
 
@@ -1077,6 +1286,7 @@ const ISAN_ACTIVITY_FIXES = `
 ซิดเบ็ด=낚시하다 / ตกเบ็ด / ตกปลา
 ซิสเบ็ด=ซิดเบ็ด / 낚시하다
 สิดเบ็ด=ซิดเบ็ด / 낚시하다
+สิทเบ็ด=ซิดเบ็ด / 낚시하다
 สิบเบ็ด=ซิดเบ็ด ไม่ใช่เลข 10
 10เบ็ด=ซิดเบ็ด ไม่ใช่เลข 10
 ซิดเบ็ดอยู่ไส=어디서 낚시하고 있어요?
@@ -1090,6 +1300,133 @@ const ISAN_ACTIVITY_FIXES = `
 หนองน้ำ=연못
 คลอง=수로
 แม่น้ำ=강
+`;
+
+const HOBBY_FISHING_SNOOKER_VOCAB = `
+[งานอดิเรก / Hobby & Leisure]
+งานอดิเรก=취미
+เวลาว่าง=여가 시간 / 자유 시간
+พักผ่อน=쉬다 / 휴식하다
+ไปเที่ยว=놀러 가다
+เล่นกีฬา=운동하다 / 스포츠를 하다
+ออกกำลังกาย=운동하다
+เล่นเกม=게임하다
+ร้องเพลง=노래하다
+คาราโอเกะ=노래방
+ดูหนัง=영화 보다
+ถ่ายรูป=사진 찍다
+ขับรถเล่น=드라이브하다
+เดินเล่น=산책하다
+ปั่นจักรยาน=자전거를 타다
+วิ่งออกกำลังกาย=조깅하다
+ฟิตเนส=헬스장 / 피트니스
+ฟุตบอล=축구
+แบดมินตัน=배드민턴
+วอลเลย์บอล=배구
+บาสเกตบอล=농구
+ว่ายน้ำ=수영
+ปีนเขา=등산
+ตั้งแคมป์=캠핑하다
+
+[ตกปลา / Fishing]
+ตกปลา=낚시하다
+ซิดเบ็ด=낚시하다 / ตกเบ็ด / ตกปลา
+ซิสเบ็ด=ซิดเบ็ด / 낚시하다
+สิดเบ็ด=ซิดเบ็ด / 낚시하다
+สิทเบ็ด=ซิดเบ็ด / 낚시하다
+ไปซิดเบ็ด=낚시하러 가다
+ไปตกปลา=낚시하러 가다
+คันเบ็ด=낚싯대
+คันเบ็ดตกปลา=낚싯대
+รอกตกปลา / รอก=낚시 릴 / 릴
+สายเอ็น=낚싯줄
+สายหน้า=목줄
+เบ็ด / ตัวเบ็ด=낚시바늘
+ทุ่น=찌
+ตะกั่วถ่วง=봉돌
+ตะกร้อ=밑밥통 / 미끼통 ตามบริบท
+สวิง=뜰채
+กระชังปลา=살림망
+กล่องใส่อุปกรณ์=태클박스
+เหยื่อปลา=미끼
+เหยื่อสด=생미끼
+เหยื่อปลอม=루어 / 가짜 미끼
+เหยื่อหมัก=발효 미끼
+เหยื่อปั้น=떡밥
+เหยื่อขนมปัง=빵 미끼
+ไส้เดือน=지렁이
+หนอน=구더기 / 애벌레
+กุ้งฝอย=작은 새우
+กุ้งเป็น=살아있는 새우
+ส่อนกุ้ง=뜰채로 작은 새우를 잡다
+ช้อนกุ้ง=뜰채로 작은 새우를 건지다
+กุ้งตาย=죽은 새우
+อาหารปลา=물고기 먹이
+บ่อตกปลา=낚시터
+บ่อตกกุ้ง=새우 낚시터
+ตกปลาทะเล=바다낚시
+ตกปลาน้ำจืด=민물낚시
+ตกปลาตามคลอง=수로에서 낚시하다
+ตกปลาตามแม่น้ำ=강에서 낚시하다
+ตกปลาตามบ่อ=낚시터에서 낚시하다
+ปลาไม่กินเบ็ด=물고기가 미끼를 안 물어요
+ปลากินเบ็ดแล้ว=물고기가 미끼를 물었어요
+ปลาติดเบ็ดแล้ว=물고기가 걸렸어요
+ดึงเบ็ด=낚싯대를 당기다
+วัดเบ็ด=챔질하다
+ปลาหลุด=물고기를 놓쳤어요
+สายขาด=낚싯줄이 끊어졌어요
+เบ็ดเกี่ยวมือ=낚시바늘이 손에 걸렸어요
+ได้ปลากี่ตัว=물고기 몇 마리 잡았어요?
+วันนี้ปลาไม่กินเบ็ดเลย=오늘은 물고기가 미끼를 전혀 안 물어요
+วันนี้ได้ปลาหลายตัว=오늘 물고기를 많이 잡았어요
+ปลาตัวใหญ่=큰 물고기
+ปลาตัวเล็ก=작은 물고기
+ปลาดุก=메기
+ปลานิล=틸라피아
+ปลาช่อน=가물치
+ปลาคาร์พ=잉어
+ปลาไหล=장어
+ปลาหมึก=오징어
+กุ้ง=새우
+หอย=조개
+ปู=게
+
+[สนุ๊กเกอร์ / Billiards / Snooker]
+แทงสนุ๊ก=당구 치다 / 스누커 치다
+แทงสนุ้ก=당구 치다 / 스누커 치다
+เล่นสนุ๊กเกอร์=스누커를 치다 / 당구를 치다
+เล่นสนุ้กเกอร์=스누커를 치다 / 당구를 치다
+โต๊ะสนุ๊ก=당구대 / 스누커 테이블
+โต๊ะสนุ้ก=당구대 / 스누커 테이블
+ไม้คิว=큐대
+หัวคิว=큐 팁
+ลูกสนุ๊ก=당구공
+ลูกสนุ้ก=당구공
+ลูกขาว=흰 공
+ลูกแดง=빨간 공
+ลูกสี=색깔 공
+ลงหลุม=포켓에 넣다
+แทงพลาด=샷을 실수하다
+แทงแม่น=샷이 정확하다
+แทงเบาๆ=살살 치다
+แทงแรงๆ=세게 치다
+จัดลูก=공을 세팅하다
+เล่นกันไหม=같이 칠래요?
+ชั่วโมงละเท่าไหร่=한 시간에 얼마예요?
+แพ้ชนะ=승패
+ใครแพ้จ่าย=지는 사람이 계산해요
+เล่นขำๆ=그냥 재미로 치는 거예요
+
+[กฎกันแปลผิดงานอดิเรก]
+ซิดเบ็ด / ซิสเบ็ด / สิดเบ็ด / สิทเบ็ด / สิบเบ็ด / 10เบ็ด = 낚시하다, not number ten.
+เหยื่อ in fishing context means bait, not victim.
+รอก in fishing context means fishing reel, not waiting.
+ส่อนกุ้ง means catching small shrimp with a net/basket, not hiding shrimp.
+ช้อนกุ้ง in rural Thai context means scooping/catching small shrimp with a net.
+แทงสนุ๊ก / แทงสนุ้ก means play snooker/billiards, not stab.
+ไม้คิว means cue stick, not queue wood.
+ลูกขาว / ลูกแดง in snooker context are billiard balls.
 `;
 
 const ISAN_FOOD_VOCAB = `
@@ -1259,7 +1596,7 @@ const ISAN_CEREMONY_FESTIVAL_VOCAB = `
 งานวัด=절 축제 / 사찰 행사
 ตลาดนัดงานวัด=축제 야시장
 
-[คำบอกเวลาอีสาน — สำคัญมาก ห้ามแปลเป็นมื้ออาหาร]
+[คำบอกเวลาอีสาน]
 มื้อนี้=วันนี้=오늘
 มื้ออื่น=พรุ่งนี้=내일
 มื้อวาน=เมื่อวาน=어제
@@ -1277,13 +1614,195 @@ const ISAN_CEREMONY_FESTIVAL_VOCAB = `
 มาแต่ไส=มาจากไหน=어디서 왔어요?
 
 [กฎกันแปลผิดพิธีกรรม]
-กินดอง means wedding feast / wedding ceremony, NOT eating pickles or fermented food.
-บ้านงาน means a house where a ceremony/event is taking place, NOT workplace house.
-มื้อนี้ / มื้ออื่น / มื้อวาน are time expressions in Isan, NOT meals.
+กินดอง means wedding feast / wedding ceremony, NOT eating pickles.
+บ้านงาน means a house where an event is taking place.
+มื้อนี้ / มื้ออื่น / มื้อวาน are time expressions, NOT meals.
 ซองงาน depends on context:
 - งานแต่ง / กินดอง → 축의금 봉투
 - งานศพ → 부의금 봉투
 - งานบุญ → 시주금 / 기부금
-ผูกแขน / ผูกข้อไม้ข้อมือ is a blessing ritual, NOT tying someone up.
-บายศรีสู่ขวัญ is a Thai-Isan blessing ceremony, not a normal flower decoration.
+ผูกแขน / ผูกข้อไม้ข้อมือ is a blessing ritual.
+`;
+
+const MOBILE_SIM_VOCAB = `
+[มือถือ / ซิม / ค่าโทร / อินเทอร์เน็ต]
+ซิม / ซิมการ์ด=유심 / 유심카드
+เปิดซิม=유심 개통하다
+เปิดเบอร์=번호를 개통하다
+เบอร์โทร=전화번호
+เบอร์นี้=이 번호
+เบอร์นี้ยังใช้ได้ไหม=이 번호 아직 사용할 수 있어요?
+ซิมนี้ใช้ได้ไหม=이 유심 사용할 수 있어요?
+ซิมนี้ใช้กับ LG ได้ไหม=이 유심은 LG에서 사용할 수 있어요?
+ซิมนี้ใช้ LG ไหม=이 유심은 LG 통신사인가요?
+LG / แอลจี=LG유플러스 / LG U+
+KT / เคที=KT
+SKT / เอสเคที=SKT
+เครือข่ายมือถือ=통신사
+ย้ายค่าย=통신사 이동
+เปลี่ยนซิม=유심을 바꾸다
+ซิมหาย=유심을 잃어버렸어요
+ซิมเสีย=유심이 고장 났어요
+ซิมใช้ไม่ได้=유심이 안 돼요
+ไม่มีสัญญาณ=신호가 안 잡혀요
+เน็ตไม่ขึ้น=인터넷이 안 돼요
+เน็ตช้า=인터넷이 느려요
+โทรไม่ได้=전화를 못 걸어요
+รับสายไม่ได้=전화를 받을 수 없어요
+ส่งข้อความไม่ได้=문자를 보낼 수 없어요
+ข้อความยืนยัน=인증 문자
+รหัสยืนยัน=인증번호
+ไม่ได้รับรหัสยืนยัน=인증번호를 못 받았어요
+เติมเงินมือถือ=휴대폰 요금을 충전하다
+ค่าโทร=휴대폰 요금 / 통신비
+ค่าเน็ต=인터넷 요금 / 데이터 요금
+ค่าโทรค้าง=미납 통신요금
+ยอดค้าง=미납금
+ค้างจ่าย=미납
+จ่ายค่าโทร=휴대폰 요금을 내다
+หักเงินอัตโนมัติ=자동이체
+ผูกบัญชี=계좌를 연결하다
+ตัดเงินจากบัญชี=계좌에서 자동으로 빠져나가다
+ทำไมเงินถูกหัก=왜 돈이 빠져나갔어요?
+ยกเลิกเบอร์=번호를 해지하다
+ยกเลิกซิม=유심을 해지하다
+สัญญามือถือ=휴대폰 약정
+ติดสัญญา=약정이 남아 있어요
+ค่าปรับยกเลิก=위약금
+เครื่องติดล็อก=기기가 잠겨 있어요
+ปลดล็อกเครื่อง=기기 잠금 해제
+ลงทะเบียนชื่อใคร=누구 명의로 등록되어 있어요?
+ซิมเป็นชื่อใคร=유심이 누구 명의예요?
+ชื่อเจ้าของเบอร์=명의자
+บัตรต่างด้าวใช้เปิดซิมได้ไหม=외국인등록증으로 유심 개통할 수 있어요?
+พาสปอร์ตเปิดซิมได้ไหม=여권으로 유심 개통할 수 있어요?
+
+[กฎกันแปลผิดเรื่องซิม]
+ซิม = 유심, not normal SIM in English only.
+เบอร์นี้ยังใช้ได้ไหม = ask whether phone number is active.
+ยอดค้าง / ค่าโทรค้าง = 미납금 / 미납 통신요금.
+หักเงินอัตโนมัติ = 자동이체.
+ชื่อเจ้าของเบอร์ / 명의 = registered owner name.
+`;
+
+const CAR_TRADE_VOCAB = `
+[ซื้อขายรถยนต์มือสอง / Used Car Trade]
+รถยนต์=자동차
+รถมือสอง=중고차
+ขายรถ=차를 팔다
+ซื้อรถ=차를 사다
+ดูรถ=차를 보러 가다
+ทดลองขับ=시승하다
+รถคันนี้=이 차
+ทะเบียนรถ=차량 번호 / 자동차 번호판
+เล่มรถ / เอกสารรถ=자동차등록증
+ชื่อเจ้าของรถ=차량 명의자
+เจ้าของเดิม=전 차주
+เจ้าของคนเดียว=1인 소유
+เปลี่ยนชื่อ / โอนชื่อ=명의이전
+โอนรถ=차량 명의이전
+ค่าธรรมเนียมโอน=명의이전 비용
+โอนได้ไหม=명의이전 가능해요?
+วันนี้โอนได้ไหม=오늘 명의이전 가능해요?
+รถติดไฟแนนซ์ไหม=할부나 저당이 남아 있어요?
+จำนำ / ติดจำนำ=저당 잡혀 있다
+รถมีภาระไหม=압류나 저당이 있어요?
+ไม่มีภาระ=압류나 저당이 없어요
+ภาษีรถ=자동차세
+ภาษีรถค้างไหม=자동차세 미납이 있어요?
+ประกันรถ=자동차 보험
+ประกันเหลือไหม=보험이 남아 있어요?
+ประกันโอนได้ไหม=보험 승계 가능해요?
+ประกันชั้นหนึ่ง=종합보험
+ประกันบังคับ=의무보험
+ต่อประกัน=보험을 갱신하다
+
+[ราคา / ต่อรอง / ผ่อน]
+ราคาเท่าไหร่=가격이 얼마예요?
+ลดได้ไหม=깎아 줄 수 있어요?
+ลดได้สุดเท่าไหร่=최종 가격이 얼마예요?
+รวมค่าโอนหรือยัง=명의이전 비용 포함인가요?
+เงินสด=현금
+ผ่อนได้ไหม=할부 가능해요?
+ขายดาวน์=계약금 승계 / 할부 승계
+เงินดาวน์=계약금 / 선수금
+ค่างวด=월 할부금
+ผ่อนเดือนละเท่าไหร่=월 할부금이 얼마예요?
+เหลือกี่งวด=할부가 몇 개월 남았어요?
+ดอกเบี้ย=이자
+ไฟแนนซ์=할부 금융 / 캐피탈
+เครดิตผ่านไหม=할부 심사가 가능해요?
+
+[สภาพรถ / อุบัติเหตุ]
+รถเคยชนไหม=사고 이력이 있어요?
+รถชนหนักไหม=큰 사고가 있었어요?
+ชนเบา=경미한 사고
+ชนหนัก=큰 사고
+รถไม่มีอุบัติเหตุ=무사고 차량
+รถมีอุบัติเหตุ=사고 차량
+ทำสีมาไหม=도색한 적 있어요?
+สีเดิมไหม=원도장인가요?
+เปลี่ยนอะไหล่ไหม=부품 교체한 적 있어요?
+น้ำท่วมไหม=침수 이력이 있어요?
+รถน้ำท่วม=침수차
+ไฟไหม้ไหม=화재 이력이 있어요?
+เลขไมล์=주행거리
+ไมล์แท้ไหม=실주행거리 맞아요?
+ไมล์กรอไหม=주행거리 조작된 거 아니에요?
+วิ่งมากี่กิโล=몇 킬로 탔어요?
+ใบตรวจสภาพ=성능점검기록부
+ขอดูใบตรวจสภาพได้ไหม=성능점검기록부 볼 수 있어요?
+ประวัติซ่อม=정비 이력
+ประวัติเข้าศูนย์=서비스센터 정비 이력
+รถยังดีไหม=차 상태 괜찮아요?
+มีปัญหาอะไรไหม=문제 있는 부분 있어요?
+
+[เครื่องยนต์ / เกียร์ / อะไหล่]
+เครื่องยนต์=엔진
+เกียร์=미션 / 변속기
+เกียร์ออโต้=자동변속기
+เกียร์ธรรมดา=수동변속기
+เบรก=브레이크
+ช่วงล่าง=하체 / 서스펜션
+พวงมาลัย=핸들
+หม้อน้ำ=라디에이터
+แอร์รถ=에어컨
+แบตเตอรี่=배터리
+ยางรถ=타이어
+ยางเปลี่ยนเมื่อไหร่=타이어 언제 교체했어요?
+แบตเปลี่ยนเมื่อไหร่=배터리 언제 교체했어요?
+น้ำมันเครื่อง=엔진오일
+เปลี่ยนน้ำมันเครื่องแล้วหรือยัง=엔진오일 교체했어요?
+เสียงเครื่องแปลก=엔진 소리가 이상해요
+เกียร์กระตุก=미션 충격이 있어요
+เบรกมีเสียง=브레이크 소리가 나요
+แอร์ไม่เย็น=에어컨이 시원하지 않아요
+เครื่องสั่น=엔진이 떨려요
+น้ำมันรั่ว=오일이 새요
+ไฟเตือนขึ้น=경고등이 떠요
+ไฟเครื่องยนต์ขึ้น=엔진 경고등이 떠요
+
+[ซ่อมรถ / อู่ / ศูนย์บริการ]
+อู่ซ่อมรถ=카센터 / 정비소
+ศูนย์บริการ=서비스센터
+ซ่อมรถ=차를 수리하다
+ตรวจรถ=차를 점검하다
+ค่าแรงซ่อม=공임
+ค่าอะไหล่=부품값
+ประเมินค่าซ่อม=수리비 견적
+ค่าซ่อมเท่าไหร่=수리비가 얼마예요?
+ต้องซ่อมอะไรบ้าง=어디를 수리해야 해요?
+ซ่อมเสร็จเมื่อไหร่=수리 언제 끝나요?
+รถลาก=견인차
+เรียกรถลาก=견인차 불러 주세요
+
+[กฎกันแปลผิดเรื่องรถ]
+โอนรถ means vehicle ownership transfer, not money transfer.
+เล่มรถ means car registration document, not a book.
+ไฟแนนซ์ in Thai car context means auto loan/capital financing.
+ขายดาวน์ means transfer remaining installment/loan contract.
+เลขไมล์แท้ means genuine mileage.
+ไมล์กรอ means odometer rollback.
+รถน้ำท่วม means flood-damaged car.
+ใบตรวจสภาพ in Korean used-car context usually means 성능점검기록부.
 `;
