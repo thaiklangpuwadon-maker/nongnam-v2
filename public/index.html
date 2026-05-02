@@ -6,288 +6,980 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="น้องน้ำ">
-<link rel="manifest" href="/manifest.json">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="น้องน้ำ">
-  <meta name="theme-color" content="#0f1117">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="theme-color" content="#0f1117">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>น้องน้ำ · ล่ามไทย-เกาหลี</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&family=Noto+Sans+KR:wght@300;400;700&display=swap" rel="stylesheet">
+
 <style>
-:root{--bg:#0a0c10;--s1:#13161e;--border:#1e2333;--gold:#e8b84b;--gold2:#ffd166;--thai:#ff6b6b;--kr:#5b9cf6;--green:#4ecb8d;--text:#e8eaf2;--muted:#6b7394}
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
-html,body{height:100%;overflow-x:hidden}
-body{font-family:'Sarabun','Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);min-height:100dvh;display:flex;flex-direction:column;align-items:center}
-body::before{content:'';position:fixed;top:-100px;left:50%;transform:translateX(-50%);width:600px;height:400px;background:radial-gradient(ellipse,rgba(232,184,75,.06) 0%,transparent 70%);pointer-events:none;z-index:0}
-.wrap{width:100%;max-width:420px;padding:0 16px 80px;position:relative;z-index:1}
+:root{
+  --bg:#0a0c10;
+  --s1:#13161e;
+  --s2:#191d28;
+  --border:#1e2333;
+  --gold:#e8b84b;
+  --gold2:#ffd166;
+  --thai:#ff6b6b;
+  --kr:#5b9cf6;
+  --green:#4ecb8d;
+  --red:#ff6b6b;
+  --text:#e8eaf2;
+  --muted:#6b7394;
+}
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;
+  user-select:none;
+}
+html,body{
+  height:100%;
+  overflow-x:hidden;
+}
+body{
+  font-family:'Sarabun','Noto Sans KR',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100dvh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+body::before{
+  content:'';
+  position:fixed;
+  top:-100px;
+  left:50%;
+  transform:translateX(-50%);
+  width:600px;
+  height:400px;
+  background:radial-gradient(ellipse,rgba(232,184,75,.06) 0%,transparent 70%);
+  pointer-events:none;
+  z-index:0;
+}
+.wrap{
+  width:100%;
+  max-width:420px;
+  padding:0 16px 80px;
+  position:relative;
+  z-index:1;
+}
 
-.hdr{display:flex;align-items:center;justify-content:center;padding:24px 0 16px;flex-direction:column;gap:6px}
-.brand{display:flex;align-items:center;gap:12px}
-.brand-ico{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#e8b84b,#c8880a);display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 4px 20px rgba(232,184,75,.45)}
-.brand-name{font-size:22px;font-weight:800;letter-spacing:-.02em}
-.brand-sub{font-size:11px;color:var(--muted);letter-spacing:.14em;text-align:center}
+/* ============================================================
+   Companion Back Button
+   ปุ่มกลับไปคุยกับน้องน้ำ Companion
+   ถ้ามาจาก Companion จะขึ้น “กลับไปคุยกับน้องน้ำ”
+   ถ้าเข้าเว็บล่ามโดยตรง จะขึ้น “คุยกับน้องน้ำ”
+   ============================================================ */
+.companion-back{
+  position:fixed;
+  top:calc(env(safe-area-inset-top,0px) + 12px);
+  left:12px;
+  z-index:10050;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:9px 13px;
+  border-radius:999px;
+  border:1px solid rgba(232,184,75,.35);
+  background:rgba(19,22,30,.92);
+  color:var(--gold);
+  font-family:'Sarabun',sans-serif;
+  font-size:12px;
+  font-weight:800;
+  box-shadow:0 6px 22px rgba(0,0,0,.28);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+  cursor:pointer;
+}
+.companion-back:active{
+  transform:scale(.96);
+}
+.companion-back span{
+  pointer-events:none;
+}
 
-.perm-box{background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.05));border:1.5px solid rgba(232,184,75,.35);border-radius:16px;padding:20px;margin-bottom:16px;text-align:center;display:none}
-.perm-box p{font-size:14px;line-height:1.8;color:var(--gold);margin-bottom:14px}
-.perm-btn{width:100%;padding:14px;background:var(--gold);color:#0a0c10;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s}
-.perm-btn:hover{background:var(--gold2)}
+.hdr{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:58px 0 16px;
+  flex-direction:column;
+  gap:6px;
+}
+.brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.brand-ico{
+  width:48px;
+  height:48px;
+  border-radius:14px;
+  background:linear-gradient(135deg,#e8b84b,#c8880a);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:26px;
+  box-shadow:0 4px 20px rgba(232,184,75,.45);
+}
+.brand-name{
+  font-size:22px;
+  font-weight:800;
+  letter-spacing:-.02em;
+}
+.brand-sub{
+  font-size:11px;
+  color:var(--muted);
+  letter-spacing:.14em;
+  text-align:center;
+}
 
-.status-bar{display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 20px;background:var(--s1);border:1px solid var(--border);border-radius:50px;font-size:13px;color:var(--muted);margin-bottom:20px;transition:all .3s}
-.sdot{width:8px;height:8px;border-radius:50%;background:#2e3450;flex-shrink:0;transition:all .3s}
-.status-bar.listening{border-color:rgba(255,107,107,.5);color:var(--thai)}
-.status-bar.listening .sdot{background:var(--thai);box-shadow:0 0 10px var(--thai);animation:pulse .6s infinite}
-.status-bar.thinking{border-color:rgba(232,184,75,.4);color:var(--gold)}
-.status-bar.thinking .sdot{background:var(--gold);box-shadow:0 0 8px var(--gold);animation:pulse 1s infinite}
-.status-bar.speaking{border-color:rgba(91,156,246,.4);color:var(--kr)}
-.status-bar.speaking .sdot{background:var(--kr);box-shadow:0 0 8px var(--kr);animation:pulse .7s infinite}
-@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.4}}
+.free-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  background:rgba(78,203,141,.1);
+  border:1px solid rgba(78,203,141,.2);
+  color:var(--green);
+  font-size:11px;
+  padding:4px 10px;
+  border-radius:20px;
+  margin-bottom:16px;
+}
 
-.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
-.lang-btn{position:relative;background:var(--s1);border:2px solid var(--border);border-radius:20px;padding:28px 16px 22px;text-align:center;cursor:pointer;transition:all .15s;overflow:hidden;touch-action:none}
-.th-btn.holding,.th-btn.active{border-color:var(--thai);background:rgba(255,107,107,.1);box-shadow:0 0 28px rgba(255,107,107,.2)}
-.kr-btn.holding,.kr-btn.active{border-color:var(--kr);background:rgba(91,156,246,.1);box-shadow:0 0 28px rgba(91,156,246,.2)}
-.btn-flag{font-size:38px;display:block;margin-bottom:10px;pointer-events:none}
-.btn-name{font-size:16px;font-weight:800;display:block;margin-bottom:3px;pointer-events:none}
-.btn-desc{font-size:12px;color:var(--muted);display:block;margin-bottom:14px;pointer-events:none}
-.btn-hint{font-size:12px;font-weight:700;display:block;padding:8px 14px;border-radius:50px;pointer-events:none;transition:all .2s}
-.th-btn .btn-hint{background:rgba(255,107,107,.15);color:var(--thai)}
-.kr-btn .btn-hint{background:rgba(91,156,246,.15);color:var(--kr)}
-.th-btn.holding .btn-hint{background:var(--thai);color:white}
-.kr-btn.holding .btn-hint{background:var(--kr);color:white}
+.ctx-partner{
+  display:flex;
+  gap:6px;
+  margin-bottom:14px;
+}
+.ctx-partner .ctx-btn{
+  flex:1;
+  text-align:center;
+}
+.ctx-bar{
+  display:flex;
+  gap:6px;
+  margin-bottom:14px;
+  overflow-x:auto;
+  padding-bottom:2px;
+}
+.ctx-bar::-webkit-scrollbar{
+  display:none;
+}
+.ctx-btn{
+  flex-shrink:0;
+  padding:7px 12px;
+  background:var(--s1);
+  border:1.5px solid var(--border);
+  border-radius:50px;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+  transition:all .2s;
+  white-space:nowrap;
+  color:var(--muted);
+  font-family:'Sarabun',sans-serif;
+}
+.ctx-btn:hover{
+  border-color:var(--gold);
+  color:var(--text);
+}
+.ctx-btn.active{
+  border-color:var(--gold);
+  background:rgba(232,184,75,.1);
+  color:var(--gold);
+}
+.ctx-partner .ctx-btn.active-m{
+  border-color:var(--kr);
+  background:rgba(91,156,246,.1);
+  color:var(--kr);
+}
+.ctx-partner .ctx-btn.active-f{
+  border-color:var(--thai);
+  background:rgba(255,107,107,.1);
+  color:var(--thai);
+}
 
-.live-box{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:14px;font-size:15px;line-height:1.7;display:none;color:var(--muted);font-style:italic}
-.live-box.show{display:block}
-.live-box.final{color:var(--text);font-style:normal}
+.landing{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  bottom:0;
+  background:var(--bg);
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:32px;
+  text-align:center;
+}
+.landing-logo{
+  width:80px;
+  height:80px;
+  background:var(--gold);
+  border-radius:24px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:40px;
+  margin:0 auto 20px;
+  box-shadow:0 8px 32px rgba(245,200,66,.3);
+}
+.landing-title{
+  font-size:32px;
+  font-weight:800;
+  margin-bottom:6px;
+}
+.landing-sub{
+  font-size:14px;
+  color:var(--muted);
+  margin-bottom:8px;
+}
+.landing-desc{
+  font-size:13px;
+  color:var(--muted);
+  line-height:1.6;
+  margin-bottom:32px;
+  max-width:280px;
+}
+.landing-btn{
+  width:100%;
+  max-width:320px;
+  background:var(--gold);
+  color:#000;
+  border:none;
+  border-radius:16px;
+  padding:18px;
+  font-size:18px;
+  font-weight:800;
+  font-family:'Sarabun',sans-serif;
+  cursor:pointer;
+  margin-bottom:12px;
+  box-shadow:0 4px 20px rgba(245,200,66,.4);
+}
+.landing-btn:active{
+  transform:scale(.98);
+}
+.landing-warn{
+  background:rgba(255,107,107,.1);
+  border:1px solid rgba(255,107,107,.3);
+  border-radius:12px;
+  padding:16px;
+  margin-top:16px;
+  width:100%;
+  max-width:320px;
+  display:none;
+}
+.landing-warn-title{
+  color:var(--red);
+  font-weight:700;
+  margin-bottom:6px;
+  font-size:14px;
+}
+.landing-warn-text{
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.6;
+}
+.landing-copy-btn{
+  background:var(--s2);
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:10px;
+  padding:10px 16px;
+  font-size:13px;
+  font-family:'Sarabun',sans-serif;
+  cursor:pointer;
+  margin-top:10px;
+  width:100%;
+}
 
-.trans-box{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:14px;display:none}
-.trans-box.show{display:block}
-.trans-lang{font-size:11px;color:var(--muted);margin-bottom:10px}
-.trans-text{font-size:22px;line-height:1.7;font-weight:700;-webkit-user-select:text;user-select:text}
-.trans-text.to-kr{color:#93c0ff}
-.trans-text.to-th{color:#ffd166}
-.trans-copy{margin-top:12px;background:none;border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;color:var(--muted);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s}
-.trans-copy:hover{border-color:var(--gold);color:var(--text)}
+.install-bar{
+  background:rgba(245,200,66,.08);
+  border:1px solid rgba(245,200,66,.2);
+  border-radius:12px;
+  padding:10px 14px;
+  margin-bottom:12px;
+  display:none;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.install-bar-btn{
+  background:var(--gold);
+  color:#000;
+  border:none;
+  border-radius:8px;
+  padding:6px 14px;
+  font-size:12px;
+  font-weight:700;
+  font-family:'Sarabun',sans-serif;
+  cursor:pointer;
+  white-space:nowrap;
+}
 
-.notice{border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:12px;line-height:1.5;display:none}
-.notice.show{display:block}
-.notice.err{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.2);color:var(--thai)}
-.notice.ok{background:rgba(78,203,141,.08);border:1px solid rgba(78,203,141,.2);color:var(--green)}
+.onboard{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  bottom:0;
+  background:var(--bg);
+  z-index:999;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+.onboard-ico{
+  font-size:56px;
+  margin-bottom:16px;
+}
+.onboard-title{
+  font-size:22px;
+  font-weight:800;
+  margin-bottom:8px;
+  text-align:center;
+}
+.onboard-sub{
+  font-size:14px;
+  color:var(--muted);
+  margin-bottom:32px;
+  text-align:center;
+  line-height:1.6;
+}
+.onboard-choices{
+  display:flex;
+  gap:12px;
+  width:100%;
+  max-width:320px;
+}
+.onboard-btn{
+  flex:1;
+  background:var(--s1);
+  border:2px solid var(--border);
+  border-radius:16px;
+  padding:20px 12px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .2s;
+}
+.onboard-btn:hover{
+  border-color:var(--gold);
+}
+.onboard-btn.selected-m{
+  border-color:var(--kr);
+  background:rgba(91,156,246,.1);
+}
+.onboard-btn.selected-f{
+  border-color:var(--thai);
+  background:rgba(255,107,107,.1);
+}
+.onboard-btn .ob-ico{
+  font-size:32px;
+  display:block;
+  margin-bottom:8px;
+}
+.onboard-btn .ob-name{
+  font-size:15px;
+  font-weight:700;
+}
+.onboard-skip{
+  margin-top:16px;
+  font-size:12px;
+  color:var(--muted);
+  cursor:pointer;
+  text-decoration:underline;
+}
 
-.log-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.log-title{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.log-clear{background:none;border:none;font-size:11px;color:#2e3450;cursor:pointer;font-family:'Sarabun',sans-serif}
-.log-clear:hover{color:var(--thai)}
-.log{background:var(--s1);border:1px solid var(--border);border-radius:14px;max-height:280px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
-.log::-webkit-scrollbar{width:3px}
-.log::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.log-empty{text-align:center;color:#2e3450;font-size:13px;padding:24px;line-height:1.7}
-.log-item{display:flex;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px;animation:fadeUp .3s ease}
-.log-item:last-child{border-bottom:none;padding-bottom:0}
-@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.log-flag{font-size:18px;flex-shrink:0;margin-top:2px}
-.log-body{flex:1;-webkit-user-select:text;user-select:text}
-.log-orig{font-size:11px;color:var(--muted);margin-bottom:4px;line-height:1.5}
-.log-trans{font-size:14px;line-height:1.65;font-weight:600}
-.log-item.th .log-trans{color:#ffd166}
-.log-item.kr .log-trans{color:#93c0ff}
-.log-actions{display:flex;gap:8px;align-items:center;margin-top:5px}
-.log-copy{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;color:var(--muted);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s}
-.log-replay{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:11px;color:var(--kr);cursor:pointer;font-family:'Sarabun',sans-serif;transition:all .2s;margin-left:4px}
-.log-replay:hover{border-color:var(--kr);background:rgba(91,156,246,.1)}
-.log-copy:hover{border-color:var(--gold);color:var(--text)}
-.log-time{font-size:10px;color:#2e3450;font-family:monospace}
+.line-warn{
+  background:rgba(255,107,107,.08);
+  border:1.5px solid rgba(255,107,107,.3);
+  border-radius:14px;
+  padding:16px;
+  margin-bottom:14px;
+  text-align:center;
+  display:none;
+}
+.line-warn p{
+  font-size:14px;
+  color:var(--thai);
+  line-height:1.7;
+  margin-bottom:10px;
+}
+.line-warn-steps{
+  font-size:12px;
+  color:var(--muted);
+  line-height:2;
+  text-align:left;
+}
 
-.free-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(78,203,141,.1);border:1px solid rgba(78,203,141,.2);color:var(--green);font-size:11px;padding:4px 10px;border-radius:20px;margin-bottom:16px}
-/* LANDING PAGE */
-.landing{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center}
-.landing-logo{width:80px;height:80px;background:var(--gold);border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:40px;margin:0 auto 20px;box-shadow:0 8px 32px rgba(245,200,66,.3)}
-.landing-title{font-size:32px;font-weight:800;margin-bottom:6px}
-.landing-sub{font-size:14px;color:var(--muted);margin-bottom:8px}
-.landing-desc{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:32px;max-width:280px}
-.landing-btn{width:100%;max-width:320px;background:var(--gold);color:#000;border:none;border-radius:16px;padding:18px;font-size:18px;font-weight:800;font-family:'Kanit',sans-serif;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 20px rgba(245,200,66,.4)}
-.landing-btn:active{transform:scale(.98)}
-.landing-warn{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.3);border-radius:12px;padding:16px;margin-top:16px;width:100%;max-width:320px;display:none}
-.landing-warn-title{color:var(--red);font-weight:700;margin-bottom:6px;font-size:14px}
-.landing-warn-text{font-size:12px;color:var(--muted);line-height:1.6}
-.landing-copy-btn{background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:10px 16px;font-size:13px;font-family:'Kanit',sans-serif;cursor:pointer;margin-top:10px;width:100%}
-/* PWA INSTALL */
-.install-bar{background:rgba(245,200,66,.08);border:1px solid rgba(245,200,66,.2);border-radius:12px;padding:10px 14px;margin-bottom:12px;display:none;align-items:center;justify-content:space-between;gap:10px}
-.install-bar-btn{background:var(--gold);color:#000;border:none;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;font-family:'Kanit',sans-serif;cursor:pointer;white-space:nowrap}
-/* ONBOARDING */
-.onboard{position:fixed;top:0;left:0;right:0;bottom:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
-.onboard-ico{font-size:56px;margin-bottom:16px}
-.onboard-title{font-size:22px;font-weight:800;margin-bottom:8px;text-align:center}
-.onboard-sub{font-size:14px;color:var(--muted);margin-bottom:32px;text-align:center;line-height:1.6}
-.onboard-choices{display:flex;gap:12px;width:100%;max-width:320px}
-.onboard-btn{flex:1;background:var(--s1);border:2px solid var(--border);border-radius:16px;padding:20px 12px;text-align:center;cursor:pointer;transition:all .2s}
-.onboard-btn:hover{border-color:var(--gold)}
-.onboard-btn.selected-m{border-color:var(--kr);background:rgba(91,156,246,.1)}
-.onboard-btn.selected-f{border-color:var(--thai);background:rgba(255,107,107,.1)}
-.onboard-btn .ob-ico{font-size:32px;display:block;margin-bottom:8px}
-.onboard-btn .ob-name{font-size:15px;font-weight:700}
-.onboard-skip{margin-top:16px;font-size:12px;color:var(--muted);cursor:pointer;text-decoration:underline}
-/* CONTEXT BAR */
-.ctx-bar{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px}
-.ctx-bar::-webkit-scrollbar{display:none}
-.ctx-btn{flex-shrink:0;padding:7px 12px;background:var(--s1);border:1.5px solid var(--border);border-radius:50px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;white-space:nowrap;color:var(--muted)}
-.ctx-btn:hover{border-color:var(--gold);color:var(--text)}
-.ctx-btn.active{border-color:var(--gold);background:rgba(232,184,75,.1);color:var(--gold)}
-.ctx-partner{display:flex;gap:6px;margin-bottom:14px}
-.ctx-partner .ctx-btn{flex:1;text-align:center}
-.ctx-partner .ctx-btn.active-m{border-color:var(--kr);background:rgba(91,156,246,.1);color:var(--kr)}
-.ctx-partner .ctx-btn.active-f{border-color:var(--thai);background:rgba(255,107,107,.1);color:var(--thai)}
-.line-warn{background:rgba(255,107,107,.08);border:1.5px solid rgba(255,107,107,.3);border-radius:14px;padding:16px;margin-bottom:14px;text-align:center;display:none}
-.line-warn p{font-size:14px;color:var(--thai);line-height:1.7;margin-bottom:10px}
-.line-warn-steps{font-size:12px;color:var(--muted);line-height:2;text-align:left}
+.perm-box{
+  background:linear-gradient(135deg,rgba(232,184,75,.1),rgba(232,184,75,.05));
+  border:1.5px solid rgba(232,184,75,.35);
+  border-radius:16px;
+  padding:20px;
+  margin-bottom:16px;
+  text-align:center;
+  display:none;
+}
+.perm-box p{
+  font-size:14px;
+  line-height:1.8;
+  color:var(--gold);
+  margin-bottom:14px;
+}
+.perm-btn{
+  width:100%;
+  padding:14px;
+  background:var(--gold);
+  color:#0a0c10;
+  border:none;
+  border-radius:12px;
+  font-size:16px;
+  font-weight:800;
+  cursor:pointer;
+  font-family:'Sarabun',sans-serif;
+  transition:all .2s;
+}
+.perm-btn:hover{
+  background:var(--gold2);
+}
+
+.status-bar{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:10px 20px;
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:50px;
+  font-size:13px;
+  color:var(--muted);
+  margin-bottom:20px;
+  transition:all .3s;
+}
+.sdot{
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#2e3450;
+  flex-shrink:0;
+  transition:all .3s;
+}
+.status-bar.listening{
+  border-color:rgba(255,107,107,.5);
+  color:var(--thai);
+}
+.status-bar.listening .sdot{
+  background:var(--thai);
+  box-shadow:0 0 10px var(--thai);
+  animation:pulse .6s infinite;
+}
+.status-bar.thinking{
+  border-color:rgba(232,184,75,.4);
+  color:var(--gold);
+}
+.status-bar.thinking .sdot{
+  background:var(--gold);
+  box-shadow:0 0 8px var(--gold);
+  animation:pulse 1s infinite;
+}
+.status-bar.speaking{
+  border-color:rgba(91,156,246,.4);
+  color:var(--kr);
+}
+.status-bar.speaking .sdot{
+  background:var(--kr);
+  box-shadow:0 0 8px var(--kr);
+  animation:pulse .7s infinite;
+}
+@keyframes pulse{
+  0%,100%{transform:scale(1);opacity:1}
+  50%{transform:scale(1.6);opacity:.4}
+}
+
+.btn-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin-bottom:20px;
+}
+.lang-btn{
+  position:relative;
+  background:var(--s1);
+  border:2px solid var(--border);
+  border-radius:20px;
+  padding:28px 16px 22px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .15s;
+  overflow:hidden;
+  touch-action:none;
+}
+.th-btn.holding,.th-btn.active{
+  border-color:var(--thai);
+  background:rgba(255,107,107,.1);
+  box-shadow:0 0 28px rgba(255,107,107,.2);
+}
+.kr-btn.holding,.kr-btn.active{
+  border-color:var(--kr);
+  background:rgba(91,156,246,.1);
+  box-shadow:0 0 28px rgba(91,156,246,.2);
+}
+.btn-flag{
+  font-size:38px;
+  display:block;
+  margin-bottom:10px;
+  pointer-events:none;
+}
+.btn-name{
+  font-size:16px;
+  font-weight:800;
+  display:block;
+  margin-bottom:3px;
+  pointer-events:none;
+}
+.btn-desc{
+  font-size:12px;
+  color:var(--muted);
+  display:block;
+  margin-bottom:14px;
+  pointer-events:none;
+}
+.btn-hint{
+  font-size:12px;
+  font-weight:700;
+  display:block;
+  padding:8px 14px;
+  border-radius:50px;
+  pointer-events:none;
+  transition:all .2s;
+}
+.th-btn .btn-hint{
+  background:rgba(255,107,107,.15);
+  color:var(--thai);
+}
+.kr-btn .btn-hint{
+  background:rgba(91,156,246,.15);
+  color:var(--kr);
+}
+.th-btn.holding .btn-hint{
+  background:var(--thai);
+  color:white;
+}
+.kr-btn.holding .btn-hint{
+  background:var(--kr);
+  color:white;
+}
+
+.live-box{
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:14px 16px;
+  margin-bottom:14px;
+  font-size:15px;
+  line-height:1.7;
+  display:none;
+  color:var(--muted);
+  font-style:italic;
+}
+.live-box.show{
+  display:block;
+}
+.live-box.final{
+  color:var(--text);
+  font-style:normal;
+}
+.trans-box{
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:18px;
+  margin-bottom:14px;
+  display:none;
+}
+.trans-box.show{
+  display:block;
+}
+.trans-lang{
+  font-size:11px;
+  color:var(--muted);
+  margin-bottom:10px;
+}
+.trans-text{
+  font-size:22px;
+  line-height:1.7;
+  font-weight:700;
+  -webkit-user-select:text;
+  user-select:text;
+}
+.trans-text.to-kr{
+  color:#93c0ff;
+}
+.trans-text.to-th{
+  color:#ffd166;
+}
+.trans-copy{
+  margin-top:12px;
+  background:none;
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:7px 14px;
+  font-size:12px;
+  color:var(--muted);
+  cursor:pointer;
+  font-family:'Sarabun',sans-serif;
+  transition:all .2s;
+}
+.trans-copy:hover{
+  border-color:var(--gold);
+  color:var(--text);
+}
+.notice{
+  border-radius:10px;
+  padding:10px 14px;
+  font-size:13px;
+  margin-bottom:12px;
+  line-height:1.5;
+  display:none;
+}
+.notice.show{
+  display:block;
+}
+.notice.err{
+  background:rgba(255,107,107,.08);
+  border:1px solid rgba(255,107,107,.2);
+  color:var(--thai);
+}
+.notice.ok{
+  background:rgba(78,203,141,.08);
+  border:1px solid rgba(78,203,141,.2);
+  color:var(--green);
+}
+
+.log-hdr{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:10px;
+}
+.log-title{
+  font-size:10px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.log-clear{
+  background:none;
+  border:none;
+  font-size:11px;
+  color:#2e3450;
+  cursor:pointer;
+  font-family:'Sarabun',sans-serif;
+}
+.log-clear:hover{
+  color:var(--thai);
+}
+.log{
+  background:var(--s1);
+  border:1px solid var(--border);
+  border-radius:14px;
+  max-height:280px;
+  overflow-y:auto;
+  padding:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.log-empty{
+  text-align:center;
+  color:#2e3450;
+  font-size:13px;
+  padding:24px;
+  line-height:1.7;
+}
+.log-item{
+  display:flex;
+  gap:10px;
+  border-bottom:1px solid var(--border);
+  padding-bottom:10px;
+  animation:fadeUp .3s ease;
+}
+.log-item:last-child{
+  border-bottom:none;
+  padding-bottom:0;
+}
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(4px)}
+  to{opacity:1;transform:translateY(0)}
+}
+.log-flag{
+  font-size:18px;
+  flex-shrink:0;
+  margin-top:2px;
+}
+.log-body{
+  flex:1;
+  -webkit-user-select:text;
+  user-select:text;
+}
+.log-orig{
+  font-size:11px;
+  color:var(--muted);
+  margin-bottom:4px;
+  line-height:1.5;
+}
+.log-trans{
+  font-size:14px;
+  line-height:1.65;
+  font-weight:600;
+}
+.log-item.th .log-trans{
+  color:#ffd166;
+}
+.log-item.kr .log-trans{
+  color:#93c0ff;
+}
+.log-actions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-top:5px;
+}
+.log-copy,.log-replay{
+  background:none;
+  border:1px solid var(--border);
+  border-radius:5px;
+  padding:3px 8px;
+  font-size:11px;
+  color:var(--muted);
+  cursor:pointer;
+  font-family:'Sarabun',sans-serif;
+  transition:all .2s;
+}
+.log-replay{
+  color:var(--kr);
+  margin-left:4px;
+}
+.log-time{
+  font-size:10px;
+  color:#2e3450;
+  font-family:monospace;
+}
 </style>
 </head>
+
 <body>
+
+<button class="companion-back" id="companionBackBtn" onclick="goCompanion()" type="button">
+  <span id="companionBackText">💬 คุยกับน้องน้ำ</span>
+</button>
+
 <div class="wrap">
 
-<div class="hdr">
-  <div class="brand">
-    <div class="brand-ico">🎙</div>
-    <div class="brand-name">น้องน้ำ</div>
-  </div>
-  <div class="brand-sub">TH · KR LIVE INTERPRETER</div>
-</div>
-
-<div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
-
-<!-- CONTEXT: คู่สนทนา -->
-<div class="ctx-partner" id="ctxPartner">
-  <button class="ctx-btn" id="cp-m" onclick="setPartner('male')">👨 คุยกับผู้ชาย</button>
-  <button class="ctx-btn" id="cp-f" onclick="setPartner('female')">👩 คุยกับผู้หญิง</button>
-</div>
-
-<!-- CONTEXT: สถานการณ์ -->
-<div class="ctx-bar" id="ctxBar">
-  <button class="ctx-btn active" id="cs-general" onclick="setSituation('general')">💬 ทั่วไป</button>
-  <button class="ctx-btn" id="cs-isaan" onclick="setSituation('isaan')" style="border-color:rgba(255,165,0,.4);color:#ffa500">🌾 เว้าอีสาน</button>
-  <button class="ctx-btn" id="cs-hospital" onclick="setSituation('hospital')">🏥 โรงพยาบาล</button>
-  <button class="ctx-btn" id="cs-work" onclick="setSituation('work')">🏭 ที่ทำงาน</button>
-  <button class="ctx-btn" id="cs-visa" onclick="setSituation('visa')">🏛️ วีซ่า/ราชการ</button>
-  <button class="ctx-btn" id="cs-money" onclick="setSituation('money')">💰 เงิน/ประกัน</button>
-  <button class="ctx-btn" id="cs-bank" onclick="setSituation('bank')">🏦 ธนาคาร</button>
-  <button class="ctx-btn" id="cs-food" onclick="setSituation('food')">🍜 ร้านอาหาร</button>
-  <button class="ctx-btn" id="cs-shop" onclick="setSituation('shop')">🛒 ช้อปปิ้ง</button>
-  <button class="ctx-btn" id="cs-travel" onclick="setSituation('travel')">🚌 เดินทาง</button>
-  <button class="ctx-btn" id="cs-housing" onclick="setSituation('housing')">🏠 ที่พัก</button>
-  <button class="ctx-btn" id="cs-emergency" onclick="setSituation('emergency')">🆘 ฉุกเฉิน</button>
-  <button class="ctx-btn" id="cs-beauty" onclick="setSituation('beauty')">💄 ศัลยกรรม</button>
-</div>
-
-<!-- LANDING PAGE -->
-<div class="landing" id="landing">
-  <div class="landing-logo">🎙</div>
-  <div class="landing-title">น้องน้ำ</div>
-  <div class="landing-sub">TH · KR LIVE INTERPRETER</div>
-  <div class="landing-desc">ล่าม AI ไทย-เกาหลี<br>สำหรับแรงงานไทยในเกาหลี<br>ใช้งานฟรี ไม่ต้องสมัครสมาชิก</div>
-  <button class="landing-btn" onclick="startApp()">🚀 เริ่มใช้งาน</button>
-  <button id="addHomeBtn" onclick="addToHome()" style="width:100%;max-width:320px;background:transparent;border:1px solid var(--border);border-radius:14px;padding:13px;font-size:14px;font-weight:600;font-family:'Kanit',sans-serif;cursor:pointer;color:var(--muted);margin-bottom:8px">
-    📲 เพิ่มลงหน้าจอมือถือ
-  </button>
-  <div style="font-size:11px;color:var(--muted);opacity:.5">nongnam-v2.vercel.app</div>
-  <div class="landing-warn" id="landingWarn">
-    <div class="landing-warn-title">⚠️ กรุณาเปิดใน Chrome หรือ Safari</div>
-    <div class="landing-warn-text">เบราว์เซอร์นี้ไม่รองรับไมโครโฟนค่ะ<br>กรุณาคัดลอกลิงก์แล้วเปิดใน Chrome หรือ Safari แทนนะคะ</div>
-    <button class="landing-copy-btn" id="landingCopyBtn" onclick="copyLandingURL()">📋 คัดลอกลิงก์</button>
-  </div>
-</div>
-
-<!-- INSTALL BAR -->
-<div class="install-bar" id="installBar">
-  <span style="font-size:13px">📲 เพิ่มเป็นแอปบนมือถือได้ค่ะ</span>
-  <button class="install-bar-btn" onclick="installPWA()">ติดตั้ง</button>
-</div>
-
-<!-- ONBOARDING SCREEN -->
-<div class="onboard" id="onboard" style="display:none">
-  <div class="onboard-ico">🎙</div>
-  <div class="onboard-title">ยินดีต้อนรับสู่น้องน้ำ</div>
-  <div class="onboard-sub">เพื่อให้การแปลถูกต้องที่สุด<br>กรุณาบอกน้องน้ำหน่อยนะคะ</div>
-  <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--muted)">คุณเป็นใครคะ?</div>
-  <div class="onboard-choices">
-    <div class="onboard-btn" id="ob-male" onclick="selectGender('male')">
-      <span class="ob-ico">👨</span>
-      <span class="ob-name">ผู้ชาย</span>
+  <div class="hdr">
+    <div class="brand">
+      <div class="brand-ico">🎙</div>
+      <div class="brand-name">น้องน้ำ</div>
     </div>
-    <div class="onboard-btn" id="ob-female" onclick="selectGender('female')">
-      <span class="ob-ico">👩</span>
-      <span class="ob-name">ผู้หญิง</span>
+    <div class="brand-sub">TH · KR LIVE INTERPRETER</div>
+  </div>
+
+  <div class="free-badge">🎁 ใช้งานฟรี · ไม่ต้องสมัครสมาชิก</div>
+
+  <div class="ctx-partner" id="ctxPartner">
+    <button class="ctx-btn" id="cp-m" onclick="setPartner('male')">👨 คุยกับผู้ชาย</button>
+    <button class="ctx-btn" id="cp-f" onclick="setPartner('female')">👩 คุยกับผู้หญิง</button>
+  </div>
+
+  <div class="ctx-bar" id="ctxBar">
+    <button class="ctx-btn active" id="cs-general" onclick="setSituation('general')">💬 ทั่วไป</button>
+    <button class="ctx-btn" id="cs-isaan" onclick="setSituation('isaan')" style="border-color:rgba(255,165,0,.4);color:#ffa500">🌾 เว้าอีสาน</button>
+    <button class="ctx-btn" id="cs-hospital" onclick="setSituation('hospital')">🏥 โรงพยาบาล</button>
+    <button class="ctx-btn" id="cs-work" onclick="setSituation('work')">🏭 ที่ทำงาน</button>
+    <button class="ctx-btn" id="cs-visa" onclick="setSituation('visa')">🏛️ วีซ่า/ราชการ</button>
+    <button class="ctx-btn" id="cs-money" onclick="setSituation('money')">💰 เงิน/ประกัน</button>
+    <button class="ctx-btn" id="cs-bank" onclick="setSituation('bank')">🏦 ธนาคาร</button>
+    <button class="ctx-btn" id="cs-food" onclick="setSituation('food')">🍜 ร้านอาหาร</button>
+    <button class="ctx-btn" id="cs-shop" onclick="setSituation('shop')">🛒 ช้อปปิ้ง</button>
+    <button class="ctx-btn" id="cs-travel" onclick="setSituation('travel')">🚌 เดินทาง</button>
+    <button class="ctx-btn" id="cs-housing" onclick="setSituation('housing')">🏠 ที่พัก</button>
+    <button class="ctx-btn" id="cs-emergency" onclick="setSituation('emergency')">🆘 ฉุกเฉิน</button>
+    <button class="ctx-btn" id="cs-beauty" onclick="setSituation('beauty')">💄 ศัลยกรรม</button>
+  </div>
+
+  <div class="landing" id="landing">
+    <div class="landing-logo">🎙</div>
+    <div class="landing-title">น้องน้ำ</div>
+    <div class="landing-sub">TH · KR LIVE INTERPRETER</div>
+    <div class="landing-desc">ล่าม AI ไทย-เกาหลี<br>สำหรับแรงงานไทยในเกาหลี<br>ใช้งานฟรี ไม่ต้องสมัครสมาชิก</div>
+    <button class="landing-btn" onclick="startApp()">🚀 เริ่มใช้งาน</button>
+    <button id="addHomeBtn" onclick="addToHome()" style="width:100%;max-width:320px;background:transparent;border:1px solid var(--border);border-radius:14px;padding:13px;font-size:14px;font-weight:600;font-family:'Sarabun',sans-serif;cursor:pointer;color:var(--muted);margin-bottom:8px">
+      📲 เพิ่มลงหน้าจอมือถือ
+    </button>
+    <div style="font-size:11px;color:var(--muted);opacity:.5">nongnam-v2.vercel.app</div>
+    <div class="landing-warn" id="landingWarn">
+      <div class="landing-warn-title">⚠️ กรุณาเปิดใน Chrome หรือ Safari</div>
+      <div class="landing-warn-text">เบราว์เซอร์นี้ไม่รองรับไมโครโฟนค่ะ<br>กรุณาคัดลอกลิงก์แล้วเปิดใน Chrome หรือ Safari แทนนะคะ</div>
+      <button class="landing-copy-btn" id="landingCopyBtn" onclick="copyLandingURL()">📋 คัดลอกลิงก์</button>
     </div>
   </div>
-  <div class="onboard-skip" onclick="skipOnboard()">ข้ามไปก่อน ตั้งค่าทีหลังได้ค่ะ</div>
-</div>
 
-<div class="line-warn" id="lineWarn" style="display:none">
-  <p>⚠️ LINE Browser ใช้ไมโครโฟนไม่ได้ค่ะ</p>
-  <div class="line-warn-steps">
-    1️⃣ กดค้างที่ลิงก์นี้<br>
-    2️⃣ เลือก "เปิดใน Chrome" หรือ "เปิดใน Safari"<br>
-    3️⃣ แล้วใช้งานได้เลยค่ะ 🎙
+  <div class="install-bar" id="installBar">
+    <span style="font-size:13px">📲 เพิ่มเป็นแอปบนมือถือได้ค่ะ</span>
+    <button class="install-bar-btn" onclick="installPWA()">ติดตั้ง</button>
   </div>
-</div>
-<div class="perm-box" id="permBox">
-  <p>🎙 น้องน้ำต้องการใช้ไมโครโฟนและเสียงค่ะ<br><small style="opacity:.7">กดปุ่มด้านล่าง แล้วกด "อนุญาต" เพียงครั้งเดียวค่ะ</small></p>
-  <button class="perm-btn" onclick="grantAll()">🎙 เปิดไมโครโฟนและเสียง</button>
-</div>
 
-<div class="status-bar" id="statusBar">
-  <div class="sdot"></div>
-  <span id="statusTxt">กำลังเตรียมระบบ...</span>
-</div>
-
-<div class="btn-grid">
-  <div class="lang-btn th-btn" id="thBtn">
-    <span class="btn-flag">🇹🇭</span>
-    <span class="btn-name">ฉันพูด</span>
-    <span class="btn-desc">ภาษาไทย</span>
-    <span class="btn-hint" id="thHint">🎙 กดค้างแล้วพูด</span>
+  <div class="onboard" id="onboard" style="display:none">
+    <div class="onboard-ico">🎙</div>
+    <div class="onboard-title">ยินดีต้อนรับสู่น้องน้ำ</div>
+    <div class="onboard-sub">เพื่อให้การแปลถูกต้องที่สุด<br>กรุณาบอกน้องน้ำหน่อยนะคะ</div>
+    <div style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--muted)">คุณเป็นใครคะ?</div>
+    <div class="onboard-choices">
+      <div class="onboard-btn" id="ob-male" onclick="selectGender('male')">
+        <span class="ob-ico">👨</span>
+        <span class="ob-name">ผู้ชาย</span>
+      </div>
+      <div class="onboard-btn" id="ob-female" onclick="selectGender('female')">
+        <span class="ob-ico">👩</span>
+        <span class="ob-name">ผู้หญิง</span>
+      </div>
+    </div>
+    <div class="onboard-skip" onclick="skipOnboard()">ข้ามไปก่อน ตั้งค่าทีหลังได้ค่ะ</div>
   </div>
-  <div class="lang-btn kr-btn" id="krBtn">
-    <span class="btn-flag">🇰🇷</span>
-    <span class="btn-name">상대방</span>
-    <span class="btn-desc">한국어</span>
-    <span class="btn-hint" id="krHint">🎙 꾹 눌러서 말하기</span>
+
+  <div class="line-warn" id="lineWarn" style="display:none">
+    <p>⚠️ LINE Browser ใช้ไมโครโฟนไม่ได้ค่ะ</p>
+    <div class="line-warn-steps">
+      1️⃣ กดค้างที่ลิงก์นี้<br>
+      2️⃣ เลือก "เปิดใน Chrome" หรือ "เปิดใน Safari"<br>
+      3️⃣ แล้วใช้งานได้เลยค่ะ 🎙
+    </div>
   </div>
+
+  <div class="perm-box" id="permBox">
+    <p>🎙 น้องน้ำต้องการใช้ไมโครโฟนและเสียงค่ะ<br><small style="opacity:.7">กดปุ่มด้านล่าง แล้วกด "อนุญาต" เพียงครั้งเดียวค่ะ</small></p>
+    <button class="perm-btn" onclick="grantAll()">🎙 เปิดไมโครโฟนและเสียง</button>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <div class="sdot"></div>
+    <span id="statusTxt">กำลังเตรียมระบบ...</span>
+  </div>
+
+  <div class="btn-grid">
+    <div class="lang-btn th-btn" id="thBtn">
+      <span class="btn-flag">🇹🇭</span>
+      <span class="btn-name">ฉันพูด</span>
+      <span class="btn-desc">ภาษาไทย</span>
+      <span class="btn-hint" id="thHint">🎙 กดค้างแล้วพูด</span>
+    </div>
+    <div class="lang-btn kr-btn" id="krBtn">
+      <span class="btn-flag">🇰🇷</span>
+      <span class="btn-name">상대방</span>
+      <span class="btn-desc">한국어</span>
+      <span class="btn-hint" id="krHint">🎙 꾹 눌러서 말하기</span>
+    </div>
+  </div>
+
+  <div class="notice" id="notice"></div>
+  <div class="live-box" id="liveBox"></div>
+
+  <div class="trans-box" id="transBox">
+    <div class="trans-lang" id="transLang"></div>
+    <div class="trans-text" id="transText"></div>
+    <button class="trans-copy" onclick="copyTrans()">📋 คัดลอก</button>
+  </div>
+
+  <div class="log-hdr">
+    <span class="log-title">📋 ประวัติบทสนทนา</span>
+    <button class="log-clear" onclick="clearLog()">ล้าง</button>
+  </div>
+
+  <div class="log" id="log">
+    <div class="log-empty">ยังไม่มีบทสนทนาค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>
+  </div>
+
 </div>
 
-<div class="notice" id="notice"></div>
-<div class="live-box" id="liveBox"></div>
-
-<div class="trans-box" id="transBox">
-  <div class="trans-lang" id="transLang"></div>
-  <div class="trans-text" id="transText"></div>
-  <button class="trans-copy" onclick="copyTrans()">📋 คัดลอก</button>
-</div>
-
-<div class="log-hdr">
-  <span class="log-title">📋 ประวัติบทสนทนา</span>
-  <button class="log-clear" onclick="clearLog()">ล้าง</button>
-</div>
-<div class="log" id="log">
-  <div class="log-empty">ยังไม่มีบทสนทนาค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>
-</div>
-
-</div>
 <script>
+// ============================================================
+// Companion Back Button
+// ============================================================
+
+const DEFAULT_COMPANION_URL = 'https://nongnam-v8.vercel.app';
+
+function getCompanionBackUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const rawBack = params.get('back');
+
+    if (!rawBack) return DEFAULT_COMPANION_URL;
+
+    const url = new URL(rawBack);
+    const allowedHosts = ['nongnam-v8.vercel.app'];
+
+    if (url.protocol === 'https:' && allowedHosts.includes(url.hostname)) {
+      return url.href;
+    }
+
+    return DEFAULT_COMPANION_URL;
+  } catch (e) {
+    return DEFAULT_COMPANION_URL;
+  }
+}
+
+function goCompanion() {
+  window.location.href = getCompanionBackUrl();
+}
+
+function setupCompanionBackButton() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const from = params.get('from');
+    const text = document.getElementById('companionBackText');
+
+    if (!text) return;
+
+    if (from === 'companion') {
+      text.textContent = '← กลับไปคุยกับน้องน้ำ';
+    } else {
+      text.textContent = '💬 คุยกับน้องน้ำ';
+    }
+  } catch (e) {}
+}
+
+window.addEventListener('DOMContentLoaded', setupCompanionBackButton);
+
+// ============================================================
 // PWA Install
+// ============================================================
+
 let deferredPrompt = null;
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
   const bar = document.getElementById('installBar');
   if (bar) bar.style.display = 'flex';
 });
+
 window.addEventListener('appinstalled', () => {
   const bar = document.getElementById('installBar');
   if (bar) bar.style.display = 'none';
 });
+
 function installPWA() {
   if (deferredPrompt) {
     deferredPrompt.prompt();
@@ -296,18 +988,25 @@ function installPWA() {
     alert('วิธีเพิ่มลงหน้าจอค่ะ:\n\niPhone/iPad:\nกด Share (□↑) → Add to Home Screen\n\nAndroid:\nกด Menu (⋮) → Add to Home Screen');
   }
 }
+
 function copyLandingURL() {
   const url = window.location.href;
   navigator.clipboard.writeText(url).then(() => {
     const btn = document.getElementById('landingCopyBtn');
-    if (btn) { btn.textContent = '✅ คัดลอกแล้ว! วางใน Chrome/Safari ได้เลยค่ะ'; btn.style.background = 'var(--green)'; btn.style.color = '#000'; }
+    if (btn) {
+      btn.textContent = '✅ คัดลอกแล้ว! วางใน Chrome/Safari ได้เลยค่ะ';
+      btn.style.background = 'var(--green)';
+      btn.style.color = '#000';
+    }
   }).catch(() => {
     prompt('คัดลอก URL นี้แล้วเปิดใน Chrome/Safari ค่ะ:', url);
   });
 }
+
 function addToHome() {
   const ua = navigator.userAgent || '';
   const isIOS = /iphone|ipad|ipod/i.test(ua);
+
   if (deferredPrompt) {
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
@@ -319,44 +1018,46 @@ function addToHome() {
 }
 
 function startApp() {
-  // ตรวจสอบว่าเบราว์เซอร์รองรับไมโครโฟนหรือเปล่า
   const ua = navigator.userAgent || '';
   const isLineBrowser = ua.includes('Line/') || ua.includes('KAKAOTALK');
   const hasGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   const hasSpeechRecognition = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-  
+
   if (isLineBrowser || !hasGetUserMedia || !hasSpeechRecognition) {
-    // แสดงคำเตือน
     const warn = document.getElementById('landingWarn');
     if (warn) warn.style.display = 'block';
-    
-    // Android: ลอง intent เปิด Chrome
+
     if (/android/i.test(ua)) {
       const url = window.location.href;
       window.location.href = 'intent://' + url.replace(/https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end';
     }
     return;
   }
-  
-  // ใช้งานได้ → ซ่อน landing แสดงแอป
+
   document.getElementById('landing').style.display = 'none';
   initMic();
   checkOnboard();
 }
+
+// ============================================================
+// Main State
+// ============================================================
 
 let micOK = false;
 let recognition = null;
 let isListening = false;
 let lastTrans = '';
 let currentLang = null;
-let lastThaiText = ''; // จำประโยคไทยล่าสุดเพื่อดูบริบทเกาหลี
+let lastThaiText = '';
 
-// ── Context State ──
-let userGender = localStorage.getItem('nn_gender') || '';   // 'male' | 'female' | ''
-let partnerGender = '';   // 'male' | 'female' | ''
-let situation = 'general'; // 'general' | 'hospital' | 'work' | 'gov' | 'shop'
+let userGender = localStorage.getItem('nn_gender') || '';
+let partnerGender = '';
+let situation = 'general';
 
-// ── Onboarding ──
+// ============================================================
+// Onboarding
+// ============================================================
+
 function checkOnboard() {
   if (!userGender) {
     document.getElementById('onboard').style.display = 'flex';
@@ -378,16 +1079,24 @@ function skipOnboard() {
   document.getElementById('onboard').style.display = 'none';
 }
 
-// ── Context Controls ──
+// ============================================================
+// Context Controls
+// ============================================================
+
+function resetConversationBecauseContextChanged() {
+  localStorage.removeItem('nn_log');
+  document.getElementById('log').innerHTML = '<div class="log-empty">เริ่มบทสนทนาใหม่ค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>';
+  document.getElementById('transBox').className = 'trans-box';
+  document.getElementById('liveBox').className = 'live-box';
+}
+
 function setPartner(g) {
   const newGender = partnerGender === g ? '' : g;
+
   if (newGender !== partnerGender) {
-    // คู่สนทนาเปลี่ยน → ล้าง history ด้วยค่ะ
-    localStorage.removeItem('nn_log');
-    document.getElementById('log').innerHTML = '<div class="log-empty">เริ่มบทสนทนาใหม่ค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>';
-    document.getElementById('transBox').className = 'trans-box';
-    document.getElementById('liveBox').className = 'live-box';
+    resetConversationBecauseContextChanged();
   }
+
   partnerGender = newGender;
   document.getElementById('cp-m').className = 'ctx-btn' + (partnerGender === 'male' ? ' active-m' : '');
   document.getElementById('cp-f').className = 'ctx-btn' + (partnerGender === 'female' ? ' active-f' : '');
@@ -395,24 +1104,28 @@ function setPartner(g) {
 
 function setSituation(s) {
   if (situation !== s) {
-    // สถานการณ์เปลี่ยน → ล้าง history เพื่อไม่ให้บริบทเก่าปนมาค่ะ
-    localStorage.removeItem('nn_log');
-    document.getElementById('log').innerHTML = '<div class="log-empty">เริ่มบทสนทนาใหม่ค่ะ<br><small style="font-size:11px;opacity:.5">กดค้างที่ปุ่มแล้วพูดได้เลย</small></div>';
-    document.getElementById('transBox').className = 'trans-box';
-    document.getElementById('liveBox').className = 'live-box';
+    resetConversationBecauseContextChanged();
   }
+
   situation = s;
+
   ['general','hospital','work','visa','money','bank','food','shop','travel','housing','emergency','beauty','isaan'].forEach(id => {
     const el = document.getElementById('cs-' + id);
     if (el) el.className = 'ctx-btn' + (id === s ? ' active' : '');
   });
 }
 
-// ── Build context string for API ──
 function buildContext() {
   const parts = [];
-  if (userGender) parts.push('ผู้ใช้เป็น' + (userGender === 'male' ? 'ผู้ชาย (ลงท้ายครับ)' : 'ผู้หญิง (ลงท้ายค่ะ)'));
-  if (partnerGender) parts.push('คู่สนทนาเป็น' + (partnerGender === 'male' ? 'ผู้ชาย (คู่สนทนาลงท้ายครับ/ผู้ชาย)' : 'ผู้หญิง (คู่สนทนาลงท้ายค่ะ/ผู้หญิง)'));
+
+  if (userGender) {
+    parts.push('ผู้ใช้เป็น' + (userGender === 'male' ? 'ผู้ชาย (ลงท้ายครับ)' : 'ผู้หญิง (ลงท้ายค่ะ)'));
+  }
+
+  if (partnerGender) {
+    parts.push('คู่สนทนาเป็น' + (partnerGender === 'male' ? 'ผู้ชาย (คู่สนทนาลงท้ายครับ/ผู้ชาย)' : 'ผู้หญิง (คู่สนทนาลงท้ายค่ะ/ผู้หญิง)'));
+  }
+
   const sitMap = {
     hospital: 'อยู่ที่โรงพยาบาล เน้นศัพท์การแพทย์',
     work: 'อยู่ที่ทำงาน เน้นศัพท์แรงงาน',
@@ -428,7 +1141,9 @@ function buildContext() {
     isaan: 'โหมดอีสาน ผู้พูดใช้ภาษาอีสาน ให้แปลงความหมายอีสานเป็นไทยกลางในใจก่อน แล้วค่อยแปลเกาหลี ห้ามตอบเอง',
     general: ''
   };
+
   if (sitMap[situation]) parts.push(sitMap[situation]);
+
   return parts.join(' | ');
 }
 
@@ -436,28 +1151,34 @@ window.onload = () => {
   loadVoices();
   setupHoldButtons();
   checkDailyReset();
-  // ไม่เรียก checkOnboard ตอนโหลด เพราะ startApp() จะเรียกแทน
 };
+
+// ============================================================
+// Permission / mic / speech setup
+// ============================================================
 
 function loadVoices() {
   window.speechSynthesis.getVoices();
-  if (window.speechSynthesis.onvoiceschanged !== undefined)
+  if (window.speechSynthesis.onvoiceschanged !== undefined) {
     window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+  }
 }
 
 function checkDailyReset() {
   const today = new Date().toDateString();
+
   if (localStorage.getItem('nn_date') !== today) {
     localStorage.setItem('nn_date', today);
     localStorage.removeItem('nn_log');
   }
+
   loadLog();
 }
 
 async function initMic() {
-  // ตรวจจับ LINE in-app browser
   const ua = navigator.userAgent || '';
   const isLine = ua.includes('Line/') || ua.includes('KAKAOTALK');
+
   if (isLine) {
     document.getElementById('lineWarn').style.display = 'block';
     setStatus('idle', '⚠️ กรุณาเปิดใน Chrome หรือ Safari ค่ะ');
@@ -466,6 +1187,7 @@ async function initMic() {
 
   try {
     const p = await navigator.permissions.query({ name: 'microphone' });
+
     if (p.state === 'granted') {
       micOK = true;
       document.getElementById('permBox').style.display = 'none';
@@ -481,7 +1203,6 @@ async function initMic() {
 }
 
 async function grantAll() {
-  // Unlock audio for mobile browsers first
   try {
     const ctx = new (AudioContext || webkitAudioContext)();
     const buf = ctx.createBuffer(1, 1, 22050);
@@ -492,7 +1213,6 @@ async function grantAll() {
     ctx.resume();
   } catch(e) {}
 
-  // Also do a silent TTS to unlock speech synthesis on iOS
   try {
     const utt = new SpeechSynthesisUtterance(' ');
     utt.volume = 0;
@@ -518,19 +1238,29 @@ async function grantMic() {
 function setupHoldButtons() {
   ['th', 'kr'].forEach(lang => {
     const btn = document.getElementById(lang + 'Btn');
+
     btn.addEventListener('mousedown', e => { e.preventDefault(); startHold(lang); });
     btn.addEventListener('mouseup', e => { e.preventDefault(); stopHold(); });
     btn.addEventListener('mouseleave', () => { if (isListening && currentLang === lang) stopHold(); });
+
     btn.addEventListener('touchstart', e => { e.preventDefault(); startHold(lang); }, { passive: false });
     btn.addEventListener('touchend', e => { e.preventDefault(); stopHold(); }, { passive: false });
     btn.addEventListener('touchcancel', () => { if (isListening) stopHold(); }, { passive: false });
   });
 }
 
+// ============================================================
+// Hold to talk
+// ============================================================
+
 function startHold(lang) {
-  if (!micOK) { document.getElementById('permBox').style.display = 'block'; return; }
+  if (!micOK) {
+    document.getElementById('permBox').style.display = 'block';
+    return;
+  }
+
   if (isListening) return;
-  // หยุดเสียงทันทีเมื่อกดปุ่ม ไม่ต้องรอให้พูดจบ
+
   if (window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel();
     setStatus('idle', '');
@@ -558,20 +1288,23 @@ function startHold(lang) {
 
   let finalText = '';
   let lastInterim = '';
-  let waitingToStop = false;
 
   recognition.onresult = e => {
     let interim = '', final = '';
+
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final += t; else interim += t;
+      if (e.results[i].isFinal) final += t;
+      else interim += t;
     }
+
     if (final) {
       finalText += final;
       lastInterim = '';
     } else {
       lastInterim = interim;
     }
+
     live.textContent = finalText + (lastInterim ? ' ' + lastInterim : '');
     if (finalText || lastInterim) live.className = 'live-box show final';
   };
@@ -581,16 +1314,15 @@ function startHold(lang) {
       micOK = false;
       document.getElementById('permBox').style.display = 'block';
     }
-    resetBtn(lang); isListening = false;
+    resetBtn(lang);
+    isListening = false;
     setStatus('idle', 'เกิดข้อผิดพลาด ลองใหม่ได้เลยค่ะ');
   };
 
   recognition.onend = () => {
-    // รวม finalText + lastInterim เพื่อให้ได้ข้อความครบที่สุด
-    const fullText = (finalText + ' ' + lastInterim).trim();
-    // รอ 800ms เผื่อ recognition ส่ง final result ตามมาทีหลัง
     setTimeout(() => {
       const textToSend = (finalText + ' ' + lastInterim).trim();
+
       if (textToSend) {
         translate(textToSend, lang);
       } else {
@@ -605,27 +1337,37 @@ function startHold(lang) {
 
 function stopHold() {
   if (!isListening) return;
+
   isListening = false;
   resetBtn(currentLang);
-  if (recognition) { try { recognition.stop(); } catch(e) {} }
+
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {}
+  }
 }
 
 function resetBtn(lang) {
   if (!lang) return;
+
   document.getElementById(lang + 'Btn')?.classList.remove('holding', 'active');
+
   const hint = document.getElementById(lang + 'Hint');
   if (hint) hint.textContent = lang === 'th' ? '🎙 กดค้างแล้วพูด' : '🎙 꾹 눌러서 말하기';
 }
 
+// ============================================================
+// Translation
+// ============================================================
+
 function detectTurnType(text) {
   if (!text) return 'none';
-  // ตรวจจับคำถามภาษาไทย — ครอบคลุมทุกรูปแบบค่ะ
+
   if (/ไหม|มั้ย|หรือเปล่า|ป่าว|หรือยัง|หรือไม่|เหรอ|หรอ|ปะ$/.test(text)) return 'question';
   if (/เท่าไหร่|เท่าไร|ที่ไหน|ยังไง|อย่างไร|แบบไหน|ทำไม|เพราะอะไร/.test(text)) return 'question';
   if (/กี่โมง|กี่วัน|กี่ครั้ง|กี่บาท|เมื่อไหร่|ตอนไหน|อะไร|ใคร|ของใคร/.test(text)) return 'question';
   if (/แค่ไหน|นานไหม|ไกลไหม|ดีไหม|โอเคไหม|ไหวไหม|เป็นไงบ้าง/.test(text)) return 'question';
-  // ตรวจจับคำถามภาษาเกาหลี
   if (/[까죠나]요\??$|습니까\??$|어때요\??$|있어요\??$|없어요\??$/.test(text)) return 'question';
+
   return 'statement';
 }
 
@@ -637,24 +1379,24 @@ function getRecentHistory(n) {
       orig: (i.orig || '').substring(0, 80),
       trans: (i.trans || '').substring(0, 80)
     }));
-  } catch(e) { return []; }
+  } catch(e) {
+    return [];
+  }
 }
 
 async function translate(text, fromLang) {
-  // ตรวจ input ก่อนเลย — ถ้าภาษาไม่ตรงช่องที่กด ไม่ต้องส่งไป API
   const hasKorean = /[가-힣]/.test(text);
   const hasThai = /[ก-๙]/.test(text);
   const koreanCount = (text.match(/[가-힣]/g) || []).length;
   const thaiCount = (text.match(/[ก-๙]/g) || []).length;
-  
-  // ตรวจเฉพาะกรณีที่ชัดเจนจริงๆ ค่ะ (ไม่มีภาษาที่ถูกต้องเลย)
-  // ถ้ามีปนกัน → ให้แปลไปเลย เพราะอาจเป็นเสียงแวดล้อม
+
   if (fromLang === 'th' && hasKorean && !hasThai && koreanCount > 3) {
     showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
     setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
     document.getElementById('liveBox').className = 'live-box';
     return;
   }
+
   if (fromLang === 'kr' && hasThai && !hasKorean && thaiCount > 3) {
     showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
     setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
@@ -668,23 +1410,25 @@ async function translate(text, fromLang) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
     let res;
+
     try {
       res = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-        text,
-        fromLang,
-        context: buildContext(),
-        history: getRecentHistory(3),
-        prev_turn: fromLang === 'kr' ? detectTurnType(lastThaiText) : 'none',
-        last_th: fromLang === 'kr' ? lastThaiText : '',
-        user_gender: userGender || '',
-        partner_gender: partnerGender || ''
-      }),
-        signal: controller.signal
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body:JSON.stringify({
+          text,
+          fromLang,
+          context:buildContext(),
+          history:getRecentHistory(3),
+          prev_turn: fromLang === 'kr' ? detectTurnType(lastThaiText) : 'none',
+          last_th: fromLang === 'kr' ? lastThaiText : '',
+          user_gender:userGender || '',
+          partner_gender:partnerGender || ''
+        }),
+        signal:controller.signal
       });
     } finally {
       clearTimeout(timeout);
@@ -693,33 +1437,26 @@ async function translate(text, fromLang) {
     const data = await res.json();
 
     if (!res.ok) {
-      const msg = data?.error || '';
-      if (msg.includes('overload') || res.status === 529) {
-        showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
-      } else {
-        showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
-      }
+      showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
       setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
       return;
     }
 
     const out = data.translation;
-    // ตรวจว่า output ผิดภาษาไหม เช่น พูดเกาหลีในช่องไทย
     const isEnglishOnly = /^[a-zA-Z\s.,!?'"()-]+$/.test(out.trim());
-    const expectedKorean = fromLang === 'th' && /[가-힣]/.test(out);
-    const expectedThai = fromLang === 'kr' && /[ก-๙]/.test(out);
-    
+
     if (isEnglishOnly && out.length > 30) {
       showNotice('⚠️ น้องน้ำฟังไม่ชัดค่ะ กรุณาพูดใหม่อีกครั้งได้ไหมคะ', 'err');
       setStatus('idle', 'ลองใหม่ได้เลยค่ะ');
       return;
     }
-    
+
     lastTrans = out;
     showTranslation(out, fromLang);
     speakOut(out, fromLang === 'th' ? 'ko-KR' : 'th-TH', fromLang);
     saveToLog(text, out, fromLang);
-    if (fromLang === 'th') lastThaiText = text; // จำประโยคไทยล่าสุด
+
+    if (fromLang === 'th') lastThaiText = text;
 
   } catch(err) {
     if (err.name === 'AbortError') {
@@ -735,42 +1472,58 @@ function showTranslation(trans, fromLang) {
   const box = document.getElementById('transBox');
   const langEl = document.getElementById('transLang');
   const textEl = document.getElementById('transText');
+
   box.className = 'trans-box show';
-  langEl.innerHTML = fromLang === 'th' ? '🇹🇭 → 🇰🇷 &nbsp;ภาษาไทย → เกาหลี' : '🇰🇷 → 🇹🇭 &nbsp;한국어 → ภาษาไทย';
+  langEl.innerHTML = fromLang === 'th'
+    ? '🇹🇭 → 🇰🇷 &nbsp;ภาษาไทย → เกาหลี'
+    : '🇰🇷 → 🇹🇭 &nbsp;한국어 → ภาษาไทย';
+
   textEl.className = 'trans-text ' + (fromLang === 'th' ? 'to-kr' : 'to-th');
   textEl.textContent = trans;
 }
 
 function copyTrans() {
   if (!lastTrans) return;
+
   navigator.clipboard.writeText(lastTrans).then(() => {
     const b = document.querySelector('.trans-copy');
-    if (b) { b.textContent = '✓ คัดลอกแล้ว'; setTimeout(() => { if(b) b.textContent = '📋 คัดลอก'; }, 1500); }
+    if (b) {
+      b.textContent = '✓ คัดลอกแล้ว';
+      setTimeout(() => { if(b) b.textContent = '📋 คัดลอก'; }, 1500);
+    }
   }).catch(() => {});
 }
+
+// ============================================================
+// TTS
+// ============================================================
 
 function getVoice(lang) {
   const voices = window.speechSynthesis.getVoices();
   const femKw = /female|woman|girl|나영|하나|유나|지영|수진|Yuna|Nari|Sora|Heami|Kanya|Narisa/i;
   const byLang = voices.filter(v => v.lang === lang);
+
   let chosen = byLang.find(v => femKw.test(v.name)) || byLang[0];
-  if (!chosen) { const px = voices.filter(v => v.lang.startsWith(lang.split('-')[0])); chosen = px.find(v => femKw.test(v.name)) || px[0]; }
+
+  if (!chosen) {
+    const px = voices.filter(v => v.lang.startsWith(lang.split('-')[0]));
+    chosen = px.find(v => femKw.test(v.name)) || px[0];
+  }
+
   return chosen;
 }
 
 function speakOut(text, lang, fromLang) {
   setStatus('speaking', fromLang === 'th' ? '🔊 กำลังพูดภาษาเกาหลี...' : '🔊 กำลังพูดภาษาไทย...');
-  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
-  const ttsTimeout = null;
 
-  // แบ่งเฉพาะจุดจบประโยค ไม่แบ่งตาม , เพราะทำให้ชิ้นสั้นเกินจน iOS ไม่ speak
+  if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+
   let parts = text
     .replace(/([.!?。])\s+/g, '$1|SPLIT|')
     .split('|SPLIT|')
     .map(p => p.trim())
-    .filter(p => p.length > 1); // กรองชิ้นที่สั้นเกิน 1 ตัวออก
+    .filter(p => p.length > 1);
 
-  // ถ้าได้แค่ชิ้นเดียวหรือข้อความสั้น → พูดทั้งหมดในครั้งเดียวเลย
   if (parts.length <= 1) parts = [text.trim()];
 
   const voice = getVoice(lang);
@@ -781,8 +1534,14 @@ function speakOut(text, lang, fromLang) {
       setStatus('idle', '✅ เสร็จแล้ว กดค้างปุ่มเพื่อพูดต่อได้เลยค่ะ');
       return;
     }
+
     const chunk = parts[idx];
-    if (!chunk) { idx++; speakNext(); return; }
+
+    if (!chunk) {
+      idx++;
+      speakNext();
+      return;
+    }
 
     const utt = new SpeechSynthesisUtterance(chunk);
     utt.lang = lang;
@@ -795,29 +1554,38 @@ function speakOut(text, lang, fromLang) {
       const pause = /[.!?。]$/.test(chunk.trim()) ? 350 : 150;
       setTimeout(speakNext, pause);
     };
-    utt.onerror = (e) => {
-      console.log('TTS error:', e.error, 'chunk:', chunk);
+
+    utt.onerror = () => {
       idx++;
       setTimeout(speakNext, 100);
     };
+
     window.speechSynthesis.speak(utt);
   }
 
-  // iOS workaround: ต้องรอ 100ms หลัง cancel ก่อน speak ใหม่
   setTimeout(speakNext, 100);
 }
 
+// ============================================================
+// Logs
+// ============================================================
+
 function saveToLog(orig, trans, fromLang) {
-  const timeStr = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+  const timeStr = new Date().toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit' });
+
   addLogItem(orig, trans, fromLang, timeStr);
+
   const existing = JSON.parse(localStorage.getItem('nn_log') || '[]');
-  existing.push({ orig, trans, fromLang, time: timeStr });
+  existing.push({ orig, trans, fromLang, time:timeStr });
+
   if (existing.length > 50) existing.splice(0, existing.length - 50);
+
   localStorage.setItem('nn_log', JSON.stringify(existing));
 }
 
 function loadLog() {
   const items = JSON.parse(localStorage.getItem('nn_log') || '[]');
+
   if (items.length > 0) {
     document.querySelector('.log-empty')?.remove();
     items.forEach(i => addLogItem(i.orig, i.trans, i.fromLang, i.time));
@@ -826,17 +1594,36 @@ function loadLog() {
 
 function addLogItem(orig, trans, fromLang, timeStr) {
   const log = document.getElementById('log');
+
   document.querySelector('.log-empty')?.remove();
+
   const div = document.createElement('div');
   div.className = 'log-item ' + fromLang;
+
   const replayLang = fromLang === 'th' ? 'ko-KR' : 'th-TH';
-  div.innerHTML = `<div class="log-flag">${fromLang==='th'?'🇹🇭':'🇰🇷'}</div><div class="log-body"><div class="log-orig">${esc(orig)}</div><div class="log-trans">${esc(trans)}</div><div class="log-actions"><button class="log-copy" onclick="copyText('${esc(trans)}',this)">📋 คัดลอก</button><button class="log-replay" onclick="replayAudio('${esc(trans)}','${replayLang}','${fromLang}')">🔊 ฟังอีกครั้ง</button><span class="log-time">${timeStr}</span></div></div>`;
+
+  div.innerHTML = `
+    <div class="log-flag">${fromLang === 'th' ? '🇹🇭' : '🇰🇷'}</div>
+    <div class="log-body">
+      <div class="log-orig">${esc(orig)}</div>
+      <div class="log-trans">${esc(trans)}</div>
+      <div class="log-actions">
+        <button class="log-copy" onclick="copyText('${esc(trans)}',this)">📋 คัดลอก</button>
+        <button class="log-replay" onclick="replayAudio('${esc(trans)}','${replayLang}','${fromLang}')">🔊 ฟังอีกครั้ง</button>
+        <span class="log-time">${timeStr}</span>
+      </div>
+    </div>
+  `;
+
   log.appendChild(div);
   log.scrollTop = log.scrollHeight;
 }
 
 function copyText(text, btn) {
-  navigator.clipboard.writeText(text).then(() => { btn.textContent = '✓'; setTimeout(() => btn.textContent = '📋 คัดลอก', 1500); });
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✓';
+    setTimeout(() => btn.textContent = '📋 คัดลอก', 1500);
+  });
 }
 
 function clearLog() {
@@ -846,6 +1633,10 @@ function clearLog() {
   localStorage.removeItem('nn_log');
 }
 
+// ============================================================
+// UI helpers
+// ============================================================
+
 function setStatus(state, txt) {
   document.getElementById('statusTxt').textContent = txt;
   document.getElementById('statusBar').className = 'status-bar' + (state !== 'idle' ? ' ' + state : '');
@@ -853,17 +1644,21 @@ function setStatus(state, txt) {
 
 function showNotice(t, type) {
   const n = document.getElementById('notice');
-  n.textContent = t; n.className = 'notice show ' + (type || 'err');
+  n.textContent = t;
+  n.className = 'notice show ' + (type || 'err');
   setTimeout(() => n.className = 'notice', 6000);
 }
 
-function hideNotice() { document.getElementById('notice').className = 'notice'; }
-function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;'); }
-// Register PWA Service Worker
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  });
+function hideNotice() {
+  document.getElementById('notice').className = 'notice';
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/'/g,'&#39;');
 }
 
 function replayAudio(text, lang, fromLang) {
@@ -871,7 +1666,31 @@ function replayAudio(text, lang, fromLang) {
   speakOut(text, lang, fromLang);
 }
 
-function beep(f,v){try{const ctx=new(AudioContext||webkitAudioContext)();const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.frequency.value=f;g.gain.setValueAtTime(v,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+.15);o.start();o.stop(ctx.currentTime+.15)}catch(e){}}
+function beep(f, v) {
+  try {
+    const ctx = new (AudioContext || webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.frequency.value = f;
+    g.gain.setValueAtTime(v, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + .15);
+    o.start();
+    o.stop(ctx.currentTime + .15);
+  } catch(e) {}
+}
+
+// ============================================================
+// Register PWA Service Worker
+// ============================================================
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
