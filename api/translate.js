@@ -1,15 +1,18 @@
 // api/translate.js
 // ============================================================
 // Nongnam Thai-Korean Interpreter API
-// Stable trigger-based version
-// Main focus:
+// Full stable replacement version
+// Focus:
 // - Thai <-> Korean interpreter only
-// - Isan dialect
-// - Hospital sub-vocab: dental / body / wound / allergy
-// - Mobile SIM / telecom
-// - Online shopping / Coupang / parcel / refund / return
-// - Used car / car repair
-// - Hobby / fishing / snooker
+// - Korean STT correction for real-life mishearing
+// - 출장 / ชุลจัง = off-site work / business trip, not ตรวจสอบงาน
+// - 몇 시에 들어와요 / 돌아와요 / 오세요 correction
+// - Do NOT detect "อยาก" as "ยา"
+// - Coupang / คูพัง / กูพัง = 쿠팡, not broken item
+// - Parcel / online shopping / front door / delivery context
+// - Hospital / dental / wisdom tooth / pus / bone / body pain
+// - Isan / fishing / food / ceremony / banter
+// - SIM / mobile / used car / work / housing / visa / bank
 // - Google Sheet logging
 // ============================================================
 
@@ -53,7 +56,7 @@ export default async function handler(req, res) {
 
     const model = process.env.CLAUDE_MODEL || 'claude-haiku-4-5-20251001';
 
-    let cleanedText = normalizeAll(String(text || ''));
+    let cleanedText = normalizeAll(String(text || ''), fromLang);
     cleanedText = addQuestionMarksLight(cleanedText, fromLang);
 
     const sourceLang = isThaiLang(fromLang) ? 'Thai' : 'Korean';
@@ -62,24 +65,24 @@ export default async function handler(req, res) {
     const unclearReply =
       targetLang === 'Korean'
         ? '잘 못 들었습니다. 다시 말씀해 주세요.'
-        : 'ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหมคะ';
+        : buildThaiUnclearReply(partner_gender);
 
     const failReply =
       targetLang === 'Korean'
         ? '번역할 수 없습니다.'
-        : 'ไม่สามารถแปลได้ค่ะ';
+        : buildThaiFailReply(partner_gender);
 
     const uiSit = detectSituationFromUIContext(context);
     const finalSit = autoDetectSituation(cleanedText, uiSit);
 
-    const hard = hardTranslate(cleanedText, fromLang);
+    const hard = hardTranslate(cleanedText, fromLang, user_gender, partner_gender);
     if (hard) {
       logToSheetSafe(req, {
         fromLang,
         situation: finalSit,
         chars: cleanedText.length,
         keywords: detectKeywords(cleanedText, finalSit).join(', '),
-        orig: cleanedText.substring(0, 160),
+        orig: String(text || '').substring(0, 160),
         normalized: cleanedText.substring(0, 160),
         trans: hard.substring(0, 160),
         userGender: user_gender || '',
@@ -163,7 +166,7 @@ export default async function handler(req, res) {
       situation: finalSit,
       chars: cleanedText.length,
       keywords: detectKeywords(cleanedText, finalSit).join(', '),
-      orig: cleanedText.substring(0, 160),
+      orig: String(text || '').substring(0, 160),
       normalized: cleanedText.substring(0, 160),
       trans: translation.substring(0, 160),
       userGender: user_gender || '',
@@ -208,6 +211,10 @@ function isThaiLang(fromLang) {
   return fromLang === 'th' || fromLang === 'thai' || fromLang === 'TH';
 }
 
+function isKoreanLang(fromLang) {
+  return fromLang === 'kr' || fromLang === 'ko' || fromLang === 'korean' || fromLang === 'KR' || fromLang === 'KO';
+}
+
 function getCleanIP(req) {
   const ipHeader =
     req.headers['x-forwarded-for'] ||
@@ -218,11 +225,27 @@ function getCleanIP(req) {
   return String(ipHeader).split(',')[0].trim();
 }
 
+function thaiEnding(partnerGender) {
+  if (partnerGender === 'female') return { polite: 'ค่ะ', question: 'คะ' };
+  if (partnerGender === 'male') return { polite: '', question: '' };
+  return { polite: '', question: '' };
+}
+
+function buildThaiUnclearReply(partnerGender) {
+  const e = thaiEnding(partnerGender);
+  return `ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหม${e.question || 'คะ'}`;
+}
+
+function buildThaiFailReply(partnerGender) {
+  const e = thaiEnding(partnerGender);
+  return `ไม่สามารถแปลได้${e.polite || 'ค่ะ'}`;
+}
+
 // ============================================================
 // Normalization
 // ============================================================
 
-function normalizeAll(input) {
+function normalizeAll(input, fromLang) {
   let t = String(input || '')
     .replace(/\r\n/g, '\n')
     .replace(/\u00A0/g, ' ')
@@ -230,16 +253,149 @@ function normalizeAll(input) {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  const pairs = [
-    [/ใหมครับ/g, 'ไหมครับ'],
-    [/ใหมคะ/g, 'ไหมคะ'],
-    [/ใหมค่ะ/g, 'ไหมคะ'],
-    [/มัยครับ/g, 'ไหมครับ'],
-    [/มัยคะ/g, 'ไหมคะ'],
-    [/หรือปล่าว/g, 'หรือเปล่า'],
-    [/ป่าว/g, 'หรือเปล่า'],
+  t = normalizeCommonThai(t);
+  t = normalizeThaiLoanwords(t);
+  t = normalizeKoreanSTT(t);
+  t = normalizeCoupangAndOnline(t);
+  t = normalizeIsanAndHobby(t);
+  t = normalizeHospitalDental(t);
+  t = normalizeRepeatedSpeech(t, fromLang);
 
-    // Coupang speech variants
+  return t.trim();
+}
+
+function normalizeCommonThai(text) {
+  return String(text || '')
+    .replace(/ใหมครับ/g, 'ไหมครับ')
+    .replace(/ใหมคะ/g, 'ไหมคะ')
+    .replace(/ใหมค่ะ/g, 'ไหมคะ')
+    .replace(/มัยครับ/g, 'ไหมครับ')
+    .replace(/มัยคะ/g, 'ไหมคะ')
+    .replace(/หรือปล่าว/g, 'หรือเปล่า')
+    .replace(/ป่าว/g, 'หรือเปล่า')
+    .replace(/แอลจี/g, 'LG')
+    .replace(/เเอลจี/g, 'LG')
+    .replace(/เคที/g, 'KT')
+    .replace(/เอสเคที/g, 'SKT')
+    .replace(/ยู ซิม/g, '유심')
+    .replace(/ยูซิม/g, '유심')
+    .replace(/ไฟแน้น/g, 'ไฟแนนซ์')
+    .replace(/ไฟแนน/g, 'ไฟแนนซ์')
+    .replace(/เลขไม/g, 'เลขไมล์')
+    .replace(/ใบตรวจสภาพรถ/g, 'ใบตรวจสภาพ')
+    .replace(/ใบเช็คสภาพรถ/g, 'ใบตรวจสภาพ');
+}
+
+function normalizeThaiLoanwords(text) {
+  const pairs = [
+    [/ชุล จัง/g, '출장'],
+    [/ชุลจัง/g, '출장'],
+    [/ชุน จัง/g, '출장'],
+    [/ชุนจัง/g, '출장'],
+    [/ชู จัง/g, '출장'],
+    [/ชูจัง/g, '출장'],
+    [/ชุ ลจัง/g, '출장'],
+
+    [/เวกึน/g, '외근'],
+    [/เว กึน/g, '외근'],
+    [/เวกึนไป/g, '외근ไป'],
+    [/โอเวอร์ไทม์/g, 'โอที'],
+
+    [/คีซุกซา/g, '기숙사'],
+    [/คี สุก ซา/g, '기숙사'],
+    [/กีซุกซา/g, '기숙사'],
+
+    [/ซาจังนิม/g, '사장님'],
+    [/ซาจัง/g, '사장님'],
+    [/สาจำนี/g, '사장님'],
+    [/สจนี/g, '사장님'],
+    [/พันจัง/g, '반장님'],
+    [/บันจัง/g, '반장님'],
+
+    [/เวกุกอิน/g, '외국인'],
+    [/เวกุกคน/g, '외국인'],
+    [/ฮเวซา/g, '회사'],
+    [/โฮซา/g, '회사']
+  ];
+
+  let t = String(text || '');
+  for (const [a, b] of pairs) t = t.replace(a, b);
+  return t;
+}
+
+function normalizeKoreanSTT(text) {
+  let t = String(text || '');
+
+  const pairs = [
+    // 몇 시에 들어와요 / 돌아와요 / 오세요
+    [/마치마치 들어와요/g, '몇 시에 들어와요?'],
+    [/마치 들어와요/g, '몇 시에 들어와요?'],
+    [/매치 들어와요/g, '몇 시에 들어와요?'],
+    [/미지근 들어와요/g, '몇 시에 들어와요?'],
+    [/며칠 들어와요/g, '몇 시에 들어와요?'],
+    [/며칠간 들어와요/g, '몇 시에 들어와요?'],
+    [/며칠 동안 들어와요/g, '몇 시에 들어와요?'],
+    [/몇일 들어와요/g, '몇 시에 들어와요?'],
+    [/몇일간 들어와요/g, '몇 시에 들어와요?'],
+
+    [/마치마치 돌아와요/g, '몇 시에 돌아와요?'],
+    [/마치 돌아와요/g, '몇 시에 돌아와요?'],
+    [/매치 돌아와요/g, '몇 시에 돌아와요?'],
+    [/미지근 돌아와요/g, '몇 시에 돌아와요?'],
+    [/며칠 돌아와요/g, '몇 시에 돌아와요?'],
+    [/며칠간 돌아와요/g, '몇 시에 돌아와요?'],
+    [/몇일 돌아와요/g, '몇 시에 돌아와요?'],
+
+    [/마치마치 오세요/g, '몇 시에 오세요?'],
+    [/마치 오세요/g, '몇 시에 오세요?'],
+    [/매치 오세요/g, '몇 시에 오세요?'],
+    [/미지근 오세요/g, '몇 시에 오세요?'],
+    [/며칠 오세요/g, '몇 시에 오세요?'],
+    [/며칠간 오세요/g, '몇 시에 오세요?'],
+
+    [/몇시에/g, '몇 시에'],
+    [/몇 시 오세요/g, '몇 시에 오세요?'],
+    [/몇 시 들어와요/g, '몇 시에 들어와요?'],
+    [/몇 시 돌아와요/g, '몇 시에 돌아와요?'],
+
+    // 어디 / 언제 common STT fragments
+    [/어 들었나/g, '들었나요?'],
+    [/어디 들었나/g, '어디 들었나요?'],
+    [/어떻게 하세요/g, '뭐 하세요?'],
+    [/어떻게 해요/g, '어떻게 해요?'],
+
+    // work / dorm / company common repeats
+    [/기수사/g, '기숙사'],
+    [/기수하/g, '기숙사'],
+    [/기숙사기숙사/g, '기숙사'],
+    [/회사회사/g, '회사'],
+    [/사장사장/g, '사장님'],
+    [/노동부노동부/g, '노동부'],
+
+    // parcel / phone / app
+    [/유심유심/g, '유심'],
+    [/배송배송/g, '배송'],
+    [/택배택배/g, '택배'],
+    [/쿠팡쿠팡/g, '쿠팡'],
+
+    // common food / polite form
+    [/감사 하나/g, '감사합니다'],
+    [/밥 먹을게요/g, '밥 먹을게요.'],
+    [/맛있네/g, '맛있네요.'],
+
+    // Hangul letters / simple
+    [/아 디귿 리 미음 비읍 시옷/g, '아, 디귿, 리을, 미음, 비읍, 시옷']
+  ];
+
+  for (const [a, b] of pairs) t = t.replace(a, b);
+
+  return t;
+}
+
+function normalizeCoupangAndOnline(text) {
+  let t = String(text || '');
+
+  const pairs = [
     [/คู พัง/g, 'คู팡'],
     [/คูพัง/g, 'คู팡'],
     [/กู พัง/g, 'คู팡'],
@@ -249,7 +405,6 @@ function normalizeAll(input) {
     [/คู ปอง/g, 'คู팡'],
     [/คูปอง/g, 'คู팡'],
 
-    // Product damage, not Coupang
     [/ของ ผม พัง/g, 'ของผมพัง'],
     [/ของ ฉัน พัง/g, 'ของฉันพัง'],
     [/ของ หนู พัง/g, 'ของหนูพัง'],
@@ -259,40 +414,40 @@ function normalizeAll(input) {
     [/ของ ชำรุด/g, 'ของชำรุด'],
     [/สินค้า ชำรุด/g, 'สินค้าชำรุด'],
 
-    // Online shopping
     [/สั่ง ของ/g, 'สั่งของ'],
     [/ซื้อ ของ ออนไลน์/g, 'ซื้อของออนไลน์'],
     [/ซื้อ ออนไลน์/g, 'ซื้อออนไลน์'],
+    [/ตาม พัสดุ/g, 'ตามพัสดุ'],
+    [/ตาม ของ/g, 'ตามของ'],
     [/ส่ง พัสดุ/g, 'ส่งพัสดุ'],
     [/รับ พัสดุ/g, 'รับพัสดุ'],
     [/เลข พัสดุ/g, 'เลขพัสดุ'],
     [/เลข แทรค/g, 'เลขแทร็ก'],
     [/เลข แทร็ก/g, 'เลขแทร็ก'],
     [/เช็ค พัสดุ/g, 'เช็คพัสดุ'],
+    [/พัสดุ จัดส่งแล้ว/g, 'พัสดุจัดส่งแล้ว'],
+    [/จัด ส่ง แล้ว/g, 'จัดส่งแล้ว'],
+    [/ไม่ เห็น พัสดุ/g, 'ไม่เห็นพัสดุ'],
+    [/ไม่ เห็น ของ/g, 'ไม่เห็นของ'],
+    [/หน้า ห้อง/g, 'หน้าห้อง'],
+    [/หน้า ประตู/g, 'หน้าประตู'],
     [/คืน ของ/g, 'คืนสินค้า'],
     [/คืน สินค้า/g, 'คืนสินค้า'],
     [/เปลี่ยน สินค้า/g, 'เปลี่ยนสินค้า'],
     [/ของ ไม่ ตรง ปก/g, 'ของไม่ตรงปก'],
     [/ยก เลิก ออเดอร์/g, 'ยกเลิกออเดอร์'],
     [/เก็บ เงิน ปลาย ทาง/g, 'เก็บเงินปลายทาง'],
-    [/ชำระ เงิน/g, 'ชำระเงิน'],
+    [/ชำระ เงิน/g, 'ชำระเงิน']
+  ];
 
-    // Telecom
-    [/แอลจี/g, 'LG'],
-    [/เเอลจี/g, 'LG'],
-    [/เคที/g, 'KT'],
-    [/เอสเคที/g, 'SKT'],
-    [/ยู ซิม/g, '유심'],
-    [/ยูซิม/g, '유심'],
+  for (const [a, b] of pairs) t = t.replace(a, b);
+  return t;
+}
 
-    // Car
-    [/ไฟแน้น/g, 'ไฟแนนซ์'],
-    [/ไฟแนน/g, 'ไฟแนนซ์'],
-    [/เลขไม/g, 'เลขไมล์'],
-    [/ใบตรวจสภาพรถ/g, 'ใบตรวจสภาพ'],
-    [/ใบเช็คสภาพรถ/g, 'ใบตรวจสภาพ'],
+function normalizeIsanAndHobby(text) {
+  let t = String(text || '');
 
-    // Isan fishing
+  const pairs = [
     [/10\s*เบ็ด/g, 'ซิดเบ็ด'],
     [/สิบ\s*เบ็ด/g, 'ซิดเบ็ด'],
     [/ซิส\s*เบ็ด/g, 'ซิดเบ็ด'],
@@ -306,7 +461,6 @@ function normalizeAll(input) {
     [/ชิดเบ็ด/g, 'ซิดเบ็ด'],
     [/ชิดเบส/g, 'ซิดเบ็ด'],
 
-    // Fishing bait
     [/ไส้ เดือน/g, 'ไส้เดือน'],
     [/ขี้ กะ เดียน/g, 'ขี้กะเดียน'],
     [/ขี้ กะ เดี้ย/g, 'ขี้กะเดี้ย'],
@@ -316,7 +470,6 @@ function normalizeAll(input) {
     [/ช้อน กุ้ง/g, 'ส่อนกุ้ง'],
     [/ซ่อน กุ้ง/g, 'ส่อนกุ้ง'],
 
-    // Isan time and ceremony
     [/มื้อ นี่/g, 'มื้อนี้'],
     [/มื้อ นี้/g, 'มื้อนี้'],
     [/มื้อ อื่น/g, 'มื้ออื่น'],
@@ -324,7 +477,6 @@ function normalizeAll(input) {
     [/บ้าน งาน/g, 'บ้านงาน'],
     [/กิน ดอง/g, 'กินดอง'],
 
-    // Isan food
     [/ก้อย เนื้อ/g, 'ก้อยเนื้อ'],
     [/ก้อย กุ้ง/g, 'ก้อยกุ้ง'],
     [/ปลา ร้า/g, 'ปลาร้า'],
@@ -333,7 +485,20 @@ function normalizeAll(input) {
     [/ปลาร้า บอง/g, 'ปลาร้าบอง'],
     [/แจ่ว บอง/g, 'แจ่วบอง'],
 
-    // Dental high risk
+    [/ห้วย หนอง คลอง บึง/g, 'ห้วยหนองคลองบึง'],
+    [/หนอง น้ำ/g, 'หนองน้ำ'],
+    [/ไป ใส่ เบ็ด/g, 'ไปใส่เบ็ด'],
+    [/ใส่ เบ็ด/g, 'ใส่เบ็ด']
+  ];
+
+  for (const [a, b] of pairs) t = t.replace(a, b);
+  return t;
+}
+
+function normalizeHospitalDental(text) {
+  let t = String(text || '');
+
+  const pairs = [
     [/ฟันคุดของฉันอยู่ใกล้เส้นประสาท/g, 'ฟันคุดฉันใกล้กับเส้นประสาท'],
     [/ฟันคุดของผมอยู่ใกล้เส้นประสาท/g, 'ฟันคุดฉันใกล้กับเส้นประสาท'],
     [/ฟันคุดผมอยู่ใกล้เส้นประสาท/g, 'ฟันคุดฉันใกล้กับเส้นประสาท'],
@@ -343,28 +508,67 @@ function normalizeAll(input) {
     [/เส้น ประสาท/g, 'เส้นประสาท'],
     [/ไก่กับเส้นประสาท/g, 'ใกล้กับเส้นประสาท'],
 
-    // Wound / pus
     [/เป็น หนอง/g, 'เป็นหนอง'],
     [/มี หนอง/g, 'มีหนอง'],
-    [/แผล เป็นหนอง/g, 'แผลเป็นหนอง'],
-
-    // Water place
-    [/ห้วย หนอง คลอง บึง/g, 'ห้วยหนองคลองบึง'],
-    [/หนอง น้ำ/g, 'หนองน้ำ'],
-    [/ไป ใส่ เบ็ด/g, 'ไปใส่เบ็ด'],
-    [/ใส่ เบ็ด/g, 'ใส่เบ็ด']
+    [/แผล เป็นหนอง/g, 'แผลเป็นหนอง']
   ];
 
-  for (const [from, to] of pairs) {
-    t = t.replace(from, to);
-  }
+  for (const [a, b] of pairs) t = t.replace(a, b);
+  return t;
+}
 
-  // Light repeated speech cleanup
+function normalizeRepeatedSpeech(text, fromLang) {
+  let t = String(text || '').trim();
+
   t = t.replace(/(.{3,40})\1{3,}/g, '$1');
-  t = t.replace(/\b(네|예|아니요|맞아요|그래요)\s*\1\s*\1\s*/g, '$1 ');
   t = t.replace(/(ครับ|ค่ะ|คะ)\s*\1\s*\1/g, '$1');
 
+  const koreanRepeatWords = [
+    '네',
+    '예',
+    '아니요',
+    '맞아요',
+    '그래요',
+    '그럼',
+    '그러니까',
+    '다른',
+    '지금',
+    '오늘',
+    '내일',
+    '제가',
+    '저는',
+    '물건',
+    '수업',
+    '기숙사',
+    '똑같아',
+    '길이',
+    '사람',
+    '아침',
+    '회사',
+    '예약',
+    '인천',
+    '문제',
+    '노동부',
+    '택배',
+    '배송',
+    '유심',
+    '쿠팡'
+  ];
+
+  for (const w of koreanRepeatWords) {
+    const re = new RegExp(`(${escapeRegExp(w)})\\1+`, 'g');
+    t = t.replace(re, w);
+  }
+
+  t = t.replace(/\b(네|예|아니요|맞아요|그래요|그럼|그러니까)\s+\1\s+\1\s*/g, '$1 ');
+  t = t.replace(/\b(다른|지금|오늘|내일|제가|저는|수업|기숙사|물건|회사|택배|유심)\s+\1\s+\1\s*/g, '$1 ');
+  t = t.replace(/([가-힣]{2,8})\1{2,}/g, '$1');
+
   return t.trim();
+}
+
+function escapeRegExp(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function addQuestionMarksLight(text, fromLang) {
@@ -379,7 +583,7 @@ function addQuestionMarksLight(text, fromLang) {
     if (thaiQuestion.test(t)) return `${t}?`;
   } else {
     const koreanQuestion =
-      /(까요|니까|나요|어요|예요|이에요|있어요|없어요|어때요|뭐예요|누구예요|어디예요|얼마예요)\??$/;
+      /(까요|니까|나요|어요|예요|이에요|있어요|없어요|어때요|뭐예요|누구예요|어디예요|얼마예요|오세요|들어와요|돌아와요|가요|되나요|될까요)\??$/;
 
     if (koreanQuestion.test(t)) return `${t}?`;
   }
@@ -391,9 +595,7 @@ function addQuestionMarksLight(text, fromLang) {
 // Hard translate rules
 // ============================================================
 
-function hardTranslate(text, fromLang) {
-  if (!isThaiLang(fromLang)) return '';
-
+function hardTranslate(text, fromLang, userGender, partnerGender) {
   const raw = String(text || '').trim();
 
   const compact = raw
@@ -401,21 +603,319 @@ function hardTranslate(text, fromLang) {
     .replace(/[?？。.!！,，]/g, '')
     .trim();
 
+  if (!isThaiLang(fromLang)) {
+    return hardKoreanToThai(raw, compact, partnerGender);
+  }
+
+  return hardThaiToKorean(raw, compact);
+}
+
+function hardKoreanToThai(raw, compact, partnerGender) {
+  const e = thaiEnding(partnerGender);
+  const polite = e.polite || '';
+  const question = e.question || '';
+
+  // ============================================================
+  // Time / coming / entering / returning
+  // ============================================================
+
+  if (compact === '몇시에들어와요') return `จะเข้ามากี่โมง${question}`;
+  if (compact === '몇시에오세요') return `จะมากี่โมง${question}`;
+  if (compact === '몇시에돌아와요') return `จะกลับมากี่โมง${question}`;
+  if (compact === '몇시에와요') return `จะมากี่โมง${question}`;
+  if (compact === '몇시에출발해요') return `ออกเดินทางกี่โมง${question}`;
+  if (compact === '몇시에끝나요') return `เสร็จกี่โมง${question}`;
+  if (compact === '몇시에퇴근해요') return `เลิกงานกี่โมง${question}`;
+
+  if (/몇시.*들어와요/.test(compact)) return `จะเข้ามากี่โมง${question}`;
+  if (/몇시.*돌아와요/.test(compact)) return `จะกลับมากี่โมง${question}`;
+  if (/몇시.*오세요/.test(compact) || /몇시.*와요/.test(compact)) return `จะมากี่โมง${question}`;
+  if (/몇시.*출발/.test(compact)) return `ออกเดินทางกี่โมง${question}`;
+  if (/몇시.*끝나요/.test(compact)) return `เสร็จกี่โมง${question}`;
+  if (/몇시.*퇴근/.test(compact)) return `เลิกงานกี่โมง${question}`;
+
+  if (compact === '언제와요' || compact === '언제오세요') return `จะมาเมื่อไหร่${question}`;
+  if (compact === '언제들어와요') return `จะเข้ามาเมื่อไหร่${question}`;
+  if (compact === '언제돌아와요') return `จะกลับมาเมื่อไหร่${question}`;
+  if (compact === '언제끝나요') return `จะเสร็จเมื่อไหร่${question}`;
+  if (compact === '언제출발해요') return `จะออกเดินทางเมื่อไหร่${question}`;
+
+  if (compact === '지금어디있어요' || compact === '지금어디있어') return `ตอนนี้อยู่ที่ไหน${question}`;
+  if (compact === '어디있어요' || compact === '어디있어') return `อยู่ที่ไหน${question}`;
+  if (compact === '어디가요' || compact === '어디가세요') return `ไปไหน${question}`;
+  if (compact === '어디로가요' || compact === '어디로가세요') return `ไปทางไหน${question}`;
+
+  // ============================================================
+  // 출장 / 외근
+  // ============================================================
+
+  if (compact === '출장') return 'ไปทำงานนอกสถานที่';
+
+  if (/출장/.test(compact)) {
+    if (/오늘/.test(compact)) return 'วันนี้ไปทำงานนอกสถานที่';
+    if (/내일/.test(compact)) return 'พรุ่งนี้ไปทำงานนอกสถานที่';
+    if (/어제/.test(compact)) return 'เมื่อวานไปทำงานนอกสถานที่';
+    if (/가요|갑니다|갈거예요|갈거에요|간다/.test(compact)) return 'ไปทำงานนอกสถานที่';
+    if (/갔다|다녀왔|왔어요/.test(compact)) return 'ไปทำงานนอกสถานที่มาแล้ว';
+    if (/중/.test(compact)) return 'กำลังไปทำงานนอกสถานที่';
+    return 'ไปทำงานนอกสถานที่';
+  }
+
+  if (compact === '외근') return 'ออกไปทำงานนอกสถานที่';
+
+  if (/외근/.test(compact)) {
+    if (/오늘/.test(compact)) return 'วันนี้ออกไปทำงานนอกสถานที่';
+    if (/내일/.test(compact)) return 'พรุ่งนี้ออกไปทำงานนอกสถานที่';
+    if (/어제/.test(compact)) return 'เมื่อวานออกไปทำงานนอกสถานที่';
+    if (/갔다|다녀왔|왔어요/.test(compact)) return 'ออกไปทำงานนอกสถานที่มาแล้ว';
+    return 'ออกไปทำงานนอกสถานที่';
+  }
+
+  // ============================================================
+  // Work / company / job
+  // ============================================================
+
+  const workMap = {
+    '출근했어요': `ไปทำงานแล้ว${polite}`,
+    '출근하세요': `ไปทำงานนะ${polite}`,
+    '출근해요': `ไปทำงาน${polite}`,
+    '퇴근했어요': `เลิกงานแล้ว${polite}`,
+    '퇴근하세요': `เลิกงานได้เลย${polite}`,
+    '퇴근해요': `เลิกงาน${polite}`,
+    '일하세요': `ทำงานนะ${polite}`,
+    '일해요': `ทำงาน${polite}`,
+    '일끝났어요': `งานเสร็จแล้ว${polite}`,
+    '끝났어요': `เสร็จแล้ว${polite}`,
+    '다끝났어요': `เสร็จหมดแล้ว${polite}`,
+    '빨리하세요': `รีบทำหน่อย${polite}`,
+    '천천히하세요': `ค่อย ๆ ทำ${polite}`,
+    '조심하세요': `ระวังนะ${polite}`,
+    '기다리세요': `รอก่อนนะ${polite}`,
+    '잠깐만요': `รอสักครู่${polite}`,
+    '괜찮아요': `ไม่เป็นไร${polite}`,
+    '안돼요': `ไม่ได้${polite}`,
+    '돼요': `ได้${polite}`,
+    '알겠어요': `เข้าใจแล้ว${polite}`,
+    '몰라요': `ไม่รู้${polite}`,
+    '모르겠어요': `ไม่แน่ใจ${polite}`,
+    '질문있습니까': `มีคำถามไหม${question}`,
+    '없습니다': `ไม่มี${polite}`,
+    '있습니다': `มี${polite}`,
+    '사장님': 'เถ้าแก่ / นายจ้าง',
+    '반장님': 'หัวหน้างาน',
+    '회사': 'บริษัท',
+    '공장': 'โรงงาน',
+    '기숙사': 'หอพัก',
+    '노동부': 'กระทรวงแรงงาน',
+    '월급': 'เงินเดือน',
+    '급여명세서': 'สลิปเงินเดือน',
+    '근로계약서': 'สัญญาจ้างงาน',
+    '퇴직금': 'เงินเกษียณ / เงินแทจิก',
+    '국민연금': 'เงินกุกมิน / 국민연금'
+  };
+
+  if (workMap[compact]) return workMap[compact];
+
+  if (/일.*안할거예요/.test(compact)) return `จะไม่ทำงาน${polite}`;
+  if (/일.*할거예요/.test(compact)) return `จะทำงาน${polite}`;
+  if (/일.*할수있어요/.test(compact)) return `ทำงานได้${polite}`;
+  if (/일.*못해요/.test(compact)) return `ทำงานไม่ได้${polite}`;
+  if (/새로운사람.*오면/.test(compact)) return `ถ้าคนใหม่มา${polite}`;
+  if (/새로운직원.*오면/.test(compact)) return `ถ้าพนักงานใหม่มา${polite}`;
+  if (/태국사람.*받아요/.test(compact)) return `รับคนไทยไหม${question}`;
+  if (/월급.*언제/.test(compact)) return `เงินเดือนออกเมื่อไหร่${question}`;
+  if (/계약.*끝/.test(compact)) return `สัญญาหมดแล้ว${polite}`;
+  if (/계약.*연장/.test(compact)) return `ต่อสัญญา${polite}`;
+
+  // ============================================================
+  // Dorm / housing / moving / address
+  // ============================================================
+
+  if (/기숙사.*오늘.*들어갈수있어/.test(compact)) return `วันนี้เข้าหอพักได้ไหม${question}`;
+  if (/기숙사.*들어갈수있어요/.test(compact)) return `เข้าหอพักได้ไหม${question}`;
+  if (/기숙사.*어디/.test(compact)) return `หอพักอยู่ที่ไหน${question}`;
+  if (/방.*있어요/.test(compact)) return `มีห้องไหม${question}`;
+  if (/월세.*얼마/.test(compact)) return `ค่าเช่าเท่าไหร่${question}`;
+  if (/보증금.*얼마/.test(compact)) return `เงินมัดจำเท่าไหร่${question}`;
+  if (/주소.*주세요/.test(compact)) return `ขอที่อยู่หน่อย${polite}`;
+  if (/주소.*알려주세요/.test(compact)) return `ช่วยบอกที่อยู่หน่อย${polite}`;
+  if (/짐.*가지러/.test(compact)) return `ไปเอาของ / ไปเก็บของ${polite}`;
+  if (/천안.*가지러/.test(compact)) return `ต้องไปเอาของที่ชอนอาน${polite}`;
+
+  // ============================================================
+  // Phone / SIM / payment / bank
+  // ============================================================
+
+  if (compact === '유심') return 'ซิมการ์ด';
+  if (/유심.*말씀하시는거죠/.test(compact)) return `พูดถึงซิมการ์ดใช่ไหม${question}`;
+  if (/유심.*있어요/.test(compact)) return `มีซิมการ์ดไหม${question}`;
+  if (/얼마예요/.test(compact) && /유심|요금|가격/.test(compact)) return `ราคาเท่าไหร่${question}`;
+  if (/한달.*얼마/.test(compact)) return `เดือนละเท่าไหร่${question}`;
+  if (/자동이체/.test(compact)) return 'หักเงินอัตโนมัติจากบัญชี';
+  if (/계좌.*빠져요/.test(compact)) return `หักจากบัญชี${polite}`;
+  if (/미납/.test(compact)) return 'ยอดค้างชำระ';
+  if (/인증번호/.test(compact)) return 'รหัสยืนยัน';
+  if (/전화번호/.test(compact)) return 'เบอร์โทรศัพท์';
+  if (/통신사/.test(compact)) return 'เครือข่ายมือถือ / บริษัทมือถือ';
+
+  // ============================================================
+  // Online / parcel / delivery
+  // ============================================================
+
+  if (compact === '택배') return 'พัสดุ';
+  if (compact === '배송') return 'การจัดส่ง';
+  if (compact === '쿠팡') return 'คู팡 / Coupang';
+  if (/택배.*안보여요/.test(compact)) return `ไม่เห็นพัสดุ${polite}`;
+  if (/문앞.*없어요/.test(compact) || /현관앞.*없어요/.test(compact)) return `ไม่เห็นของที่หน้าประตู${polite}`;
+  if (/배송완료/.test(compact) && /안보여/.test(compact)) return `ขึ้นว่าส่งเสร็จแล้ว แต่ไม่เห็นพัสดุ${polite}`;
+  if (/운송장번호/.test(compact) || /송장번호/.test(compact)) return 'เลขพัสดุ / เลขแทร็ก';
+  if (/환불/.test(compact)) return 'คืนเงิน';
+  if (/반품/.test(compact)) return 'คืนสินค้า';
+  if (/교환/.test(compact)) return 'เปลี่ยนสินค้า';
+  if (/불량/.test(compact)) return 'สินค้าเสีย / สินค้าชำรุด';
+  if (/파손/.test(compact)) return 'สินค้าแตก / สินค้าเสียหาย';
+  if (/잘못배송/.test(compact) || /오배송/.test(compact)) return 'ส่งสินค้าผิด';
+
+  // ============================================================
+  // Hospital / dental / beauty
+  // ============================================================
+
+  if (compact === '아파요') return `เจ็บ / ปวด${polite}`;
+  if (/머리.*아파/.test(compact)) return `ปวดหัว${polite}`;
+  if (/배.*아파/.test(compact)) return `ปวดท้อง${polite}`;
+  if (/허리.*아파/.test(compact)) return `ปวดหลัง${polite}`;
+  if (/무릎.*아파/.test(compact)) return `เจ็บเข่า${polite}`;
+  if (/치아.*아파|이.*아파/.test(compact)) return `ปวดฟัน${polite}`;
+  if (/사랑니.*신경/.test(compact)) return `ฟันคุดอยู่ใกล้เส้นประสาท${polite}`;
+  if (/사랑니.*발치.*가능/.test(compact)) return `ฟันคุดถอนได้ไหม${question}`;
+  if (/발치.*얼마/.test(compact)) return `ค่าถอนฟันเท่าไหร่${question}`;
+  if (/고름/.test(compact)) return `เป็นหนอง${polite}`;
+  if (/알레르기/.test(compact)) return `ภูมิแพ้${polite}`;
+  if (/처방전/.test(compact)) return 'ใบสั่งยา';
+  if (/진단서/.test(compact)) return 'ใบรับรองแพทย์';
+  if (/약국/.test(compact)) return 'ร้านขายยา';
+  if (/쌍수|쌍꺼풀/.test(compact)) return 'ทำตาสองชั้น';
+  if (/보톡스/.test(compact)) return 'โบท็อกซ์';
+  if (/필러/.test(compact)) return 'ฟิลเลอร์';
+
+  // ============================================================
+  // School / class / study
+  // ============================================================
+
+  if (/수업.*있어요/.test(compact)) return `มีเรียนไหม${question}`;
+  if (/수업.*끝났어요/.test(compact)) return `เรียนเสร็จแล้ว${polite}`;
+  if (/다른수업/.test(compact)) return `คลาสเรียนอื่น${polite}`;
+  if (/학원.*다녀왔어요/.test(compact)) return `ไปเรียนพิเศษมาแล้ว${polite}`;
+  if (/한국말.*잘해/.test(compact)) return `พูดภาษาเกาหลีเก่ง${polite}`;
+  if (/영어수업/.test(compact)) return 'คลาสภาษาอังกฤษ';
+
+  // ============================================================
+  // Food / daily
+  // ============================================================
+
+  if (compact === '밥먹었어' || compact === '밥먹었어요') return `กินข้าวแล้ว${polite}`;
+  if (compact === '밥먹었어요') return `กินข้าวแล้วหรือยัง${question}`;
+  if (/밥.*먹었/.test(compact) && raw.includes('?')) return `กินข้าวแล้วหรือยัง${question}`;
+  if (/밥.*먹었/.test(compact)) return `กินข้าวแล้ว${polite}`;
+  if (/맛있어요/.test(compact)) return `อร่อยไหม${question}`;
+  if (/맛있다|맛있네|맛있겠다/.test(compact)) return `น่าอร่อย${polite}`;
+  if (/떡볶이/.test(compact)) return 'ต็อกบกกี';
+  if (/김치/.test(compact)) return 'กิมจิ';
+  if (/갈비탕/.test(compact)) return 'คัลบีทัง / ซุปซี่โครงเนื้อ';
+
+  // ============================================================
+  // Common short Korean
+  // ============================================================
+
+  const commonMap = {
+    '안녕하세요': `สวัสดี${polite}`,
+    '감사합니다': `ขอบคุณ${polite}`,
+    '고마워요': `ขอบคุณ${polite}`,
+    '미안해요': `ขอโทษ${polite}`,
+    '죄송합니다': `ขอโทษ${polite}`,
+    '왜': `ทำไม${question}`,
+    '뭐요': `อะไรนะ${question}`,
+    '뭐해요': `ทำอะไรอยู่${question}`,
+    '뭐하세요': `ทำอะไรอยู่${question}`,
+    '어떻게해': `ทำยังไงดี${question}`,
+    '어떻게해요': `ทำยังไงดี${question}`,
+    '하지말라고': `บอกว่าอย่าทำ${polite}`,
+    '하지마세요': `อย่าทำ${polite}`,
+    '하지마': `อย่าทำ`,
+    '안돼': `ไม่ได้`,
+    '안돼요': `ไม่ได้${polite}`,
+    '아니요': `ไม่${polite}`,
+    '네': `ใช่${polite}`,
+    '응': `อืม / ใช่`,
+    '됐어요': `ได้แล้ว${polite} / พอแล้ว${polite}`,
+    '됐다': 'ได้แล้ว / พอแล้ว',
+    '출발': `ออกเดินทาง${polite}`,
+    '도착': `ถึงแล้ว${polite}`,
+    '집': 'บ้าน',
+    '차': 'รถ / ชา',
+    '수건주세요': `ขอผ้าเช็ดตัวหน่อย${polite}`,
+    '이거주세요': `ขออันนี้หน่อย${polite}`,
+    '누나': 'พี่สาว',
+    '오빠': 'พี่ชาย / โอปป้า',
+    '남편': 'สามี',
+    '소방관': 'นักดับเพลิง',
+    '기술자': 'ช่างเทคนิค',
+    '보증금': 'เงินมัดจำ / เงินประกันห้อง'
+  };
+
+  if (commonMap[compact]) return commonMap[compact];
+
+  return '';
+}
+
+function hardThaiToKorean(raw, compact) {
+  // Korean loanword spoken by Thai users
+  if (compact === '출장') return '출장';
+  if (/ชุลจัง|ชุนจัง|ชูจัง/.test(compact)) return '출장';
+  if (/วันนี้/.test(compact) && /출장/.test(compact)) return '오늘 저는 출장 가요.';
+  if (/พรุ่งนี้/.test(compact) && /출장/.test(compact)) return '내일 저는 출장 가요.';
+  if (/เมื่อวาน/.test(compact) && /출장/.test(compact)) return '어제 저는 출장 갔어요.';
+  if (/ไป/.test(compact) && /출장/.test(compact)) return '출장 가요.';
+
   // Coupang hard rules
   if (
+    compact.length <= 28 &&
     /คู팡|คูพัง|กูพัง|คูปัง/.test(compact) &&
-    /(เช็คพัสดุ|พัสดุ|ของถึงไหน|เลขพัสดุ|เลขแทร็ก|배송|택배)/.test(compact)
+    /(เช็คพัสดุ|พัสดุ|ของถึงไหน|เลขพัสดุ|เลขแทร็ก)/.test(compact)
   ) {
     return '쿠팡 앱에서 배송 조회는 어디서 해요?';
   }
 
   if (
+    compact.length <= 22 &&
     /คู팡|คูพัง|กูพัง|คูปัง/.test(compact) &&
-    /(สั่งของ|ซื้อของ|ซื้อ|สั่ง|แอป|แอพ|주문|구매)/.test(compact)
+    /(มีของนี้ไหม|มีสินค้าไหม|มีไหม)/.test(compact)
   ) {
-    return '쿠팡에서 주문한 건에 대해 문의하고 싶어요.';
+    return '쿠팡에 이 상품 있어요?';
   }
 
+  // Parcel hard rules
+  if (/ตามพัสดุ/.test(compact) && /(ไม่เห็น|หน้าห้อง|หน้าประตู|หน้า)/.test(compact)) {
+    return '배송 완료된 택배를 확인하고 싶은데 문 앞에 안 보여요.';
+  }
+
+  if (/พัสดุจัดส่งแล้ว/.test(compact) && /(ไม่เห็น|หน้าห้อง|หน้าประตู|หน้า)/.test(compact)) {
+    return '배송 완료됐다고 나오는데 문 앞에 택배가 안 보여요.';
+  }
+
+  if (/ไม่เห็นพัสดุ/.test(compact) || /ไม่เห็นของ/.test(compact)) {
+    return '택배가 안 보여요.';
+  }
+
+  if (/พัสดุยังไม่ถึง|ของยังไม่ถึง/.test(compact)) {
+    return '택배가 아직 도착하지 않았어요.';
+  }
+
+  if (/อยากเช็คพัสดุถึงไหนแล้ว|เช็คพัสดุถึงไหนแล้ว/.test(compact)) {
+    return '택배가 어디쯤 왔는지 확인하고 싶어요.';
+  }
+
+  // Product damaged hard rules
   if (/ของผมพัง|ของฉันพัง|ของหนูพัง|สินค้าพัง|สินค้าแตก|สินค้าชำรุด|ของแตก|ของชำรุด/.test(compact)) {
     if (/คืนเงิน|ขอคืนเงิน|환불/.test(compact)) {
       return '제가 주문한 물건이 망가졌어요. 환불받을 수 있을까요?';
@@ -430,19 +930,10 @@ function hardTranslate(text, fromLang) {
     return '상품이 설명과 달라요.';
   }
 
-  if (/พัสดุยังไม่ถึง|ของยังไม่ถึง/.test(compact)) {
-    return '택배가 아직 도착하지 않았어요.';
-  }
+  if (/ขอคืนเงิน/.test(compact)) return '환불받을 수 있을까요?';
+  if (/ขอเปลี่ยนสินค้า|เปลี่ยนสินค้าได้ไหม/.test(compact)) return '교환할 수 있을까요?';
 
-  if (/ขอคืนเงิน/.test(compact)) {
-    return '환불받을 수 있을까요?';
-  }
-
-  if (/ขอเปลี่ยนสินค้า|เปลี่ยนสินค้าได้ไหม/.test(compact)) {
-    return '교환할 수 있을까요?';
-  }
-
-  // Dental high-risk hard rules
+  // Dental hard rules
   if (
     /ฟันคุด/.test(compact) &&
     /เส้นประสาท/.test(compact) &&
@@ -471,16 +962,15 @@ function hardTranslate(text, fromLang) {
     return '사랑니 수술 발치 비용이 얼마예요?';
   }
 
-  if (/ถอนฟันคุด/.test(compact)) {
-    return '사랑니를 발치하고 싶어요.';
-  }
+  if (/ถอนฟันคุด/.test(compact)) return '사랑니를 발치하고 싶어요.';
+  if (/ผ่าฟันคุด/.test(compact)) return '사랑니 수술 발치를 하고 싶어요.';
 
-  if (/ผ่าฟันคุด/.test(compact)) {
-    return '사랑니 수술 발치를 하고 싶어요.';
-  }
+  // Isan banter
+  if (/ห่ากินหัวมึงเอ้ย/.test(compact)) return '이 망할 놈아.';
+  if (/ห่าขั่วมึงเอ้ย|ห่าขั่วมึง/.test(compact)) return '아이고, 이 망할 놈아.';
+  if (/บักปอบนี่แหม|บักปอบ/.test(compact)) return '아이고, 이 못된 녀석아.';
 
   const map = {
-    // Fishing / hobby
     'ไส้เดือน': '지렁이',
     'ขี้กะเดียน': '지렁이',
     'ขี้กะเดี้ย': '지렁이',
@@ -493,18 +983,15 @@ function hardTranslate(text, fromLang) {
     'ไปใส่เบ็ดที่คลอง': '수로에 낚싯대를 놓으러 가요.',
     'ไปใส่เบ็ดที่บึง': '늪이나 큰 연못에 낚싯대를 놓으러 가요.',
     'ไปใส่เบ็ดที่ห้วย': '개울에 낚싯대를 놓으러 가요.',
-
-    // Isan common
     'เป็นจั่งได๋นิ': '어때요?',
     'อีหยัง': '뭐예요?',
     'เว้าเบิ่ง': '말해 봐요.',
     'เลิกงานแล้วบ่': '퇴근했어요?',
     'กินข้าวแล้วบ่': '밥 먹었어요?',
-
-    // Online
     'แอปคู팡': '쿠팡 앱',
     'แอปกูพัง': '쿠팡 앱',
-    'แอปคูพัง': '쿠팡 앱'
+    'แอปคูพัง': '쿠팡 앱',
+    'แอปคูปัง': '쿠팡 앱'
   };
 
   if (map[raw]) return map[raw];
@@ -549,9 +1036,9 @@ function autoDetectSituation(text, fallback = 'general') {
   const t = String(text || '');
 
   if (/ช่วยด้วย|ฉุกเฉิน|รถพยาบาล|ตำรวจ|โดนทำร้าย|ไฟไหม้|หมดสติ|119|112|응급|구급차|경찰|화재|의식/.test(t)) return 'emergency';
-
-  if (shouldLoadDentalVocab(t) || shouldLoadMedicalBodyDetailVocab(t)) return 'hospital';
+  if (/출장|외근|ชุลจัง|ชุนจัง|ชูจัง/.test(t)) return 'work';
   if (shouldLoadOnlineShoppingVocab(t)) return 'online';
+  if (shouldLoadDentalVocab(t) || shouldLoadMedicalBodyDetailVocab(t) || shouldLoadMedicineVocab(t)) return 'hospital';
   if (shouldLoadMobileVocab(t)) return 'mobile';
   if (shouldLoadCarTradeVocab(t)) return 'car';
   if (shouldLoadHobbyVocab(t) || shouldLoadWaterPlaceVocab(t)) return 'hobby';
@@ -560,21 +1047,21 @@ function autoDetectSituation(text, fallback = 'general') {
 
   if (/ก้อย|ลาบ|ต้มแซ่บ|ต้มส้ม|แกงอ่อม|ตำบักหุ่ง|ปลาแดก|ปลาร้า|แจ่วบอง|ปลาจ่อม|กุ้งจ่อม|ส้มหมู|ส้มเนื้อ|ส้มปลา|กุ้งเต้น|ซอยจุ๊/.test(t)) return 'isan_food';
 
-  if (/ปวด|หมอ|ยา|โรงพยาบาล|ไข้|เจ็บ|คลินิก|ใบรับรองแพทย์|ตรวจเลือด|เอ็กซเรย์|ผ่าตัด|ท้องเสีย|แพ้ยา/.test(t)) return 'hospital';
+  if (/ปวด|หมอ|โรงพยาบาล|ไข้|เจ็บ|คลินิก|ใบรับรองแพทย์|ตรวจเลือด|เอ็กซเรย์|ผ่าตัด|ท้องเสีย|แพ้ยา|กินยา|ขอยา|รับยา|ยาแก้|ยาแก้ปวด|ยาแก้อักเสบ|ใบสั่งยา|ร้านขายยา/.test(t)) return 'hospital';
   if (/เถ้าแก่|นายจ้าง|หัวหน้า|ลาออก|เงินเดือน|สัญญา|โรงงาน|โอที|สลิปเงินเดือน|ทำงาน|กะกลางคืน|กะเช้า|ของเสีย|งานเสีย|เครื่องเสีย/.test(t)) return 'work';
   if (/วีซ่า|กาม่า|บัตรต่างด้าว|ตม|พาสปอร์ต|ต่อวีซ่า|สถานทูต|กงสุล|ไฮโคเรีย|HiKorea|ทะเบียนบ้าน|สูติบัตร/.test(t)) return 'visa';
   if (/ธนาคาร|เปิดบัญชี|โอนเงิน|รายการเดินบัญชี|statement|ใบรับรองยอดเงิน|บัตรเอทีเอ็ม|สมุดบัญชี/.test(t)) return 'bank';
   if (/กุกมิน|กุ๊กมิน|เทจิก|แทจิก|ภาษี|ประกัน|คืนภาษี|ประกันสุขภาพ/.test(t)) return 'money';
   if (/ร้านอาหาร|เมนู|สั่งอาหาร|ห่อกลับ|กินข้าว|หิว|อยากกิน/.test(t)) return 'food';
   if (/แท็กซี่|รถเมล์|รถไฟ|สถานี|หลงทาง|ไปทางไหน|เดินทาง/.test(t)) return 'travel';
-  if (/ห้องเช่า|บ้านเช่า|ค่าเช่า|มัดจำ|วอลเซ|โบจึง|ย้ายบ้าน|น้ำไม่ไหล|ไฟดับ/.test(t)) return 'housing';
+  if (/ห้องเช่า|บ้านเช่า|ค่าเช่า|มัดจำ|วอลเซ|โบจึง|ย้ายบ้าน|น้ำไม่ไหล|ไฟดับ|기숙사|월세|보증금/.test(t)) return 'housing';
   if (/ศัลยกรรม|เสริมจมูก|ทำตา|โบทอก|ฟิลเลอร์|ดูดไขมัน|ทำนม|จัดฟัน|เลเซอร์/.test(t)) return 'beauty';
 
   if (/아프|병원|의사|약|증상|진료|진단서|처방전|수술|검사|치아|사랑니/.test(t)) return 'hospital';
-  if (/사장|공장|월급|계약|퇴사|야근|급여|근무/.test(t)) return 'work';
+  if (/사장|공장|월급|계약|퇴사|야근|급여|근무|출근|퇴근/.test(t)) return 'work';
   if (/비자|여권|외국인등록|출입국|하이코리아|대사관|영사관/.test(t)) return 'visa';
   if (/은행|송금|계좌|잔액|거래내역|통장|체크카드/.test(t)) return 'bank';
-  if (/택배|배송|쿠팡|주문|환불|반품|교환|결제/.test(t)) return 'online';
+  if (/택배|배송|쿠팡|주문|환불|반품|교환|결제|문앞|현관/.test(t)) return 'online';
 
   if (looksLikeIsan(t)) return 'isaan';
 
@@ -583,13 +1070,17 @@ function autoDetectSituation(text, fallback = 'general') {
 
 function looksLikeIsan(text) {
   const t = String(text || '');
-
-  return /ข่อย|เจ้า|เฮา|เพิ่น|อ้าย|เอื้อย|บ่|แม่น|หยัง|ไผ|ไส|อยู่ไส|ไปไส|เว้า|เบิ่ง|เฮ็ด|ฟ้าว|พ้อ|เมือ|คัก|ม่วน|แซ่บ|เด้อ|เนาะ|น้อ|ซื่อหยัง|มื้อนี้|มื้ออื่น|มื้อวาน|เกิบ|ข่อยเสีย|ห่าขั่ว|ห่ากินหัว|ฮ่วย|ป๊าด|งึด|หนหวย/.test(t);
+  return /ข่อย|เจ้า|เฮา|เพิ่น|อ้าย|เอื้อย|บ่|แม่น|หยัง|ไผ|ไส|อยู่ไส|ไปไส|เว้า|เบิ่ง|เฮ็ด|ฟ้าว|พ้อ|เมือ|คัก|ม่วน|แซ่บ|เด้อ|เนาะ|น้อ|ซื่อหยัง|มื้อนี้|มื้ออื่น|มื้อวาน|เกิบ|ข่อยเสีย|ห่าขั่ว|ห่ากินหัว|บักปอบ|ฮ่วย|ป๊าด|งึด|หนหวย/.test(t);
 }
 
 // ============================================================
 // Trigger checks
 // ============================================================
+
+function shouldLoadMedicineVocab(text) {
+  const t = String(text || '');
+  return /กินยา|ขอยา|รับยา|จ่ายยา|ยาแก้|ยาแก้ปวด|ยาแก้อักเสบ|ยาแก้แพ้|ยานอนหลับ|ยาแก้ไอ|ยาแก้ท้องเสีย|ใบสั่งยา|ร้านขายยา|처방전|약국|약을 먹다|진통제|소염제/.test(t);
+}
 
 function shouldLoadDentalVocab(text) {
   const t = String(text || '');
@@ -603,7 +1094,7 @@ function shouldLoadMedicalBodyDetailVocab(text) {
 
 function shouldLoadOnlineShoppingVocab(text) {
   const t = String(text || '');
-  return /ออนไลน์|สั่งของ|ซื้อของออนไลน์|ซื้อออนไลน์|คู팡|คูพัง|กูพัง|คูปัง|쿠팡|พัสดุ|택배|배송|ส่งพัสดุ|เลขพัสดุ|เลขแทร็ก|ของพัง|ของเสีย|ของแตก|ชำรุด|ของไม่ตรงปก|คืนสินค้า|คืนเงิน|เปลี่ยนสินค้า|ยกเลิกออเดอร์|เก็บเงินปลายทาง|환불|교환|반품|결제|장바구니|판매자/.test(t);
+  return /ออนไลน์|สั่งของ|ซื้อของออนไลน์|ซื้อออนไลน์|คู팡|คูพัง|กูพัง|คูปัง|쿠팡|พัสดุ|택배|배송|ส่งพัสดุ|รับพัสดุ|เลขพัสดุ|เลขแทร็ก|เช็คพัสดุ|ตามพัสดุ|ตามของ|จัดส่งแล้ว|พัสดุจัดส่งแล้ว|ไม่เห็นพัสดุ|ไม่เห็นของ|ไม่เห็นที่หน้าห้อง|ไม่เห็นที่หน้าประตู|หน้าห้อง|หน้าประตู|현관|문앞|문 앞|배송완료|택배가 안 보여요|ของพัง|ของเสีย|ของแตก|ชำรุด|ของไม่ตรงปก|คืนสินค้า|คืนเงิน|เปลี่ยนสินค้า|ยกเลิกออเดอร์|เก็บเงินปลายทาง|환불|교환|반품|결제|장바구니|판매자/.test(t);
 }
 
 function shouldLoadOnlineOrderVocab(text) {
@@ -613,7 +1104,7 @@ function shouldLoadOnlineOrderVocab(text) {
 
 function shouldLoadDeliveryParcelVocab(text) {
   const t = String(text || '');
-  return /พัสดุ|택배|배송|ส่งพัสดุ|รับพัสดุ|เลขพัสดุ|เลขแทร็ก|เช็คพัสดุ|ของถึงไหน|ของยังไม่ถึง|배송조회|운송장|송장번호|택배사/.test(t);
+  return /พัสดุ|택배|배송|ส่งพัสดุ|รับพัสดุ|เลขพัสดุ|เลขแทร็ก|เช็คพัสดุ|ตามพัสดุ|ตามของ|ของถึงไหน|ของยังไม่ถึง|จัดส่งแล้ว|พัสดุจัดส่งแล้ว|ไม่เห็นพัสดุ|ไม่เห็นของ|หน้าห้อง|หน้าประตู|현관|문앞|문 앞|배송완료|배송조회|운송장|송장번호|택배사/.test(t);
 }
 
 function shouldLoadReturnRefundVocab(text) {
@@ -643,7 +1134,8 @@ function shouldLoadHobbyVocab(text) {
 
 function shouldLoadWaterPlaceVocab(text) {
   const t = String(text || '');
-  return /ห้วย|หนองน้ำ|หนอง|คลอง|บึง|บ่อปลา|แม่น้ำ/.test(t) && /ซิดเบ็ด|ตกปลา|หาปลา|ใส่เบ็ด|ลงเบ็ด|เหยื่อ|คันเบ็ด|ไส้เดือน|ขี้กะเดียน/.test(t);
+  return /ห้วย|หนองน้ำ|หนอง|คลอง|บึง|บ่อปลา|แม่น้ำ/.test(t) &&
+    /ซิดเบ็ด|ตกปลา|หาปลา|ใส่เบ็ด|ลงเบ็ด|เหยื่อ|คันเบ็ด|ไส้เดือน|ขี้กะเดียน/.test(t);
 }
 
 function shouldLoadThaiSiaAmbiguity(text) {
@@ -653,7 +1145,7 @@ function shouldLoadThaiSiaAmbiguity(text) {
 
 function shouldLoadIsanBanterVocab(text) {
   const t = String(text || '');
-  return /ห่า|ห่าขั่ว|ห่ากินหัว|บักห่า|ฮ่วย|ป๊าด|บักปึก|ตอแหล|งึด|หนหวย|มึง|กู/.test(t);
+  return /ห่า|ห่าขั่ว|ห่ากินหัว|บักห่า|บักปอบ|ฮ่วย|ป๊าด|บักปึก|ตอแหล|งึด|หนหวย|มึง|กู/.test(t);
 }
 
 function shouldLoadIsanFoodVocab(text, situation, uiSituation) {
@@ -668,8 +1160,15 @@ function shouldLoadIsanCeremonyVocab(text, situation, uiSituation) {
     || ((situation === 'isaan' || uiSituation === 'isaan') && /พี่น้อง|หมู่บ้าน|ผู้เฒ่า|พ่อใหญ่|แม่ใหญ่/.test(t));
 }
 
+function shouldLoadKoreanCommonVocab(text) {
+  const t = String(text || '');
+  return /몇시|언제|어디|들어와요|돌아와요|오세요|와요|가요|출발|도착|기숙사|회사|수업|질문|괜찮아요|안돼요|돼요|몰라요|알겠어요/.test(t);
+}
+
 function buildVocabHint(text, finalSit, uiSit) {
   const sections = [VOCAB_CORE];
+
+  if (shouldLoadKoreanCommonVocab(text)) sections.push(KOREAN_COMMON_REAL_LIFE_VOCAB);
 
   if (finalSit === 'isaan' || looksLikeIsan(text)) {
     sections.push(ISAN_CORE_COMPACT, ISAN_AMBIGUITY_RULES);
@@ -682,10 +1181,9 @@ function buildVocabHint(text, finalSit, uiSit) {
   }
 
   if (shouldLoadThaiSiaAmbiguity(text)) sections.push(THAI_SIA_AMBIGUITY_VOCAB);
-
   if (shouldLoadDentalVocab(text)) sections.push(DENTAL_VOCAB);
   if (shouldLoadMedicalBodyDetailVocab(text)) sections.push(MEDICAL_BODY_DETAIL_VOCAB);
-
+  if (shouldLoadMedicineVocab(text)) sections.push(MEDICINE_VOCAB);
   if (shouldLoadHobbyVocab(text)) sections.push(HOBBY_FISHING_SNOOKER_VOCAB);
   if (shouldLoadWaterPlaceVocab(text)) sections.push(ISAN_WATER_PLACE_VOCAB);
 
@@ -699,10 +1197,8 @@ function buildVocabHint(text, finalSit, uiSit) {
 
   if (shouldLoadIsanFoodVocab(text, finalSit, uiSit)) sections.push(ISAN_FOOD_VOCAB);
   if (shouldLoadIsanCeremonyVocab(text, finalSit, uiSit)) sections.push(ISAN_CEREMONY_FESTIVAL_VOCAB);
-
   if (shouldLoadMobileVocab(text)) sections.push(MOBILE_SIM_VOCAB);
   if (shouldLoadCarTradeVocab(text)) sections.push(CAR_TRADE_VOCAB);
-
   if (shouldLoadOnlineShoppingVocab(text)) sections.push(ONLINE_SHOPPING_CORE_VOCAB);
   if (shouldLoadOnlineOrderVocab(text)) sections.push(ONLINE_ORDER_PAYMENT_VOCAB);
   if (shouldLoadDeliveryParcelVocab(text)) sections.push(ONLINE_DELIVERY_PARCEL_VOCAB);
@@ -736,13 +1232,8 @@ Avoid female endings: ดิฉัน / ค่ะ / นะคะ
 `;
     }
   } else {
-    if (userGender === 'male') {
-      return 'The Thai speaker is MALE. Korean output should be polite and natural.';
-    }
-
-    if (userGender === 'female') {
-      return 'The Thai speaker is FEMALE. Korean output should be polite and natural.';
-    }
+    if (userGender === 'male') return 'The Thai speaker is MALE. Korean output should be polite and natural.';
+    if (userGender === 'female') return 'The Thai speaker is FEMALE. Korean output should be polite and natural.';
   }
 
   return '';
@@ -751,14 +1242,12 @@ Avoid female endings: ดิฉัน / ค่ะ / นะคะ
 function buildTurnHint(fromLang, prevTurn) {
   if (isThaiLang(fromLang)) return '';
   if (!prevTurn || prevTurn === 'none') return '';
-
   return `The previous Thai message was a ${prevTurn === 'question' ? 'QUESTION' : 'STATEMENT'}. Use only to resolve ambiguous Korean responses.`;
 }
 
 function buildTopicHint(fromLang, lastThai) {
   if (isThaiLang(fromLang)) return '';
   if (!lastThai || !String(lastThai).trim()) return '';
-
   return `Previous Thai context, do not translate: ${String(lastThai).trim().substring(0, 120)}`;
 }
 
@@ -826,8 +1315,27 @@ CORE RULES:
 8. If audio is truly unclear, output exactly: ${unclearReply}
 9. If the input is explicit sexual harassment or a direct violent threat, output exactly: ${failReply}
 
-THAI QUESTION DETECTION:
-Words such as ไหม, มั้ย, หรือเปล่า, เหรอ, หรอ, อะไร, ใคร, ที่ไหน, อยู่ไส, ไปไส, เท่าไหร่, กี่โมง, เมื่อไหร่, ทำไม, ยังไง, ได้ไหม, ได้บ่, เบาะ, แม่นบ่ usually make the sentence a question.
+KOREAN STT CORRECTION:
+- 마치마치 들어와요 / 매치 들어와요 / 미지근 들어와요 / 며칠 들어와요 usually means 몇 시에 들어와요?
+- 마치마치 돌아와요 / 매치 돌아와요 / 며칠 돌아와요 usually means 몇 시에 돌아와요?
+- 들어와요 can mean เข้ามา / กลับเข้ามา / เข้าหอ / เข้าที่พัก depending on context.
+- 돌아와요 means กลับมา.
+- 오세요 means มา.
+- 몇 시에 오세요? = จะมากี่โมง
+- 몇 시에 들어와요? = จะเข้ามากี่โมง / จะกลับเข้ามากี่โมง
+- 몇 시에 돌아와요? = จะกลับมากี่โมง
+
+WORK / KOREAN LOANWORD:
+- 출장 means business trip / work trip / working off-site / ไปทำงานนอกสถานที่ / ไปทำงานต่างพื้นที่.
+- 출장 does NOT mean ตรวจสอบงาน.
+- ชุลจัง / ชุนจัง / ชูจัง are Thai speech variants of 출장.
+- 외근 means going out for work / off-site work.
+- 작업을 확인하다 / 업무를 점검하다 / 현장을 확인하다 = ตรวจสอบงาน.
+
+HOSPITAL / MEDICINE:
+- Do not treat "อยาก" as medicine.
+- Only treat as medicine when there are words such as กินยา, ขอยา, รับยา, ยาแก้ปวด, ยาแก้อักเสบ, ใบสั่งยา, ร้านขายยา, 처방전, 약국.
+- ฟันคุด = 사랑니, never 충치 and never 앞니.
 
 ISAN CONTEXT:
 - ซิดเบ็ด / ซิสเบ็ด / สิดเบ็ด / สิทเบ็ด / สิบเบ็ด / 10เบ็ด means ตกเบ็ด / ตกปลา / 낚시하다. Never treat as number ten.
@@ -838,20 +1346,15 @@ ISAN CONTEXT:
 - บ้านงาน means a house where a ceremony/event is held.
 - หนอง in medical context means pus / 고름.
 - หนอง in rural Isan/fishing/water context means pond / 연못.
+- ห่ากินหัว / ห่าขั่ว / บักปอบ are Isan banter/swearing expressions. Do not translate literally.
 
 ONLINE SHOPPING:
 - คูพัง / กูพัง / คูปัง means 쿠팡 / Coupang app, NOT broken item.
 - Only translate as broken item when phrase clearly says ของผมพัง / ของฉันพัง / ของหนูพัง / สินค้าพัง / ของแตก / ชำรุด.
+- ตามพัสดุ / เช็คพัสดุ / พัสดุจัดส่งแล้ว / ไม่เห็นที่หน้าห้อง / ไม่เห็นที่หน้าประตู = parcel delivery context.
 - ของไม่ตรงปก = product does not match photo/description.
 - เลขพัสดุ / เลขแทร็ก = 운송장번호.
 - เก็บเงินปลายทาง = cash on delivery.
-- Do not translate พัง as emotional breakdown when product/order context exists.
-
-DENTAL SAFETY:
-- ฟันคุด = 사랑니, never 충치 and never 앞니.
-- ฟันผุ = 충치.
-- ฟันหน้า = 앞니.
-- เส้นประสาทฟัน = 치아 신경.
 
 VOCABULARY:
 ${vocabHint}
@@ -904,7 +1407,6 @@ async function callAnthropic({ apiKey, model, system, userContent, maxTokens = 1
 
 function chooseMaxTokens(text) {
   const len = String(text || '').length;
-
   if (len <= 80) return 500;
   if (len <= 250) return 900;
   return 1400;
@@ -932,6 +1434,19 @@ function detectKeywords(text, situation) {
   const found = [];
 
   const keywordMap = {
+    '몇 시에': 'เกาหลี/ถามเวลา',
+    '들어와요': 'เกาหลี/เข้ามา',
+    '돌아와요': 'เกาหลี/กลับมา',
+    '오세요': 'เกาหลี/มา',
+    '출장': 'งาน/출장',
+    'ชุลจัง': 'งาน/출장',
+    'ชุนจัง': 'งาน/출장',
+    'ชูจัง': 'งาน/출장',
+    '외근': 'งาน/외근',
+    '기숙사': 'หอพัก',
+    '회사': 'บริษัท',
+    '수업': 'เรียน/คลาส',
+
     'ฟันคุด': 'ทันตกรรม/ฟันคุด',
     'เส้นประสาท': 'ทันตกรรม/เส้นประสาท',
     'ถอนฟัน': 'ทันตกรรม/ถอนฟัน',
@@ -941,6 +1456,8 @@ function detectKeywords(text, situation) {
     'กระดูก': 'กระดูก',
     'ข้อศอก': 'ข้อศอก',
     'เข่า': 'เข่า',
+    'ยาแก้ปวด': 'ยา',
+    'ใบสั่งยา': 'ยา',
 
     'คู팡': 'ออนไลน์/Coupang',
     'คูพัง': 'ออนไลน์/Coupang',
@@ -948,7 +1465,12 @@ function detectKeywords(text, situation) {
     'คูปัง': 'ออนไลน์/Coupang',
     'สั่งของ': 'ออนไลน์/สั่งของ',
     'ซื้อของออนไลน์': 'ออนไลน์/ซื้อของ',
+    'ตามพัสดุ': 'ออนไลน์/ตามพัสดุ',
+    'ตามของ': 'ออนไลน์/ตามพัสดุ',
     'พัสดุ': 'ออนไลน์/พัสดุ',
+    'จัดส่งแล้ว': 'ออนไลน์/จัดส่งแล้ว',
+    'หน้าห้อง': 'ออนไลน์/หน้าห้อง',
+    'หน้าประตู': 'ออนไลน์/หน้าประตู',
     'เลขพัสดุ': 'ออนไลน์/เลขพัสดุ',
     'เลขแทร็ก': 'ออนไลน์/เลขพัสดุ',
     'ของพัง': 'ออนไลน์/สินค้าชำรุด',
@@ -968,8 +1490,11 @@ function detectKeywords(text, situation) {
     'ห้วย': 'ห้วยหนองคลองบึง',
     'บึง': 'ห้วยหนองคลองบึง',
     'ห่าขั่ว': 'อีสาน/คำอุทาน',
+    'ห่ากินหัว': 'อีสาน/คำอุทาน',
+    'บักปอบ': 'อีสาน/คำหยอก',
 
     'ซิม': 'มือถือ/ซิม',
+    '유심': 'มือถือ/ซิม',
     'เบอร์': 'มือถือ/เบอร์โทร',
     'LG': 'มือถือ/LG',
     'KT': 'มือถือ/KT',
@@ -985,11 +1510,16 @@ function detectKeywords(text, situation) {
     'พาสปอร์ต': 'พาสปอร์ต',
 
     'เงินเดือน': 'เงินเดือน',
+    '월급': 'เงินเดือน',
     'เถ้าแก่': 'นายจ้าง',
+    '사장님': 'นายจ้าง',
     'ธนาคาร': 'ธนาคาร',
+    '은행': 'ธนาคาร',
     'โอนเงิน': 'โอนเงิน',
     'กุกมิน': 'ประกัน/กุกมิน',
-    'เทจิก': 'เทจิก/ออกงาน'
+    '국민연금': 'ประกัน/กุกมิน',
+    'เทจิก': 'เทจิก/ออกงาน',
+    '퇴직금': 'เทจิก/ออกงาน'
   };
 
   for (const [kw, label] of Object.entries(keywordMap)) {
@@ -1002,7 +1532,7 @@ function detectKeywords(text, situation) {
     found.unshift(`หมวด:${situation}`);
   }
 
-  return found.slice(0, 12);
+  return found.slice(0, 14);
 }
 
 function logToSheetSafe(req, payload) {
@@ -1047,6 +1577,8 @@ const VOCAB_CORE = `
 เถ้าแก่/ซาจัง/ซาจังนิม/นายจ้าง=사장님
 หัวหน้า/พันจัง/บันจัง=반장님
 โรงงาน/คงจัง/กงจัง=공장
+บริษัท=회사
+หอพัก=기숙사
 เงินเดือน=월급
 สลิปเงินเดือน=급여명세서
 กินข้าวหรือยัง=밥 먹었어요?
@@ -1059,17 +1591,53 @@ const VOCAB_CORE = `
 ไม่ได้=안 돼요
 ไม่เป็นไร=괜찮아요
 
-[Common ambiguity]
+[Common Korean ambiguity]
 사장님 when Korean calls Thai person politely can mean คุณ/ท่าน, not always เถ้าแก่.
 괜찮아요 can mean ไม่เป็นไร / โอเค / สบายดี depending on context.
-네 means ครับ/ค่ะ/ใช่.
+네 means ใช่ / ค่ะ / ครับ.
 그래요 can mean ใช่ / อย่างนั้นเหรอ depending on tone.
+출장=ไปทำงานนอกสถานที่ / ไปทำงานต่างพื้นที่ / ออกไปทำงานข้างนอก, not ตรวจสอบงาน
+ชุลจัง/ชุนจัง/ชูจัง=출장
+외근=ออกไปทำงานนอกสถานที่
+작업을 확인하다 / 업무를 점검하다 / 현장을 확인하다=ตรวจสอบงาน
+들어와요=เข้ามา / กลับเข้ามา / เข้าหอ / เข้าที่พัก depending on context
+돌아와요=กลับมา
+오세요=มา
+`;
+
+const KOREAN_COMMON_REAL_LIFE_VOCAB = `
+[Korean real-life phrases]
+몇 시에 오세요?=จะมากี่โมง
+몇 시에 들어와요?=จะเข้ามากี่โมง / จะกลับเข้ามากี่โมง
+몇 시에 돌아와요?=จะกลับมากี่โมง
+몇 시에 출발해요?=ออกเดินทางกี่โมง
+몇 시에 끝나요?=เสร็จกี่โมง
+몇 시에 퇴근해요?=เลิกงานกี่โมง
+언제 와요?=จะมาเมื่อไหร่
+언제 들어와요?=จะเข้ามาเมื่อไหร่
+언제 돌아와요?=จะกลับมาเมื่อไหร่
+지금 어디 있어요?=ตอนนี้อยู่ที่ไหน
+어디 가요?=ไปไหน
+어디로 가요?=ไปทางไหน
+뭐 하세요?=ทำอะไรอยู่
+뭐 하러 왔어요?=มาทำอะไร
+기숙사 들어갈 수 있어요?=เข้าหอพักได้ไหม
+오늘 기숙사 들어갈 수 있어요?=วันนี้เข้าหอพักได้ไหม
+주소 알려 주세요=ช่วยบอกที่อยู่หน่อย
+질문 있습니까?=มีคำถามไหม
+없습니다=ไม่มี
+있습니다=มี
+알겠어요=เข้าใจแล้ว
+모르겠어요=ไม่แน่ใจ / ไม่รู้
+괜찮아요=ไม่เป็นไร / โอเค
+안 돼요=ไม่ได้
+돼요=ได้
 `;
 
 const SITUATION_CONTEXT = {
   general: '',
   hospital: 'Hospital/clinic. Thai user is usually the patient. Korean speaker may be doctor/nurse.',
-  work: 'Workplace/factory. Focus on labor, boss, salary, overtime, resignation, contract, defective work, broken machine.',
+  work: 'Workplace/factory/company. Focus on boss, salary, overtime, resignation, contract, defective work, broken machine, 출장, 외근.',
   visa: 'Immigration/government/embassy. Focus on visa, alien registration card, documents, appointments.',
   bank: 'Bank. Focus on account, bank statement, transfer, balance certificate.',
   money: 'Money/insurance/tax. Focus on pension, severance pay, tax refund, insurance.',
@@ -1077,7 +1645,7 @@ const SITUATION_CONTEXT = {
   online: 'Online shopping / Coupang / parcel / delivery / refund / return / product claim / seller chat.',
   shop: 'Shopping/retail.',
   travel: 'Travel/directions/transportation.',
-  housing: 'Housing/rent/utilities.',
+  housing: 'Housing/rent/dormitory/utilities.',
   emergency: 'Emergency. Prioritize urgent help.',
   beauty: 'Beauty clinic/plastic surgery.',
   isaan: 'Isan dialect mode. Translate Isan meaning by context.',
@@ -1114,6 +1682,10 @@ const VOCAB_BY_SITUATION = {
 
   work: `
 [Work]
+출장=ไปทำงานนอกสถานที่ / ไปทำงานต่างพื้นที่ / ออกไปทำงานข้างนอก
+외근=ออกไปทำงานนอกสถานที่
+ชุลจัง/ชุนจัง/ชูจัง=출장
+ตรวจสอบงาน=작업을 확인하다 / 업무를 점검하다 / 현장을 확인하다
 ลาออก=퇴사하다
 ไล่ออก=해고되다
 เปลี่ยนงาน/ย้ายงาน=사업장을 변경하다
@@ -1228,6 +1800,8 @@ statement=거래내역서
 ซื้อของออนไลน์=온라인 쇼핑하다
 พัสดุ=택배
 จัดส่ง=배송
+จัดส่งแล้ว=배송완료
+หน้าห้อง/หน้าประตู=문 앞 / 현관 앞
 เลขพัสดุ=운송장번호
 เช็คพัสดุ=배송 조회하다
 คืนสินค้า=반품하다
@@ -1258,6 +1832,7 @@ statement=거래내역서
   housing: `
 [Housing]
 บ้านเช่า/ห้องเช่า=월세방/원룸
+หอพัก=기숙사
 ค่าเช่า=월세
 เงินมัดจำ=보증금
 เจ้าของบ้าน=집주인
@@ -1482,6 +2057,24 @@ const MEDICAL_BODY_DETAIL_VOCAB = `
 ชา=저려요
 `;
 
+const MEDICINE_VOCAB = `
+[Medicine]
+ยา=약
+กินยา=약을 먹다
+ขอยา=약을 주세요
+รับยา=약을 받다
+จ่ายยา=약을 처방하다 / 약을 내주다
+ร้านขายยา=약국
+ใบสั่งยา=처방전
+ยาแก้ปวด=진통제
+ยาแก้อักเสบ=소염제
+ยาแก้แพ้=항히스타민제 / 알레르기 약
+ยาแก้ไอ=기침약
+ยาแก้ท้องเสีย=설사약
+ยานอนหลับ=수면제
+แพ้ยา=약 알레르기가 있어요
+`;
+
 const ISAN_ACTIVITY_FIXES = `
 [กิจกรรมอีสาน / คำที่ Speech Recognition มักฟังผิด]
 ซิดเบ็ด=낚시하다 / ตกเบ็ด / ตกปลา
@@ -1530,6 +2123,8 @@ const ISAN_EXCLAMATION_BANTER_VOCAB = `
 ห่ากินหัวมึงเอ้ย=이 망할 놈아 / 아이고 이 녀석아
 ห่าลากมึงเอ้ย=이 망할 놈아
 บักห่า=이 녀석아 / 이 망할 놈아
+บักปอบ=이 못된 녀석아 / 이 귀신 같은 놈아, joking or angry by tone
+บักปอบนี่แหม=아이고, 이 못된 녀석아
 บักปึก=멍청이 / 바보
 บักหน้าด้าน=뻔뻔한 놈
 อีตอแหล=거짓말쟁이
@@ -1775,6 +2370,10 @@ const ONLINE_DELIVERY_PARCEL_VOCAB = `
 [Delivery / Parcel]
 พัสดุ=택배
 จัดส่ง=배송
+จัดส่งแล้ว=배송완료
+พัสดุจัดส่งแล้ว=배송 완료된 택배
+ตามพัสดุ=택배를 확인하다 / 배송 상태를 확인하다
+ตามของ=주문한 물건을 확인하다
 ส่งพัสดุ=택배를 보내다
 รับพัสดุ=택배를 받다
 บริษัทขนส่ง=택배사
@@ -1787,6 +2386,12 @@ const ONLINE_DELIVERY_PARCEL_VOCAB = `
 พัสดุหาย=택배가 분실됐어요
 ส่งผิดบ้าน=다른 집으로 배송됐어요
 ที่อยู่ผิด=주소가 잘못됐어요
+ไม่เห็นพัสดุ=택배가 안 보여요
+ไม่เห็นของ=택배가 안 보여요
+ไม่เห็นที่หน้าห้อง=문 앞에 택배가 안 보여요
+ไม่เห็นที่หน้าประตู=문 앞에 택배가 안 보여요
+หน้าห้อง=문 앞 / 현관 앞
+หน้าประตู=문 앞 / 현관 앞
 วางไว้หน้าประตู=문 앞에 놓아 주세요
 ฝากไว้ที่ยาม=경비실에 맡겨 주세요
 โทรมาก่อนส่ง=배송 전에 전화해 주세요
