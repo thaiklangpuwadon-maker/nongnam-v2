@@ -444,6 +444,33 @@ function normalizeKoreanSTT(text) {
   t = t.replace(/맛있어요$/g, '맛있어요.');
   t = t.replace(/배고파요/g, '배고파요.');
 
+  // Airport / immigration / hotel / concert STT normalizations
+  t = t.replace(/입국\s*심사/g, '입국심사');
+  t = t.replace(/출입국\s*심사/g, '출입국심사');
+  t = t.replace(/이차\s*심사/g, '2차 심사');
+  t = t.replace(/2차\s*심사실/g, '2차 심사실');
+  t = t.replace(/입국\s*목적/g, '입국 목적');
+  t = t.replace(/체류\s*기간/g, '체류 기간');
+  t = t.replace(/숙소\s*주소/g, '숙소 주소');
+  t = t.replace(/왕복\s*항공권/g, '왕복 항공권');
+  t = t.replace(/귀국\s*항공권/g, '귀국 항공권');
+  t = t.replace(/여행\s*일정/g, '여행 일정');
+  t = t.replace(/예약\s*확인서/g, '예약 확인서');
+  t = t.replace(/입국\s*거부/g, '입국 거부');
+  t = t.replace(/입국\s*불허/g, '입국 불허');
+  t = t.replace(/강제\s*송환/g, '강제송환');
+  t = t.replace(/호텔\s*예약/g, '호텔 예약');
+  t = t.replace(/체크\s*인/g, '체크인');
+  t = t.replace(/체크\s*아웃/g, '체크아웃');
+  t = t.replace(/항공\s*편/g, '항공편');
+  t = t.replace(/탑승\s*구/g, '탑승구');
+  t = t.replace(/수하물\s*찾기/g, '수하물 찾기');
+  t = t.replace(/콘서트\s*티켓/g, '콘서트 티켓');
+  t = t.replace(/팬\s*미팅/g, '팬미팅');
+  t = t.replace(/응원\s*봉/g, '응원봉');
+  t = t.replace(/포토\s*카드/g, '포토카드');
+  t = t.replace(/택스\s*리펀드/g, '택스리펀드');
+
   return t;
 }
 
@@ -931,6 +958,34 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   if (/세관.*걸렸/.test(compact)) return `ติดศุลกากร${polite}`;
   if (/금지품목/.test(compact)) return `เป็นของต้องห้าม${polite}`;
 
+  // Airport immigration / secondary inspection / hotel / concert / tourism
+  if (/입국심사/.test(compact)) return `ตรวจคนเข้าเมือง${polite}`;
+  if (/입국목적.*뭐|왜.*왔/.test(compact)) return `จุดประสงค์ในการเข้าประเทศคืออะไร${question}`;
+  if (/체류기간.*얼마|얼마나.*머무/.test(compact)) return `จะอยู่กี่วัน${question}`;
+  if (/숙소주소.*있|호텔예약.*있/.test(compact)) return `มีที่อยู่ที่พักหรือใบจองโรงแรมไหม${question}`;
+  if (/호텔예약확인서.*보여|예약확인서.*보여/.test(compact)) return `ขอดูใบจองโรงแรม${polite}`;
+  if (/왕복항공권|귀국항공권/.test(compact)) return `ตั๋วเครื่องบินขากลับ${polite}`;
+  if (/2차심사|별도심사|조사실/.test(compact)) return `ต้องไปห้องตรวจสอบเพิ่มเติมของ ตม.${polite}`;
+  if (/입국거부|입국불허/.test(compact)) return `ถูกปฏิเสธการเข้าประเทศ${polite}`;
+  if (/강제송환/.test(compact)) return `ถูกส่งตัวกลับประเทศ${polite}`;
+  if (/체크인.*하/.test(compact) && /호텔|객실|예약/.test(compact)) return `เช็กอินโรงแรม${polite}`;
+  if (/체크아웃.*하/.test(compact)) return `เช็กเอาต์${polite}`;
+  if (/짐.*보관/.test(compact)) return `ฝากกระเป๋าได้ไหม${question}`;
+  if (/방.*바꿔/.test(compact)) return `ขอเปลี่ยนห้อง${polite}`;
+  if (/따뜻한물.*안나/.test(compact)) return `น้ำอุ่นไม่ออก${polite}`;
+  if (/항공편.*지연|비행기.*지연/.test(compact)) return `เที่ยวบินดีเลย์${polite}`;
+  if (/항공편.*취소|비행기.*취소/.test(compact)) return `เที่ยวบินถูกยกเลิก${polite}`;
+  if (/수하물.*없|캐리어.*없/.test(compact)) return `กระเป๋าเดินทางหาย${polite}`;
+  if (/탑승구.*어디/.test(compact)) return `ประตูขึ้นเครื่องอยู่ที่ไหน${question}`;
+  if (/콘서트.*티켓|티켓.*있/.test(compact)) return `มีบัตรคอนเสิร์ตไหม${question}`;
+  if (/사진.*찍어도돼/.test(compact)) return `ถ่ายรูปได้ไหม${question}`;
+  if (/영상촬영.*금지|촬영금지/.test(compact)) return `ห้ามถ่ายวิดีโอ${polite}`;
+  if (/응원봉/.test(compact)) return `แท่งไฟ${polite}`;
+  if (/굿즈/.test(compact)) return `กู๊ดส์ / สินค้าไอดอล${polite}`;
+  if (/택스리펀드.*가능|세금환급.*가능/.test(compact)) return `ทำ Tax refund ได้ไหม${question}`;
+  if (/여권.*필요/.test(compact) && /택스리펀드|면세|환급/.test(compact)) return `ต้องใช้พาสปอร์ตไหม${question}`;
+  if (/정품.*맞/.test(compact)) return `เป็นของแท้ใช่ไหม${question}`;
+
   // Housing detailed
   if (/보증금.*언제.*돌려받/.test(compact)) return `เงินมัดจำจะคืนได้เมื่อไหร่${question}`;
   if (/관리비.*뭐.*포함/.test(compact)) return `ค่าส่วนกลางรวมอะไรบ้าง${question}`;
@@ -1012,6 +1067,26 @@ function hardThaiToKorean(raw, compact) {
   if (/พรุ่งนี้/.test(compact) && /출장/.test(compact)) return '내일 저는 출장 가요.';
   if (/เมื่อวาน/.test(compact) && /출장/.test(compact)) return '어제 저는 출장 갔어요.';
   if (/ไป/.test(compact) && /출장/.test(compact)) return '출장 가요.';
+
+  // Airport immigration slang / Thai tourist phrases
+  if (/ห้องเย็น/.test(compact) && /(ตม|สนามบิน|เข้าเมือง|เกาหลี|พาเข้า|โดนพา|ถูกพา|กัก|สอบถาม|ตรวจ)/.test(compact)) {
+    return '입국심사에서 2차 심사실로 가야 한다고 들었어요.';
+  }
+  if (/ตม.*พา.*ห้องเย็น|เข้าห้องเย็น/.test(compact)) {
+    return '입국심사관이 저를 2차 심사실로 데려갔어요.';
+  }
+  if (/ถูกปฏิเสธเข้าเมือง|เข้าเมืองไม่ได้|เข้าประเทศไม่ได้/.test(compact)) {
+    return '입국이 거부됐어요.';
+  }
+  if (/จุดประสงค์.*เข้า.*ประเทศ|มาทำอะไรที่เกาหลี/.test(compact)) {
+    return '입국 목적이 무엇인지 물어보는 건가요?';
+  }
+  if (/จองโรงแรม|ใบจองโรงแรม/.test(compact)) return '호텔 예약 확인서가 있어요.';
+  if (/ตั๋วขากลับ|ตั๋วเครื่องบินขากลับ/.test(compact)) return '귀국 항공권이 있어요.';
+  if (/ไปดูคอนเสิร์ต|ดูคอนเสิร์ต/.test(compact)) return '콘서트를 보러 가요.';
+  if (/BLACKPINK|แบล็กพิงก์|แบล็คพิงค์/.test(compact)) return '블랙핑크 콘서트를 보러 가요.';
+  if (/ฝากกระเป๋า/.test(compact) && /โรงแรม|ที่พัก|เช็กอิน|เช็คอิน/.test(compact)) return '체크인 전까지 짐을 맡길 수 있을까요?';
+  if (/ขอเปลี่ยนห้อง/.test(compact)) return '방을 바꿔 주실 수 있을까요?';
 
   // Coupang hard rules
   if (
@@ -1168,6 +1243,12 @@ function detectSituationFromUIContext(context) {
   if (/ซ่อม|เครื่องใช้ไฟฟ้า|service center|repair/.test(c)) return 'repair';
   if (/โรงเรียน|มหาวิทยาลัย|นักศึกษา|university|school/.test(c)) return 'school';
   if (/ทำผม|ร้านเล็บ|salon|hair|nail/.test(c)) return 'salon';
+  if (/โรงแรม|hotel|체크인|체크아웃/.test(c)) return 'hotel';
+  if (/สนามบิน|เที่ยวบิน|airport|flight|공항|항공편/.test(c)) return 'airport';
+  if (/ตม|ห้องเย็น|ตรวจคนเข้าเมือง|immigration|입국심사|출입국심사|2차 심사/.test(c)) return 'airport_immigration';
+  if (/คอนเสิร์ต|แฟนมีต|K-?pop|BLACKPINK|BTS|콘서트|팬미팅|아이돌/.test(c)) return 'concert_kpop';
+  if (/เที่ยว|ท่องเที่ยว|tour|travel spot|관광|관광지/.test(c)) return 'tourism';
+  if (/tax.?refund|택스리펀드|면세|ปลอดภาษี|คืนภาษี|เครื่องสำอาง/.test(c)) return 'shopping_taxfree';
   if (/อีสาน|Isaan/.test(c)) return 'isaan';
 
   return 'general';
@@ -1184,6 +1265,12 @@ function autoDetectSituation(text, fallback = 'general') {
   if (shouldLoadSalonVocab(t)) return 'salon';
   if (shouldLoadPublicOfficeVocab(t)) return 'public_office';
   if (shouldLoadLaborDetailVocab(t)) return 'labor_detail';
+  if (shouldLoadAirportImmigrationVocab(t)) return 'airport_immigration';
+  if (shouldLoadAirportFlightVocab(t)) return 'airport';
+  if (shouldLoadHotelVocab(t)) return 'hotel';
+  if (shouldLoadConcertKpopVocab(t)) return 'concert_kpop';
+  if (shouldLoadTourismVocab(t)) return 'tourism';
+  if (shouldLoadShoppingTaxfreeVocab(t)) return 'shopping_taxfree';
   if (/출장|외근|ชุลจัง|ชุนจัง|ชูจัง/.test(t)) return 'work';
   if (shouldLoadOnlineShoppingVocab(t)) return 'online';
   if (shouldLoadDentalVocab(t) || shouldLoadMedicalBodyDetailVocab(t) || shouldLoadMedicineVocab(t)) return 'hospital';
@@ -1359,6 +1446,37 @@ function shouldLoadLaborDetailVocab(text) {
   return /노동청|고용노동부|산재|산재보험|업무상 재해|임금체불|최저임금|주휴수당|연차수당|야근수당|해고예고수당|계약 위반|무단결근|사업장 변경|근무시간|휴게시간|สำนักงานแรงงาน|กระทรวงแรงงาน|อุบัติเหตุจากการทำงาน|ประกันอุบัติเหตุงาน|ค้างจ่ายค่าแรง|ค่าแรงขั้นต่ำ|ค่าวันหยุด|ค่าโอทีกลางคืน|ผิดสัญญา|ขาดงานโดยไม่แจ้ง|เวลาพัก/.test(t);
 }
 
+
+function shouldLoadAirportImmigrationVocab(text) {
+  const t = String(text || '');
+  return /ห้องเย็น|ตม|ตรวจคนเข้าเมือง|ด่านตรวจคนเข้าเมือง|ถูกกัก|โดนกัก|สัมภาษณ์เข้าเมือง|เข้าห้องสอบสวน|เข้าห้องเย็น|入国|입국심사|출입국심사|입국 목적|체류 기간|숙소 주소|왕복 항공권|귀국 항공권|여행 일정|초청장|재정 증명|2차 심사|별도 심사|조사실|대기실|입국 거부|입국 불허|강제송환|입국심사관|세컨더리|secondary inspection/.test(t);
+}
+
+function shouldLoadAirportFlightVocab(text) {
+  const t = String(text || '');
+  return /สนามบิน|เที่ยวบิน|ตั๋วเครื่องบิน|เช็กอินสายการบิน|โหลดกระเป๋า|กระเป๋าเดินทาง|น้ำหนักกระเป๋า|เกินน้ำหนัก|ประตูขึ้นเครื่อง|ขึ้นเครื่อง|เครื่องดีเลย์|ยกเลิกเที่ยวบิน|ต่อเครื่อง|รับกระเป๋า|กระเป๋าหาย|공항|항공편|항공권|항공사|체크인|수하물|위탁|초과 수하물|탑승구|탑승하다|지연|취소|환승|수하물 찾기|캐리어|여행가방/.test(t);
+}
+
+function shouldLoadHotelVocab(text) {
+  const t = String(text || '');
+  return /โรงแรม|เช็กอิน|เช็คอิน|เช็กเอาต์|เช็คเอาท์|จองห้อง|ห้องพัก|ห้องเดี่ยว|ห้องคู่|เตียงเดี่ยว|เตียงคู่|อาหารเช้า|ฝากกระเป๋า|คีย์การ์ด|เปลี่ยนห้อง|น้ำอุ่น|호텔|체크인|체크아웃|객실|예약|싱글룸|더블룸|트윈룸|조식|짐 보관|카드키|방을 바꿔|따뜻한 물/.test(t);
+}
+
+function shouldLoadConcertKpopVocab(text) {
+  const t = String(text || '');
+  return /คอนเสิร์ต|แฟนมีต|แฟนมีตติ้ง|บัตรคอน|บัตรคอนเสิร์ต|บัตรยืน|บัตรนั่ง|โซนที่นั่ง|เลขที่นั่ง|แท่งไฟ|กู๊ดส์|ของหน้างาน|ไอดอล|นักร้อง|นักแสดง|เกิร์ลกรุ๊ป|บอยแบนด์|แฟนคลับ|เมน|โฟโต้การ์ด|ลายเซ็น|BLACKPINK|블랙핑크|BTS|방탄|TWICE|트와이스|SEVENTEEN|세븐틴|Stray Kids|스트레이|aespa|에스파|IVE|아이브|NewJeans|뉴진스|LE SSERAFIM|르세라핌|콘서트|팬미팅|티켓|스탠딩석|좌석|구역|입장|입구|굿즈|응원봉|촬영 금지|매진|포토카드|팬사인회/.test(t);
+}
+
+function shouldLoadTourismVocab(text) {
+  const t = String(text || '');
+  return /ท่องเที่ยว|สถานที่ท่องเที่ยว|จุดถ่ายรูป|ถ่ายรูป|ช่วยถ่ายรูป|ค่าเข้า|เปิดกี่โมง|ปิดกี่โมง|ใกล้สถานีไหน|ต้องจองไหม|คนเยอะไหม|ร้านดัง|คาเฟ่ดัง|พระราชวัง|ฮงแด|เมียงดง|คังนัม|นัมซาน|관광지|사진 찍|포토존|입장료|몇 시에 열|몇 시에 닫|예약해야|사람 많|유명한 가게|유명한 카페|궁궐|홍대|명동|강남|남산/.test(t);
+}
+
+function shouldLoadShoppingTaxfreeVocab(text) {
+  const t = String(text || '');
+  return /ปลอดภาษี|คืนภาษี|Tax refund|tax refund|แท็กซ์รีฟันด์|ดิวตี้ฟรี|Duty Free|พาสปอร์ตต้องใช้ไหม|ร้านเครื่องสำอาง|เครื่องสำอาง|สกินแคร์|กันแดด|มาสก์หน้า|ลิปสติก|รองพื้น|ของแท้ไหม|ลดราคาไหม|Olive Young|โอลีฟยัง|면세|택스리펀드|세금 환급|여권 필요|화장품|스킨케어|선크림|마스크팩|립스틱|파운데이션|정품|할인|올리브영/.test(t);
+}
+
 function shouldLoadKoreanCommonVocab(text) {
   const t = String(text || '');
   return /몇시|언제|어디|들어와요|돌아와요|오세요|와요|가요|출발|도착|기숙사|회사|수업|질문|괜찮아요|안돼요|돼요|몰라요|알겠어요|네|예|그래요|그렇군요|됐어요|아니에요|좋아요|잠깐만요|잠시만요/.test(t);
@@ -1389,6 +1507,12 @@ function buildVocabHint(text, finalSit, uiSit) {
   if (shouldLoadSalonVocab(text) || finalSit === 'salon' || uiSit === 'salon') sections.push(HAIR_NAIL_SALON_VOCAB);
   if (shouldLoadHospitalAdminVocab(text)) sections.push(HOSPITAL_ADMIN_CHECKUP_VOCAB);
   if (shouldLoadLaborDetailVocab(text) || finalSit === 'labor_detail' || uiSit === 'labor_detail') sections.push(LABOR_DETAIL_VOCAB);
+  if (shouldLoadAirportImmigrationVocab(text) || finalSit === 'airport_immigration' || uiSit === 'airport_immigration') sections.push(AIRPORT_IMMIGRATION_ROOM_VOCAB);
+  if (shouldLoadAirportFlightVocab(text) || finalSit === 'airport' || uiSit === 'airport') sections.push(AIRPORT_FLIGHT_VOCAB);
+  if (shouldLoadHotelVocab(text) || finalSit === 'hotel' || uiSit === 'hotel') sections.push(HOTEL_TRAVEL_STAY_VOCAB);
+  if (shouldLoadConcertKpopVocab(text) || finalSit === 'concert_kpop' || uiSit === 'concert_kpop') sections.push(CONCERT_KPOP_ENTERTAINMENT_VOCAB);
+  if (shouldLoadTourismVocab(text) || finalSit === 'tourism' || uiSit === 'tourism') sections.push(TOURISM_PHOTO_ATTRACTION_VOCAB);
+  if (shouldLoadShoppingTaxfreeVocab(text) || finalSit === 'shopping_taxfree' || uiSit === 'shopping_taxfree') sections.push(SHOPPING_TAXFREE_COSMETICS_VOCAB);
   if (shouldLoadThaiSiaAmbiguity(text)) sections.push(THAI_SIA_AMBIGUITY_VOCAB);
   if (shouldLoadDentalVocab(text)) sections.push(DENTAL_VOCAB);
   if (shouldLoadMedicalBodyDetailVocab(text)) sections.push(MEDICAL_BODY_DETAIL_VOCAB);
@@ -1576,6 +1700,15 @@ ONLINE SHOPPING:
 - เลขพัสดุ / เลขแทร็ก = 운송장번호.
 - เก็บเงินปลายทาง = cash on delivery.
 
+AIRPORT IMMIGRATION / THAI SLANG:
+- ห้องเย็น in Thai traveler slang often means airport immigration secondary inspection room / 2차 심사실 / 입국심사 조사실 / 대기실, NOT a literal cold room.
+- Translate ห้องเย็น literally as 냉장실/냉동실 only when the context is food storage, warehouse, kitchen, or refrigeration.
+- 입국 목적 = จุดประสงค์ในการเข้าประเทศ.
+- 체류 기간 = ระยะเวลาพำนัก.
+- 숙소 주소 / 호텔 예약 확인서 = ที่อยู่ที่พัก / ใบจองโรงแรม.
+- 입국 거부 / 입국 불허 = ถูกปฏิเสธการเข้าประเทศ.
+- 강제송환 = ถูกส่งตัวกลับประเทศ.
+
 VOCABULARY:
 ${vocabHint}
 
@@ -1739,7 +1872,23 @@ function detectKeywords(text, situation) {
     'กุกมิน': 'ประกัน/กุกมิน',
     '국민연금': 'ประกัน/กุกมิน',
     'เทจิก': 'เทจิก/ออกงาน',
-    '퇴직금': 'เทจิก/ออกงาน'
+    '퇴직금': 'เทจิก/ออกงาน',
+    'ห้องเย็น': 'สนามบิน/ห้องเย็น ตม.',
+    '입국심사': 'สนามบิน/ตม.',
+    '2차 심사': 'สนามบิน/2차 심사',
+    '조사실': 'สนามบิน/ห้องสอบสวน',
+    '입국 거부': 'สนามบิน/ปฏิเสธเข้าเมือง',
+    '호텔': 'โรงแรม',
+    '체크인': 'โรงแรม/เช็กอิน',
+    '항공편': 'สนามบิน/เที่ยวบิน',
+    '수하물': 'สนามบิน/กระเป๋า',
+    '콘서트': 'คอนเสิร์ต',
+    'BLACKPINK': 'K-pop/BLACKPINK',
+    '블랙핑크': 'K-pop/BLACKPINK',
+    'BTS': 'K-pop/BTS',
+    '아이돌': 'K-pop/ไอดอล',
+    '택스리펀드': 'Shopping/Tax refund',
+    '면세': 'Shopping/Duty free'
   };
 
   for (const [kw, label] of Object.entries(keywordMap)) {
@@ -1879,7 +2028,13 @@ const SITUATION_CONTEXT = {
   school: 'School / university / professor / class / attendance / assignment / tuition / certificates.',
   salon: 'Hair salon / nail shop / non-surgery beauty services.',
   public_office: 'Public office / 주민센터 / document application / forms / ID / certificates.',
-  labor_detail: 'Labor office / 산재 / unpaid wage / severance / overtime / labor rights.'
+  labor_detail: 'Labor office / 산재 / unpaid wage / severance / overtime / labor rights.',
+  airport_immigration: 'Airport immigration / 입국심사 / 2차 심사 / investigation room / Thai slang ห้องเย็น. Translate ห้องเย็น as airport secondary inspection room, not literal cold room unless food/storage context.',
+  airport: 'Airport / flight / baggage / boarding / delay / transfer.',
+  hotel: 'Hotel / check-in / checkout / room / luggage storage / room problems.',
+  concert_kpop: 'Concert / fan meeting / K-pop / idol goods / seats / entry / photography rules.',
+  tourism: 'Tourism / attractions / photo spots / opening hours / entrance fee / directions.',
+  shopping_taxfree: 'Shopping / tax refund / duty free / cosmetics / Olive Young / authentic products.'
 };
 
 const VOCAB_BY_SITUATION = {
@@ -3032,6 +3187,200 @@ const LABOR_DETAIL_VOCAB = `
 산재 신청하고 싶어요=อยากยื่นเรื่องอุบัติเหตุจากการทำงานครับ/ค่ะ
 월급을 못 받았어요=ยังไม่ได้รับเงินเดือนครับ/ค่ะ
 퇴직금을 받을 수 있어요?=รับเงินแทจิกได้ไหมครับ/คะ
+`;
+
+
+const AIRPORT_IMMIGRATION_ROOM_VOCAB = `
+[Airport immigration / ห้องเย็น / secondary inspection]
+ห้องเย็น=ห้องตรวจสอบเพิ่มเติมของ ตม. / 2차 심사실 / 입국심사 조사실 / 대기실, not literal cold room unless food/storage context
+ห้องเย็นที่สนามบิน=입국심사 2차 심사실 / 입국심사 조사실
+ตม.=출입국심사 / 입국심사 / 출입국관리
+เจ้าหน้าที่ ตม.=입국심사관 / 출입국 직원
+ด่านตรวจคนเข้าเมือง=입국심사대
+ตรวจคนเข้าเมือง=입국심사
+เข้าเมือง=입국하다
+จุดประสงค์ในการเข้าประเทศ=입국 목적
+มาเที่ยว=관광하러 왔어요
+มาดูคอนเสิร์ต=콘서트를 보러 왔어요
+มาเยี่ยมเพื่อน=친구를 만나러 왔어요
+พักที่ไหน=어디에서 지내세요?
+ที่อยู่ที่พัก=숙소 주소
+ใบจองโรงแรม=호텔 예약 확인서
+ตั๋วขากลับ=귀국 항공권 / 왕복 항공권
+แผนเที่ยว=여행 일정
+หลักฐานการเงิน=재정 증명
+จดหมายเชิญ=초청장
+สัมภาษณ์เข้าเมือง=입국심사 인터뷰
+ตรวจสอบเพิ่มเติม=추가 심사 / 2차 심사
+พาไปห้องเย็น=2차 심사실로 데려가다
+ถูกกักที่ ตม.=입국심사에서 대기하게 됐어요 / 억류됐어요
+ปฏิเสธเข้าเมือง=입국 거부 / 입국 불허
+ถูกส่งตัวกลับ=강제송환되다
+입국 목적이 뭐예요?=จุดประสงค์ในการเข้าประเทศคืออะไรครับ/คะ
+체류 기간이 얼마나 돼요?=จะอยู่กี่วันครับ/คะ
+숙소 주소가 있어요?=มีที่อยู่ที่พักไหมครับ/คะ
+왕복 항공권 있어요?=มีตั๋วไปกลับไหมครับ/คะ
+호텔 예약 확인서 보여 주세요=ขอดูใบจองโรงแรมครับ/ค่ะ
+2차 심사실로 가셔야 합니다=ต้องไปห้องตรวจสอบเพิ่มเติมของ ตม.ครับ/ค่ะ
+`;
+
+const AIRPORT_FLIGHT_VOCAB = `
+[Airport / flight / baggage]
+สนามบิน=공항
+เที่ยวบิน=항공편
+ตั๋วเครื่องบิน=항공권
+สายการบิน=항공사
+เช็กอินสายการบิน=항공사 체크인
+โหลดกระเป๋า=수하물 위탁
+กระเป๋าเดินทาง=캐리어 / 여행가방
+กระเป๋าถือขึ้นเครื่อง=기내 수하물
+น้ำหนักกระเป๋า=수하물 무게
+น้ำหนักเกิน=초과 수하물
+เคาน์เตอร์เช็กอิน=체크인 카운터
+บอร์ดดิ้งพาส=탑승권
+ประตูขึ้นเครื่อง=탑승구
+ขึ้นเครื่อง=탑승하다
+เครื่องดีเลย์=비행기가 지연됐어요 / 항공편이 지연됐어요
+ยกเลิกเที่ยวบิน=항공편이 취소됐어요
+ต่อเครื่อง=환승
+รับกระเป๋า=수하물 찾기
+กระเป๋าหาย=수하물이 없어졌어요
+กระเป๋าเสียหาย=수하물이 파손됐어요
+ผ่าน ตม.=입국심사를 통과하다
+ตรวจศุลกากร=세관 검사
+탑승구가 어디예요?=ประตูขึ้นเครื่องอยู่ที่ไหนครับ/คะ
+항공편이 지연됐어요=เที่ยวบินดีเลย์ครับ/ค่ะ
+수하물이 안 나와요=กระเป๋ายังไม่ออกครับ/ค่ะ
+수하물이 없어졌어요=กระเป๋าหายครับ/ค่ะ
+`;
+
+const HOTEL_TRAVEL_STAY_VOCAB = `
+[Hotel / tourist stay]
+โรงแรม=호텔
+เช็กอิน/เช็คอิน=체크인
+เช็กเอาต์/เช็คเอาท์=체크아웃
+จองห้อง=객실 예약
+ห้องพัก=객실
+ห้องเดี่ยว=싱글룸
+ห้องคู่=더블룸 / 트윈룸
+เตียงเดี่ยว=싱글 침대
+เตียงคู่=더블 침대
+อาหารเช้า=조식
+ฝากกระเป๋า=짐 보관
+คีย์การ์ด=객실 카드키
+เลขห้อง=객실 번호
+ชั้น=층
+ลิฟต์=엘리베이터
+ผ้าเช็ดตัว=수건
+น้ำอุ่น=따뜻한 물
+แอร์=에어컨
+ฮีตเตอร์=난방
+ห้องไม่สะอาด=방이 깨끗하지 않아요
+แอร์ไม่เย็น=에어컨이 시원하지 않아요
+น้ำอุ่นไม่ออก=따뜻한 물이 안 나와요
+ขอเปลี่ยนห้อง=방을 바꿔 주세요
+ฝากกระเป๋าได้ไหม=짐을 맡길 수 있을까요?
+체크인하고 싶어요=อยากเช็กอินครับ/ค่ะ
+체크아웃 몇 시예요?=เช็กเอาต์กี่โมงครับ/คะ
+조식 포함인가요?=รวมอาหารเช้าไหมครับ/คะ
+`;
+
+const CONCERT_KPOP_ENTERTAINMENT_VOCAB = `
+[Concert / K-pop / entertainment]
+คอนเสิร์ต=콘서트
+แฟนมีต/แฟนมีตติ้ง=팬미팅
+บัตรคอนเสิร์ต=콘서트 티켓
+บัตรยืน=스탠딩석
+บัตรนั่ง=좌석
+โซนที่นั่ง=구역
+แถว=열
+เลขที่นั่ง=좌석 번호
+เข้างาน=입장
+ประตูเข้างาน=입구
+ของหน้างาน/กู๊ดส์=현장 굿즈 / 굿즈
+สินค้าไอดอล=아이돌 굿즈
+แท่งไฟ=응원봉
+ถ่ายรูปได้ไหม=사진 찍어도 돼요?
+ห้ามถ่ายวิดีโอ=영상 촬영 금지
+บัตรหมด=매진됐어요
+ไอดอล=아이돌
+นักร้อง=가수
+นักแสดง=배우
+วงดนตรี=그룹
+เกิร์ลกรุ๊ป=걸그룹
+บอยแบนด์=보이그룹
+แฟนคลับ=팬
+เมน=최애
+เมนรอง=차애
+อัลบั้ม=앨범
+โฟโต้การ์ด=포토카드
+ลายเซ็น=사인
+งานแจกลายเซ็น=팬사인회
+BLACKPINK/แบล็กพิงก์/แบล็คพิงค์=블랙핑크
+BTS=방탄소년단 / BTS
+TWICE=트와이스
+SEVENTEEN=세븐틴
+Stray Kids=스트레이 키즈
+NewJeans=뉴진스
+aespa=에스파
+IVE=아이브
+LE SSERAFIM=르세라핌
+사진 찍어도 돼요?=ถ่ายรูปได้ไหมครับ/คะ
+영상 촬영 금지입니다=ห้ามถ่ายวิดีโอครับ/ค่ะ
+응원봉 어디서 사요?=ซื้อแท่งไฟได้ที่ไหนครับ/คะ
+`;
+
+const TOURISM_PHOTO_ATTRACTION_VOCAB = `
+[Tourism / photo / attraction]
+สถานที่ท่องเที่ยว=관광지
+ถ่ายรูป=사진 찍다
+ช่วยถ่ายรูปให้หน่อย=사진 좀 찍어 주세요
+จุดถ่ายรูป=포토존
+ไปทางไหน=어디로 가요?
+ใกล้สถานีไหน=어느 역에서 가까워요?
+ต้องจองไหม=예약해야 해요?
+เปิดกี่โมง=몇 시에 열어요?
+ปิดกี่โมง=몇 시에 닫아요?
+ค่าเข้าเท่าไหร่=입장료가 얼마예요?
+คนเยอะไหม=사람 많아요?
+ร้านดัง=유명한 가게
+คาเฟ่ดัง=유명한 카페
+พระราชวัง=궁궐
+ตลาด=시장
+ฮงแด=홍대
+เมียงดง=명동
+คังนัม=강남
+นัมซาน=남산
+경복궁=คยองบกกุง / พระราชวังคยองบก
+남산타워=นัมซานทาวเวอร์
+사진 좀 찍어 주세요=ช่วยถ่ายรูปให้หน่อยครับ/ค่ะ
+입장료가 얼마예요?=ค่าเข้าเท่าไหร่ครับ/คะ
+몇 시에 닫아요?=ปิดกี่โมงครับ/คะ
+`;
+
+const SHOPPING_TAXFREE_COSMETICS_VOCAB = `
+[Shopping / tax refund / cosmetics]
+ปลอดภาษี=면세
+ดิวตี้ฟรี=면세점 / 듀티프리
+คืนภาษี=택스리펀드 / 세금 환급
+ทำ Tax refund ได้ไหม=택스리펀드 가능해요?
+พาสปอร์ตต้องใช้ไหม=여권 필요해요?
+ร้านเครื่องสำอาง=화장품 가게
+Olive Young/โอลีฟยัง=올리브영
+สกินแคร์=스킨케어
+กันแดด=선크림
+มาสก์หน้า=마스크팩
+ลิปสติก=립스틱
+รองพื้น=파운데이션
+คุชชั่น=쿠션
+โทนเนอร์=토너
+เซรั่ม=세럼
+ของแท้ไหม=정품이에요?
+ลดราคาไหม=할인해요?
+ใบเสร็จ=영수증
+택스리펀드 가능해요?=ทำ Tax refund ได้ไหมครับ/คะ
+여권 필요해요?=ต้องใช้พาสปอร์ตไหมครับ/คะ
+정품이에요?=เป็นของแท้ไหมครับ/คะ
 `;
 
 const DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB = `
