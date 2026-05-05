@@ -141,34 +141,7 @@ export default async function handler(req, res) {
       temperature: 0
     });
 
-    let rawTranslation = aiResult.text;
-
-    // If the model accidentally answers as an interpreter/AI instead of translating,
-    // retry once with a stricter one-shot instruction before falling back.
-    if (isMetaRefusal(rawTranslation)) {
-      const retryResult = await callAnthropic({
-        apiKey,
-        model,
-        system: `${systemPrompt}
-
-ABSOLUTE RETRY RULE:
-The previous output was invalid because it answered/refused instead of translating.
-Translate the user's original sentence only.
-Never say you are an interpreter.
-Never say you cannot answer.
-Never answer the question.
-Output only the translation in ${targetLang}.`,
-        userContent: `Translate ONLY this ${sourceLang} sentence into ${targetLang}. Do not answer it. Do not explain. Do not refuse.
-
-${cleanedText}`,
-        maxTokens: chooseMaxTokens(cleanedText),
-        temperature: 0
-      });
-
-      rawTranslation = retryResult.text;
-    }
-
-    const translation = sanitizeTranslation(rawTranslation, unclearReply);
+    const translation = sanitizeTranslation(aiResult.text, unclearReply);
 
     const usage = aiResult.usage || {};
     const inputTokens = Number(usage.input_tokens || usage.inputTokens || 0);
@@ -353,9 +326,8 @@ function normalizeThaiLoanwords(text) {
 function normalizeKoreanSTT(text) {
   let t = String(text || '');
 
-  // ========= Original rules kept + expanded =========
   const pairs = [
-    // 몇 시에 들어와요 / 돌아와요 / 오세요 / 와요 / 끝나요 / 출발해요
+    // 몇 시에 들어와요 / 돌아와요 / 오세요
     [/마치마치 들어와요/g, '몇 시에 들어와요?'],
     [/마치 들어와요/g, '몇 시에 들어와요?'],
     [/매치 들어와요/g, '몇 시에 들어와요?'],
@@ -387,35 +359,23 @@ function normalizeKoreanSTT(text) {
     [/며칠 오세요/g, '몇 시에 오세요?'],
     [/며칠간 오세요/g, '몇 시에 오세요?'],
 
-    [/마치 와요/g, '몇 시에 와요?'],
-    [/매치 와요/g, '몇 시에 와요?'],
-    [/미지근 와요/g, '몇 시에 와요?'],
-    [/며칠 와요/g, '몇 시에 와요?'],
-    [/몇일 와요/g, '몇 시에 와요?'],
-
-    [/마치 끝나요/g, '몇 시에 끝나요?'],
-    [/매치 끝나요/g, '몇 시에 끝나요?'],
-    [/미지근 끝나요/g, '몇 시에 끝나요?'],
-    [/며칠 끝나요/g, '몇 시에 끝나요?'],
-
-    [/마치 출발해요/g, '몇 시에 출발해요?'],
-    [/매치 출발해요/g, '몇 시에 출발해요?'],
-    [/미지근 출발해요/g, '몇 시에 출발해요?'],
-    [/며칠 출발해요/g, '몇 시에 출발해요?'],
-
     [/몇시에/g, '몇 시에'],
     [/몇 시 오세요/g, '몇 시에 오세요?'],
     [/몇 시 들어와요/g, '몇 시에 들어와요?'],
     [/몇 시 돌아와요/g, '몇 시에 돌아와요?'],
-    [/몇 시 와요/g, '몇 시에 와요?'],
-    [/몇 시 끝나요/g, '몇 시에 끝나요?'],
-    [/몇 시 출발해요/g, '몇 시에 출발해요?'],
 
     // 어디 / 언제 common STT fragments
     [/어 들었나/g, '들었나요?'],
     [/어디 들었나/g, '어디 들었나요?'],
+    [/오디세요/g, '어디에 계세요?'],
+    [/어디세요/g, '어디에 계세요?'],
+    [/어디 계세요/g, '어디에 계세요?'],
     [/어떻게 하세요/g, '뭐 하세요?'],
     [/어떻게 해요/g, '어떻게 해요?'],
+    [/머 하세요/g, '뭐 하세요?'],
+    [/머 해요/g, '뭐 해요?'],
+    [/머 하는거예요/g, '뭐 하는 거예요?'],
+    [/뭐하세요/g, '뭐 하세요?'],
 
     // work / dorm / company common repeats
     [/기수사/g, '기숙사'],
@@ -442,15 +402,11 @@ function normalizeKoreanSTT(text) {
 
   for (const [a, b] of pairs) t = t.replace(a, b);
 
-  // ========= Expanded Korean STT correction =========
-  // General "what time" mishearing. Keep verb, correct only clearly known time-question patterns.
+  // Broad Korean STT correction for time questions
   t = t.replace(/(미지근|마치|매치|며칠|몇일|미치근|미지근마치)\s*(들어와요|돌아와요|오세요|와요|끝나요|출발해요|퇴근해요)/g, '몇 시에 $2?');
+  t = t.replace(/(어디|오디)\s*(들어왔어요|시작해요|갔어요)/g, '언제 $2?');
 
-  // "when" mishearing where STT outputs 어디/오디 before action.
-  t = t.replace(/(어디|오디)\s*(들어왔어요|시작해요|갔어요|왔어요|끝났어요|출발했어요)/g, '언제 $2?');
-
-  // Common Korean questions from real conversations.
-  t = t.replace(/머\s*(하세요|해요|하는거예요)/g, '뭐 $1?');
+  // Common service questions and spacing
   t = t.replace(/뭐\s*하세요/g, '뭐 하세요?');
   t = t.replace(/어디\s*아파요/g, '어디 아파요?');
   t = t.replace(/뭐\s*필요하세요/g, '뭐 필요하세요?');
@@ -459,25 +415,33 @@ function normalizeKoreanSTT(text) {
   t = t.replace(/왜\s*그래요/g, '왜 그래요?');
   t = t.replace(/이거\s*뭐예요/g, '이거 뭐예요?');
   t = t.replace(/그게\s*무슨말이에요/g, '그게 무슨 말이에요?');
-  t = t.replace(/얼마\s*예요/g, '얼마예요?');
-  t = t.replace(/가능\s*해요/g, '가능해요?');
-  t = t.replace(/돼요$/g, '돼요?');
-  t = t.replace(/되나요/g, '되나요?');
-  t = t.replace(/될까요/g, '될까요?');
-
-  // Polite instruction spacing.
   t = t.replace(/다시\s*말씀해주세요/g, '다시 말씀해 주세요.');
   t = t.replace(/천천히\s*말씀해주세요/g, '천천히 말씀해 주세요.');
   t = t.replace(/잘\s*못들었어요/g, '잘 못 들었어요.');
   t = t.replace(/이해\s*못했어요/g, '이해 못 했어요.');
+  t = t.replace(/잠시만\s*기다려주세요/g, '잠시만 기다려 주세요.');
+  t = t.replace(/조금만\s*기다려주세요/g, '조금만 기다려 주세요.');
+  t = t.replace(/서명\s*해주세요/g, '서명해 주세요.');
+  t = t.replace(/싸인\s*해주세요/g, '사인해 주세요.');
+  t = t.replace(/여기\s*싸인/g, '여기에 사인해 주세요.');
 
-  // SIM / phone / verification.
+  // Public office / hospital / payment questions
+  t = t.replace(/예약\s*하셨어요/g, '예약하셨어요?');
+  t = t.replace(/접수\s*하셨어요/g, '접수하셨어요?');
+  t = t.replace(/결제\s*하셨어요/g, '결제하셨어요?');
+  t = t.replace(/입금\s*하셨어요/g, '입금하셨어요?');
+  t = t.replace(/송금\s*하셨어요/g, '송금하셨어요?');
+  t = t.replace(/신분증\s*있어요/g, '신분증 있어요?');
+  t = t.replace(/외국인\s*등록증\s*있어요/g, '외국인등록증 있어요?');
+  t = t.replace(/여권\s*있어요/g, '여권 있어요?');
+
+  // Phone / SIM
   t = t.replace(/유심\s*개통/g, '유심 개통');
   t = t.replace(/번호\s*바꾸/g, '번호 바꾸');
   t = t.replace(/인증번호\s*안와요/g, '인증번호 안 와요');
 
-  // Food: do NOT force 맛있어요 into a question. It may be a statement.
-  // Hard translation layer separates 맛있어요. and 맛있어요? by punctuation.
+  // Food: do not force 맛있어요 into a question; punctuation/context will decide.
+  t = t.replace(/맛있어요$/g, '맛있어요.');
   t = t.replace(/배고파요/g, '배고파요.');
 
   return t;
@@ -905,33 +869,13 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   // Food / daily
   // ============================================================
 
-  if ((compact === '밥먹었어' || compact === '밥먹었어요') && raw.includes('?')) {
-    return `กินข้าวแล้วหรือยัง${question}`;
-  }
-
-  if (compact === '밥먹었어' || compact === '밥먹었어요') {
-    return `กินข้าวแล้ว${polite}`;
-  }
-
-  if (/밥.*먹었/.test(compact) && raw.includes('?')) {
-    return `กินข้าวแล้วหรือยัง${question}`;
-  }
-
-  if (/밥.*먹었/.test(compact)) {
-    return `กินข้าวแล้ว${polite}`;
-  }
-
-  if (/맛있어요/.test(compact) && raw.includes('?')) {
-    return `อร่อยไหม${question}`;
-  }
-
-  if (/맛있어요/.test(compact)) {
-    return `อร่อย${polite}`;
-  }
-
-  if (/맛있다|맛있네|맛있겠다/.test(compact)) {
-    return `น่าอร่อย${polite}`;
-  }
+  if ((compact === '밥먹었어' || compact === '밥먹었어요') && raw.includes('?')) return `กินข้าวแล้วหรือยัง${question}`;
+  if (compact === '밥먹었어' || compact === '밥먹었어요') return `กินข้าวแล้ว${polite}`;
+  if (/밥.*먹었/.test(compact) && raw.includes('?')) return `กินข้าวแล้วหรือยัง${question}`;
+  if (/밥.*먹었/.test(compact)) return `กินข้าวแล้ว${polite}`;
+  if (/맛있어요/.test(compact) && raw.includes('?')) return `อร่อยไหม${question}`;
+  if (/맛있어요/.test(compact)) return `อร่อย${polite}`;
+  if (/맛있다|맛있네|맛있겠다/.test(compact)) return `น่าอร่อย${polite}`;
   if (/떡볶이/.test(compact)) return 'ต็อกบกกี';
   if (/김치/.test(compact)) return 'กิมจิ';
   if (/갈비탕/.test(compact)) return 'คัลบีทัง / ซุปซี่โครงเนื้อ';
@@ -940,42 +884,83 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   // Common short Korean
   // ============================================================
 
-
   // ============================================================
-  // 네 / 예 before greetings = polite acknowledgement, not "ใช่"
+  // Korean short responses / greetings / service acknowledgements
   // ============================================================
 
-  if (/^(네|예)안녕하세요$/.test(compact)) {
-    return `${ack} สวัสดี${polite}`;
-  }
+  if (/^(네|예)안녕하세요$/.test(compact)) return `${ack} สวัสดี${polite}`;
+  if (/^(네|예)안녕하십니까$/.test(compact)) return `${ack} สวัสดี${polite}`;
+  if (/^(네|예)반갑습니다$/.test(compact)) return `${ack} ยินดีที่ได้รู้จัก${polite}`;
+  if (/^(네|예)처음뵙겠습니다$/.test(compact)) return `${ack} ยินดีที่ได้รู้จัก${polite}`;
+  if (/^(네|예)감사합니다$/.test(compact)) return `${ack} ขอบคุณ${polite}`;
+  if (/^(네|예)알겠습니다$/.test(compact)) return `${ack} เข้าใจแล้ว${polite}`;
+  if (/^(네|예)맞아요$/.test(compact)) return `${ack} ถูกต้อง${polite}`;
+  if (/^(네|예)괜찮아요$/.test(compact)) return `${ack} ไม่เป็นไร${polite}`;
+  if (/^(네|예)잠시만요$/.test(compact)) return `${ack} รอสักครู่${polite}`;
+  if (/^(네|예)잠깐만요$/.test(compact)) return `${ack} รอสักครู่${polite}`;
+  if (/^(아)?그래요$/.test(compact) && raw.includes('?')) return `อย่างนั้นเหรอ${question}`;
+  if (/^아그래요$/.test(compact)) return `อ๋อ อย่างนั้นเหรอ${question}`;
+  if (/^아그렇군요$/.test(compact)) return `อ๋อ เข้าใจแล้ว${polite}`;
+  if (/^그렇군요$/.test(compact)) return `เข้าใจแล้ว${polite}`;
+  if (/^됐어요$/.test(compact) && /(안해도|그만|괜찮)/.test(raw)) return `ไม่ต้องแล้ว${polite}`;
 
-  if (/^(네|예)안녕하십니까$/.test(compact)) {
-    return `${ack} สวัสดี${polite}`;
-  }
+  // Public office / hospital / service desk common hard maps
+  if (/번호표.*뽑/.test(compact)) return `กดบัตรคิวก่อน${polite}`;
+  if (/신청서.*작성/.test(compact)) return `กรุณากรอกแบบฟอร์ม${polite}`;
+  if (/신분증.*보여/.test(compact)) return `ขอดูบัตรประจำตัว${polite}`;
+  if (/외국인등록증.*있/.test(compact)) return `มีบัตรต่างด้าวไหม${question}`;
+  if (/여기.*서명/.test(compact) || /여기.*사인/.test(compact)) return `กรุณาเซ็นตรงนี้${polite}`;
+  if (/서류.*부족/.test(compact)) return `เอกสารยังไม่ครบ${polite}`;
+  if (/원본.*필요/.test(compact)) return `ต้องใช้ตัวจริง${polite}`;
+  if (/사본.*가져오/.test(compact)) return `เอาสำเนามาด้วย${polite}`;
 
-  if (/^(네|예)반갑습니다$/.test(compact)) {
-    return `${ack} ยินดีที่ได้รู้จัก${polite}`;
-  }
+  // Police / accident
+  if (/경찰.*신고/.test(compact)) return `แจ้งตำรวจ${polite}`;
+  if (/신고.*싶/.test(compact)) return `อยากแจ้งความ${polite}`;
+  if (/신고접수증.*받/.test(compact)) return `ขอใบรับแจ้งความได้ไหม${question}`;
+  if (/교통사고.*났/.test(compact)) return `เกิดอุบัติเหตุรถชน${polite}`;
+  if (/상대방.*도망/.test(compact)) return `คู่กรณีหนีไป${polite}`;
+  if (/블랙박스.*있/.test(compact)) return `มีกล้องหน้ารถ${polite}`;
+  if (/보험처리.*싶/.test(compact)) return `อยากให้ประกันจัดการ${polite}`;
 
-  if (/^(네|예)처음뵙겠습니다$/.test(compact)) {
-    return `${ack} ยินดีที่ได้รู้จัก${polite}`;
-  }
+  // Post office / customs
+  if (/태국.*택배.*보내/.test(compact)) return `อยากส่งพัสดุกลับไทย${polite}`;
+  if (/태국.*보낼수있/.test(compact)) return `อันนี้ส่งไปไทยได้ไหม${question}`;
+  if (/배송비.*얼마/.test(compact)) return `ค่าส่งเท่าไหร่${question}`;
+  if (/며칠.*걸/.test(compact)) return `ใช้เวลากี่วัน${question}`;
+  if (/세관.*걸렸/.test(compact)) return `ติดศุลกากร${polite}`;
+  if (/금지품목/.test(compact)) return `เป็นของต้องห้าม${polite}`;
 
-  if (/^(네|예)감사합니다$/.test(compact)) {
-    return `${ack} ขอบคุณ${polite}`;
-  }
+  // Housing detailed
+  if (/보증금.*언제.*돌려받/.test(compact)) return `เงินมัดจำจะคืนได้เมื่อไหร่${question}`;
+  if (/관리비.*뭐.*포함/.test(compact)) return `ค่าส่วนกลางรวมอะไรบ้าง${question}`;
+  if (/곰팡이.*생겼/.test(compact)) return `มีเชื้อราขึ้น${polite}`;
+  if (/물.*새요/.test(compact)) return `น้ำรั่ว${polite}`;
+  if (/보일러.*고장/.test(compact)) return `บอยเลอร์เสีย${polite}`;
+  if (/계약.*연장.*싶/.test(compact)) return `อยากต่อสัญญา${polite}`;
+  if (/이사.*나갈.*예정/.test(compact)) return `จะย้ายออก${polite}`;
 
-  if (/^(네|예)알겠습니다$/.test(compact)) {
-    return `${ack} เข้าใจแล้ว${polite}`;
-  }
+  // Repair / device / appliances
+  if (/전원.*안켜/.test(compact)) return `เปิดไม่ติด${polite}`;
+  if (/화면.*깨졌/.test(compact)) return `หน้าจอแตก${polite}`;
+  if (/충전.*안돼/.test(compact)) return `ชาร์จไม่เข้า${polite}`;
+  if (/배터리.*빨리.*닳/.test(compact)) return `แบตหมดเร็ว${polite}`;
+  if (/세탁기.*탈수.*안/.test(compact)) return `เครื่องซักผ้าไม่ปั่นแห้ง${polite}`;
+  if (/냉장고.*안시원/.test(compact)) return `ตู้เย็นไม่เย็น${polite}`;
+  if (/에어컨.*시원하지않/.test(compact)) return `แอร์ไม่เย็น${polite}`;
 
-  if (/^(네|예)맞아요$/.test(compact)) {
-    return `${ack} ถูกต้อง${polite}`;
-  }
+  // School / university
+  if (/출석.*체크/.test(compact)) return `เช็กชื่อแล้วหรือยัง${question}`;
+  if (/과제.*제출.*연장/.test(compact)) return `ขอเลื่อนส่งงานได้ไหม${question}`;
+  if (/재학증명서.*발급/.test(compact)) return `อยากขอใบรับรองการเป็นนักศึกษา${polite}`;
+  if (/등록금.*납부.*언제/.test(compact)) return `ช่วงจ่ายค่าเทอมเมื่อไหร่${question}`;
 
-  if (/^(네|예)괜찮아요$/.test(compact)) {
-    return `${ack} ไม่เป็นไร${polite}`;
-  }
+  // Hair / nail / salon
+  if (/끝만.*다듬/.test(compact)) return `เล็มปลายผมนิดเดียว${polite}`;
+  if (/짧게.*자르지말/.test(compact)) return `อย่าตัดสั้นเกินไป${polite}`;
+  if (/사진처럼.*해/.test(compact)) return `ทำแบบในรูปนี้${polite}`;
+  if (/뿌리염색.*싶/.test(compact)) return `อยากเติมสีโคนผม${polite}`;
+  if (/젤네일.*제거.*싶/.test(compact)) return `อยากล้างเล็บเจล${polite}`;
 
   const commonMap = {
     '안녕하세요': `สวัสดี${polite}`,
@@ -1178,6 +1163,11 @@ function detectSituationFromUIContext(context) {
   if (/ที่พัก|housing/.test(c)) return 'housing';
   if (/ฉุกเฉิน|emergency/.test(c)) return 'emergency';
   if (/ศัลยกรรม|ความงาม|beauty/.test(c)) return 'beauty';
+  if (/ตำรวจ|แจ้งความ|อุบัติเหตุ|police|accident/.test(c)) return 'police';
+  if (/ไปรษณีย์|ศุลกากร|EMS|post|customs/.test(c)) return 'post';
+  if (/ซ่อม|เครื่องใช้ไฟฟ้า|service center|repair/.test(c)) return 'repair';
+  if (/โรงเรียน|มหาวิทยาลัย|นักศึกษา|university|school/.test(c)) return 'school';
+  if (/ทำผม|ร้านเล็บ|salon|hair|nail/.test(c)) return 'salon';
   if (/อีสาน|Isaan/.test(c)) return 'isaan';
 
   return 'general';
@@ -1187,6 +1177,13 @@ function autoDetectSituation(text, fallback = 'general') {
   const t = String(text || '');
 
   if (/ช่วยด้วย|ฉุกเฉิน|รถพยาบาล|ตำรวจ|โดนทำร้าย|ไฟไหม้|หมดสติ|119|112|응급|구급차|경찰|화재|의식/.test(t)) return 'emergency';
+  if (shouldLoadPoliceAccidentVocab(t)) return 'police';
+  if (shouldLoadPostCustomsVocab(t)) return 'post';
+  if (shouldLoadRepairApplianceVocab(t)) return 'repair';
+  if (shouldLoadSchoolUniversityVocab(t)) return 'school';
+  if (shouldLoadSalonVocab(t)) return 'salon';
+  if (shouldLoadPublicOfficeVocab(t)) return 'public_office';
+  if (shouldLoadLaborDetailVocab(t)) return 'labor_detail';
   if (/출장|외근|ชุลจัง|ชุนจัง|ชูจัง/.test(t)) return 'work';
   if (shouldLoadOnlineShoppingVocab(t)) return 'online';
   if (shouldLoadDentalVocab(t) || shouldLoadMedicalBodyDetailVocab(t) || shouldLoadMedicineVocab(t)) return 'hospital';
@@ -1311,15 +1308,67 @@ function shouldLoadIsanCeremonyVocab(text, situation, uiSituation) {
     || ((situation === 'isaan' || uiSituation === 'isaan') && /พี่น้อง|หมู่บ้าน|ผู้เฒ่า|พ่อใหญ่|แม่ใหญ่/.test(t));
 }
 
+
+function shouldLoadKoreanShortResponseVocab(text) {
+  const t = String(text || '');
+  return /\b(네|예|그래요|아 그래요|그렇군요|아 그렇군요|됐어요|괜찮아요|아니에요|좋아요|잠깐만요|잠시만요|알겠습니다|맞아요)\b|안녕하세요|반갑습니다/.test(t);
+}
+
+function shouldLoadPublicOfficeVocab(text) {
+  const t = String(text || '');
+  return /주민센터|동사무소|구청|시청|민원실|번호표|대기번호|신청서|서명|도장|신분증|외국인등록증|주소 변경|전입신고|전출신고|등본|초본|가족관계증명서|혼인관계증명서|출생증명서|번역공증|공증|원본|사본|제출|발급|재발급|수수료|ศูนย์บริการชุมชน|สำนักงานเขต|บัตรคิว|กรอกเอกสาร|เซ็นชื่อ|ตราประทับ|ต้นฉบับ|สำเนา|รับรองเอกสาร/.test(t);
+}
+
+function shouldLoadPoliceAccidentVocab(text) {
+  const t = String(text || '');
+  return /경찰서|파출소|경찰관|신고|사건번호|진술서|피해자|가해자|목격자|증거|CCTV|블랙박스|도난|분실|폭행|협박|사기|교통사고|접촉사고|뺑소니|음주운전|무면허|면허증|보험 처리|합의|합의금|벌금|과태료|แจ้งความ|สถานีตำรวจ|ป้อมตำรวจ|หมายเลขคดี|ผู้เสียหาย|พยาน|กล้องวงจรปิด|กล้องหน้ารถ|ถูกขโมย|รถชน|ชนแล้วหนี|เมาแล้วขับ|ใบขับขี่|ค่าปรับ|ใบสั่ง/.test(t);
+}
+
+function shouldLoadPostCustomsVocab(text) {
+  const t = String(text || '');
+  return /우체국|국제택배|국제우편|EMS|항공편|선편|택배 접수|송장|운송장번호|받는 사람|보내는 사람|우편번호|무게|부피|배송비|파손주의|취급주의|세관|통관|관세|금지품목|액체류|배터리|화장품|중고물품|ไปรษณีย์|ส่งของกลับไทย|พัสดุระหว่างประเทศ|ศุลกากร|ภาษีนำเข้า|ของต้องห้าม|น้ำหนักเกิน|ของเหลว|แบตเตอรี่/.test(t);
+}
+
+function shouldLoadHousingDetailVocab(text) {
+  const t = String(text || '');
+  return /부동산|중개인|중개수수료|임대인|임차인|임대차계약서|계약금|전세|관리비|공과금|전기세|수도세|가스비|입주일|퇴실일|위약금|오피스텔|고시원|반지하|옥탑방|보일러|난방|누수|곰팡이|벌레|바퀴벌레|층간소음|방음|นายหน้า|ค่านายหน้า|สัญญาเช่า|ค่าส่วนกลาง|ค่าน้ำค่าไฟ|วันย้ายเข้า|วันย้ายออก|ผิดสัญญา|บอยเลอร์|น้ำรั่ว|เชื้อรา|แมลงสาบ|เสียงดัง/.test(t);
+}
+
+function shouldLoadRepairApplianceVocab(text) {
+  const t = String(text || '');
+  return /수리|수리점|서비스센터|고장|작동이 안|전원이 안|화면이 깨|화면이 안|소리가 안|충전이 안|배터리|물에 빠졌|데이터 복구|비밀번호|세탁기|냉장고|에어컨|전자레인지|청소기|탈수|수리비|견적|ซ่อม|ร้านซ่อม|ศูนย์บริการ|เปิดไม่ติด|หน้าจอแตก|ชาร์จไม่เข้า|แบตหมดเร็ว|ตกน้ำ|กู้ข้อมูล|ลืมรหัส|เครื่องซักผ้า|ตู้เย็น|แอร์ไม่เย็น|ค่าซ่อม|ประเมินราคา/.test(t);
+}
+
+function shouldLoadSchoolUniversityVocab(text) {
+  const t = String(text || '');
+  return /대학교|학과|전공|교수님|강의|출석|결석|지각|조퇴|과제|발표|시험|중간고사|기말고사|성적|성적표|성적증명서|재학증명서|졸업증명서|휴학|복학|등록금|장학금|수강신청|학점|졸업요건|มหาวิทยาลัย|สาขาวิชา|อาจารย์|เช็กชื่อ|ขาดเรียน|มาสาย|งานส่ง|พรีเซนต์|สอบกลางภาค|สอบปลายภาค|ค่าเทอม|ทุนการศึกษา|ลงทะเบียนเรียน|หน่วยกิต/.test(t);
+}
+
+function shouldLoadSalonVocab(text) {
+  const t = String(text || '');
+  return /미용실|머리 자르|커트|앞머리|옆머리|뒷머리|다듬|펌|매직|염색|탈색|뿌리염색|상한 머리|트리트먼트|네일샵|젤네일|네일 제거|손톱|발톱|속눈썹 연장|눈썹 문신|ร้านทำผม|ตัดผม|หน้าม้า|เล็มปลาย|ดัดผม|ยืดผม|ทำสีผม|กัดสีผม|เติมสีโคน|เล็บเจล|ล้างเล็บ|ต่อขนตา|สักคิ้ว/.test(t);
+}
+
+function shouldLoadHospitalAdminVocab(text) {
+  const t = String(text || '');
+  return /접수|진료 접수|예약 확인|초진|재진|문진표|보험증|건강보험|비급여|진료비|수납|검사 결과|정상|이상 있음|추가 검사|재검사|금식|공복|혈압|체온|맥박|채혈|소변검사|대변검사|심전도|내시경|위내시경|대장내시경|ลงทะเบียน|รับบัตรคิว|จองคิว|มาครั้งแรก|ตรวจซ้ำ|แบบสอบถามอาการ|ประกันสุขภาพ|นอกประกัน|ค่ารักษา|ผลตรวจ|ตรวจเพิ่ม|งดอาหาร|ท้องว่าง|ความดัน|เจาะเลือด|ส่องกล้อง/.test(t);
+}
+
+function shouldLoadLaborDetailVocab(text) {
+  const t = String(text || '');
+  return /노동청|고용노동부|산재|산재보험|업무상 재해|임금체불|최저임금|주휴수당|연차수당|야근수당|해고예고수당|계약 위반|무단결근|사업장 변경|근무시간|휴게시간|สำนักงานแรงงาน|กระทรวงแรงงาน|อุบัติเหตุจากการทำงาน|ประกันอุบัติเหตุงาน|ค้างจ่ายค่าแรง|ค่าแรงขั้นต่ำ|ค่าวันหยุด|ค่าโอทีกลางคืน|ผิดสัญญา|ขาดงานโดยไม่แจ้ง|เวลาพัก/.test(t);
+}
+
 function shouldLoadKoreanCommonVocab(text) {
   const t = String(text || '');
-  return /몇시|언제|어디|들어와요|돌아와요|오세요|와요|가요|출발|도착|기숙사|회사|수업|질문|괜찮아요|안돼요|돼요|몰라요|알겠어요/.test(t);
+  return /몇시|언제|어디|들어와요|돌아와요|오세요|와요|가요|출발|도착|기숙사|회사|수업|질문|괜찮아요|안돼요|돼요|몰라요|알겠어요|네|예|그래요|그렇군요|됐어요|아니에요|좋아요|잠깐만요|잠시만요/.test(t);
 }
 
 function buildVocabHint(text, finalSit, uiSit) {
   const sections = [VOCAB_CORE];
 
   if (shouldLoadKoreanCommonVocab(text)) sections.push(KOREAN_COMMON_REAL_LIFE_VOCAB);
+  if (shouldLoadKoreanShortResponseVocab(text)) sections.push(KOREAN_SHORT_RESPONSE_AMBIGUITY_VOCAB, DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB);
 
   if (finalSit === 'isaan' || looksLikeIsan(text)) {
     sections.push(ISAN_CORE_COMPACT, ISAN_AMBIGUITY_RULES);
@@ -1331,6 +1380,15 @@ function buildVocabHint(text, finalSit, uiSit) {
     sections.push(VOCAB_BY_SITUATION[uiSit]);
   }
 
+  if (shouldLoadPublicOfficeVocab(text) || finalSit === 'public_office' || uiSit === 'public_office') sections.push(PUBLIC_OFFICE_VOCAB);
+  if (shouldLoadPoliceAccidentVocab(text) || finalSit === 'police' || uiSit === 'police') sections.push(POLICE_ACCIDENT_REPORT_VOCAB);
+  if (shouldLoadPostCustomsVocab(text) || finalSit === 'post' || uiSit === 'post') sections.push(POST_CUSTOMS_VOCAB);
+  if (shouldLoadHousingDetailVocab(text)) sections.push(HOUSING_DETAIL_VOCAB);
+  if (shouldLoadRepairApplianceVocab(text) || finalSit === 'repair' || uiSit === 'repair') sections.push(REPAIR_APPLIANCE_DEVICE_VOCAB);
+  if (shouldLoadSchoolUniversityVocab(text) || finalSit === 'school' || uiSit === 'school') sections.push(SCHOOL_UNIVERSITY_VOCAB);
+  if (shouldLoadSalonVocab(text) || finalSit === 'salon' || uiSit === 'salon') sections.push(HAIR_NAIL_SALON_VOCAB);
+  if (shouldLoadHospitalAdminVocab(text)) sections.push(HOSPITAL_ADMIN_CHECKUP_VOCAB);
+  if (shouldLoadLaborDetailVocab(text) || finalSit === 'labor_detail' || uiSit === 'labor_detail') sections.push(LABOR_DETAIL_VOCAB);
   if (shouldLoadThaiSiaAmbiguity(text)) sections.push(THAI_SIA_AMBIGUITY_VOCAB);
   if (shouldLoadDentalVocab(text)) sections.push(DENTAL_VOCAB);
   if (shouldLoadMedicalBodyDetailVocab(text)) sections.push(MEDICAL_BODY_DETAIL_VOCAB);
@@ -1466,21 +1524,16 @@ CORE RULES:
 8. If audio is truly unclear, output exactly: ${unclearReply}
 9. If the input is explicit sexual harassment or a direct violent threat, output exactly: ${failReply}
 
-
-KOREAN 네 / 예 CONTEXT RULE:
+KOREAN SHORT RESPONSE CONTEXT RULE:
 - 네 / 예 does NOT always mean "yes".
-- If 네 / 예 appears before a greeting such as 안녕하세요, 안녕하십니까, 반갑습니다, 처음 뵙겠습니다, translate it as a polite acknowledgement:
-  male speaker: "ครับ"
-  female speaker: "ค่ะ"
-- Example:
-  "네, 안녕하세요." = "ครับ สวัสดีครับ" or "ค่ะ สวัสดีค่ะ"
-- Do NOT translate this as "ใช่ครับ สวัสดีครับ" unless it clearly answers a yes/no question.
+- If 네 / 예 appears before greetings such as 안녕하세요, 안녕하십니까, 반갑습니다, translate as acknowledgement: "ครับ" or "ค่ะ".
+- Example: "네, 안녕하세요." = "ครับ สวัสดีครับ" or "ค่ะ สวัสดีค่ะ". Do NOT translate as "ใช่ครับ สวัสดีครับ".
 - 네 means "ใช่" only when it clearly answers a yes/no question.
-- In greetings, phone calls, service calls, workplace replies, and conversation openings, 네 / 예 is usually "ครับ/ค่ะ" or an acknowledgement.
+- 그래요, 됐어요, 괜찮아요, 아니에요, 좋아요, 잠깐만요 are context-sensitive. Use current utterance and situation; do not hard-translate blindly.
 
-META-REPLY GUARD:
-- Never output meta statements such as "저는 통역사입니다", "질문에 답변할 수 없습니다", "I am an interpreter", or "I cannot answer".
-- If the input is a question, translate the question only. Do not answer it. Do not refuse it. Do not explain your role.
+SERVICE / OFFICE / HOSPITAL SPEECH:
+- Korean staff often use indirect polite questions. Translate naturally into Thai without changing who asks or who answers.
+- 예약하셨어요? = ได้จองไว้ไหม, 접수하셨어요? = ลงทะเบียน/รับคิวแล้วไหม, 신분증 있으세요? = มีบัตรประจำตัวไหม.
 
 KOREAN STT CORRECTION:
 - 마치마치 들어와요 / 매치 들어와요 / 미지근 들어와요 / 며칠 들어와요 usually means 몇 시에 들어와요?
@@ -1579,18 +1632,15 @@ function chooseMaxTokens(text) {
   return 1400;
 }
 
-
-function isMetaRefusal(output) {
-  const s = String(output || '').trim();
-  return /(저는 통역사|저는 AI|질문에 답변할 수|답변할 수 없습니다|설명해 드리|도와드릴 수 없습니다|I am an AI|I am an interpreter|cannot answer|cannot respond|as an interpreter|as an AI)/i.test(s);
-}
-
 function sanitizeTranslation(output, unclearReply) {
   const s = String(output || '').trim();
 
   if (!s) return unclearReply;
 
-  if (isMetaRefusal(s)) return unclearReply;
+  const badReply =
+    /(저는 통역사|저는 AI|질문에 답변할 수|답변할 수 없습니다|설명해 드리|도와드릴 수 없습니다|번역만 할 수|통역만 할 수|질문에 대답|답변하지 못|I am an AI|I am an interpreter|cannot answer|cannot respond|I can only translate|as an interpreter)/i;
+
+  if (badReply.test(s)) return unclearReply;
 
   return s.replace(/^["“”]+|["“”]+$/g, '').trim();
 }
@@ -1822,7 +1872,14 @@ const SITUATION_CONTEXT = {
   isan_food: 'Thai-Isan food context. Translate food names by meaning, not word-by-word.',
   mobile: 'Mobile phone / SIM card / telecom / phone bill / authentication code.',
   car: 'Used car buying/selling, car transfer, insurance, repair, vehicle inspection, financing.',
-  hobby: 'Hobby/leisure context. Focus on fishing, fishing gear, bait, snooker, sports, karaoke, games, free-time activities.'
+  hobby: 'Hobby/leisure context. Focus on fishing, fishing gear, bait, snooker, sports, karaoke, games, free-time activities.',
+  police: 'Police station / accident / report / theft / fraud / traffic accident / insurance handling.',
+  post: 'Post office / international parcel / customs / EMS / shipping to Thailand.',
+  repair: 'Repair shop / service center / appliance / phone / device malfunction.',
+  school: 'School / university / professor / class / attendance / assignment / tuition / certificates.',
+  salon: 'Hair salon / nail shop / non-surgery beauty services.',
+  public_office: 'Public office / 주민센터 / document application / forms / ID / certificates.',
+  labor_detail: 'Labor office / 산재 / unpaid wage / severance / overtime / labor rights.'
 };
 
 const VOCAB_BY_SITUATION = {
@@ -2613,3 +2670,381 @@ const ONLINE_SELLER_CHAT_VOCAB = `
 ให้คะแนนต่ำ=낮은 별점을 주다
 `;
  
+
+const KOREAN_SHORT_RESPONSE_AMBIGUITY_VOCAB = `
+[Korean short response ambiguity]
+네=ครับ/ค่ะ, ใช่, ได้, รับทราบ — do not always translate as ใช่
+예=ครับ/ค่ะ, ใช่, ได้, รับทราบ — more formal than 네
+네, 안녕하세요=ครับ/ค่ะ สวัสดีครับ/ค่ะ
+네, 알겠습니다=ครับ/ค่ะ เข้าใจแล้วครับ/ค่ะ
+네, 맞아요=ครับ/ค่ะ ถูกต้องครับ/ค่ะ
+네, 괜찮아요=ครับ/ค่ะ ไม่เป็นไรครับ/ค่ะ
+네, 잠시만요=ครับ/ค่ะ รอสักครู่ครับ/ค่ะ
+그래요=อย่างนั้นเหรอ / ใช่ / ได้, depending on context
+그래요?=อย่างนั้นเหรอครับ/คะ
+아 그래요=อ๋อ อย่างนั้นเหรอครับ/คะ
+아 그렇군요=อ๋อ เข้าใจแล้วครับ/ค่ะ
+그렇군요=เข้าใจแล้วครับ/ค่ะ / อย่างนั้นเหรอครับ/คะ
+그렇죠=ใช่ครับ/ค่ะ / ใช่ไหมครับ/คะ, depending on punctuation and context
+맞아요=ถูกต้องครับ/ค่ะ
+맞죠?=ถูกใช่ไหมครับ/คะ
+됐어요=พอแล้ว / ได้แล้ว / ไม่ต้องแล้ว, depending on context
+다 됐어요=เสร็จหมดแล้วครับ/ค่ะ
+이제 됐어요=ตอนนี้ได้แล้วครับ/ค่ะ / พอแล้วครับ/ค่ะ
+안 해도 돼요=ไม่ต้องทำก็ได้ครับ/ค่ะ
+가도 돼요=ไปได้ครับ/ค่ะ
+해도 돼요=ทำได้ครับ/ค่ะ
+하면 안 돼요=ทำไม่ได้ครับ/ค่ะ / ห้ามทำครับ/ค่ะ
+괜찮아요=ไม่เป็นไร / โอเค / สบายดี / ใช้ได้, depending on context
+괜찮으세요?=เป็นอะไรไหมครับ/คะ / โอเคไหมครับ/คะ
+아니에요=ไม่ใช่ครับ/ค่ะ / ไม่เป็นไรครับ/ค่ะ
+아니요, 괜찮아요=ไม่เป็นไรครับ/ค่ะ
+잠깐만요=รอสักครู่ครับ/ค่ะ
+잠시만요=รอสักครู่ครับ/ค่ะ
+기다려 주세요=กรุณารอครับ/ค่ะ
+이쪽으로 오세요=เชิญมาทางนี้ครับ/ค่ะ
+저쪽으로 가세요=ไปทางนั้นครับ/ค่ะ
+여기에 앉으세요=นั่งตรงนี้ครับ/ค่ะ
+여기 서명해 주세요=เซ็นตรงนี้ครับ/ค่ะ
+`;
+
+const PUBLIC_OFFICE_VOCAB = `
+[Public office / 주민센터]
+주민센터=ศูนย์บริการชุมชน / สำนักงานเขตย่อย
+동사무소=สำนักงานเขตย่อย
+구청=สำนักงานเขต
+시청=ศาลากลางเมือง / สำนักงานเมือง
+민원실=ห้องบริการประชาชน
+번호표=บัตรคิว
+대기번호=หมายเลขคิว
+접수하다=ลงทะเบียน / รับเรื่อง
+신청서=ใบสมัคร / แบบคำร้อง
+작성하다=กรอกเอกสาร
+서명하다=เซ็นชื่อ
+도장=ตราประทับ
+신분증=บัตรประจำตัว
+외국인등록증=บัตรต่างด้าว
+여권=พาสปอร์ต
+주소지=ที่อยู่ปัจจุบัน
+주소 변경=เปลี่ยนที่อยู่
+전입신고=แจ้งย้ายเข้า
+전출신고=แจ้งย้ายออก
+등본=สำเนาทะเบียน / เอกสารทะเบียน
+초본=เอกสารทะเบียนแบบละเอียด
+가족관계증명서=ใบรับรองความสัมพันธ์ครอบครัว
+혼인관계증명서=ใบรับรองสถานภาพสมรส
+출생증명서=สูติบัตร / ใบเกิด
+번역공증=แปลและรับรองเอกสาร
+공증=รับรองเอกสาร
+원본=ต้นฉบับ
+사본=สำเนา
+복사본=สำเนาถ่ายเอกสาร
+제출하다=ยื่นเอกสาร
+발급하다=ออกเอกสาร
+재발급=ออกใหม่
+처리 기간=ระยะเวลาดำเนินการ
+수수료=ค่าธรรมเนียม
+번호표 뽑으세요=กดบัตรคิวก่อนครับ/ค่ะ
+신청서 작성해 주세요=กรุณากรอกแบบฟอร์มครับ/ค่ะ
+신분증 보여 주세요=ขอดูบัตรประจำตัวครับ/ค่ะ
+서류가 부족해요=เอกสารยังไม่ครบครับ/ค่ะ
+원본이 필요해요=ต้องใช้ตัวจริงครับ/ค่ะ
+`;
+
+const POLICE_ACCIDENT_REPORT_VOCAB = `
+[Police / accident / report]
+경찰서=สถานีตำรวจ
+파출소=ป้อมตำรวจ
+경찰관=ตำรวจ
+신고하다=แจ้งความ / แจ้งเหตุ
+신고 접수=รับแจ้งความ
+신고 접수증=ใบรับแจ้งความ
+사건번호=หมายเลขคดี
+진술서=บันทึกคำให้การ
+진술하다=ให้ปากคำ
+피해자=ผู้เสียหาย
+가해자=ผู้กระทำผิด
+목격자=พยาน
+증거=หลักฐาน
+CCTV=กล้องวงจรปิด
+블랙박스=กล้องหน้ารถ
+도난=ถูกขโมย
+분실=ทำหาย
+폭행=ทำร้ายร่างกาย
+협박=ข่มขู่
+사기=โกง / ฉ้อโกง
+교통사고=อุบัติเหตุจราจร
+접촉사고=รถเฉี่ยว / รถชนเบา
+뺑소니=ชนแล้วหนี
+음주운전=เมาแล้วขับ
+무면허=ไม่มีใบขับขี่
+면허증=ใบขับขี่
+보험 처리=ให้ประกันจัดการ
+합의=การตกลงชดใช้ / ประนีประนอม
+합의금=เงินชดเชย
+벌금=ค่าปรับ
+과태료=ค่าปรับทางปกครอง / ใบสั่ง
+경찰에 신고해 주세요=ช่วยแจ้งตำรวจให้หน่อยครับ/ค่ะ
+신고하고 싶어요=อยากแจ้งความครับ/ค่ะ
+교통사고가 났어요=เกิดอุบัติเหตุรถชนครับ/ค่ะ
+상대방이 도망갔어요=คู่กรณีหนีไปครับ/ค่ะ
+보험 처리하고 싶어요=อยากให้ประกันจัดการครับ/ค่ะ
+`;
+
+const POST_CUSTOMS_VOCAB = `
+[Post office / international parcel / customs]
+우체국=ไปรษณีย์
+국제택배=พัสดุระหว่างประเทศ
+국제우편=ไปรษณีย์ระหว่างประเทศ
+EMS=EMS
+항공편=ทางอากาศ
+선편=ทางเรือ
+택배 접수=ฝากส่งพัสดุ
+송장=ใบส่งของ / ใบปะหน้า
+운송장번호=เลขพัสดุ
+받는 사람=ผู้รับ
+보내는 사람=ผู้ส่ง
+주소=ที่อยู่
+우편번호=รหัสไปรษณีย์
+무게=น้ำหนัก
+부피=ขนาดปริมาตร
+배송비=ค่าส่ง
+보험=ประกันพัสดุ
+파손주의=ระวังแตก
+취급주의=ระวังของเสียหาย
+세관=ศุลกากร
+통관=ผ่านศุลกากร
+관세=ภาษีนำเข้า
+금지품목=ของต้องห้าม
+식품=อาหาร
+액체류=ของเหลว
+배터리=แบตเตอรี่
+화장품=เครื่องสำอาง
+중고물품=ของมือสอง
+태국으로 택배 보내고 싶어요=อยากส่งพัสดุกลับไทยครับ/ค่ะ
+배송비가 얼마예요?=ค่าส่งเท่าไหร่ครับ/คะ
+며칠 걸려요?=ใช้เวลากี่วันครับ/คะ
+세관에서 걸렸어요=ติดศุลกากรครับ/ค่ะ
+금지품목이에요=เป็นของต้องห้ามครับ/ค่ะ
+`;
+
+const HOUSING_DETAIL_VOCAB = `
+[Housing detailed]
+부동산=ร้านนายหน้าอสังหา
+중개인=นายหน้า
+중개수수료=ค่านายหน้า
+임대인=ผู้ให้เช่า
+임차인=ผู้เช่า
+임대차계약서=สัญญาเช่า
+계약금=เงินทำสัญญา
+보증금=เงินมัดจำ
+월세=ค่าเช่ารายเดือน
+전세=เช่าแบบวางเงินก้อน
+관리비=ค่าส่วนกลาง
+공과금=ค่าน้ำค่าไฟ / ค่าสาธารณูปโภค
+전기세=ค่าไฟ
+수도세=ค่าน้ำ
+가스비=ค่าแก๊ส
+인터넷비=ค่าอินเทอร์เน็ต
+입주일=วันย้ายเข้า
+퇴실일=วันย้ายออก
+계약 만료=หมดสัญญา
+계약 연장=ต่อสัญญา
+해지=ยกเลิกสัญญา
+위약금=ค่าปรับผิดสัญญา
+원룸=ห้องเดี่ยว / one-room
+투룸=ห้องสองห้อง / two-room
+오피스텔=officetel
+고시원=โกชีวอน
+반지하=ห้องกึ่งใต้ดิน
+옥탑방=ห้องดาดฟ้า
+보일러=บอยเลอร์ / เครื่องทำน้ำร้อน
+난방=ฮีตเตอร์ / ระบบทำความร้อน
+에어컨=แอร์
+누수=น้ำรั่ว
+곰팡이=เชื้อรา
+벌레=แมลง
+바퀴벌레=แมลงสาบ
+층간소음=เสียงดังจากห้องข้างบน/ข้างล่าง
+방음=การกันเสียง
+수리=ซ่อม
+집주인=เจ้าของบ้าน
+보증금은 언제 돌려받을 수 있어요?=เงินมัดจำจะคืนได้เมื่อไหร่ครับ/คะ
+관리비에 뭐가 포함돼요?=ค่าส่วนกลางรวมอะไรบ้างครับ/คะ
+물이 새요=น้ำรั่วครับ/ค่ะ
+`;
+
+const REPAIR_APPLIANCE_DEVICE_VOCAB = `
+[Repair / appliance / device]
+수리하다=ซ่อม
+수리점=ร้านซ่อม
+서비스센터=ศูนย์บริการ
+고장 나다=เสีย
+작동이 안 돼요=ใช้งานไม่ได้
+전원이 안 켜져요=เปิดไม่ติด
+전원이 꺼져요=เครื่องดับ
+화면이 깨졌어요=หน้าจอแตก
+화면이 안 나와요=หน้าจอไม่ขึ้น
+소리가 안 나요=ไม่มีเสียง
+충전이 안 돼요=ชาร์จไม่เข้า
+배터리가 빨리 닳아요=แบตหมดเร็ว
+물에 빠졌어요=ตกน้ำ
+데이터 복구=กู้ข้อมูล
+비밀번호를 잊어버렸어요=ลืมรหัสผ่าน
+세탁기=เครื่องซักผ้า
+냉장고=ตู้เย็น
+에어컨=แอร์
+전자레인지=ไมโครเวฟ
+청소기=เครื่องดูดฝุ่น
+세탁기가 탈수를 안 해요=เครื่องซักผ้าไม่ปั่นแห้ง
+냉장고가 안 시원해요=ตู้เย็นไม่เย็น
+에어컨이 시원하지 않아요=แอร์ไม่เย็น
+수리비=ค่าซ่อม
+견적=ใบประเมินราคา / ราคาประเมิน
+`;
+
+const SCHOOL_UNIVERSITY_VOCAB = `
+[School / university]
+대학교=มหาวิทยาลัย
+학과=สาขาวิชา
+전공=เอก / วิชาเอก
+교수님=อาจารย์
+강의=การบรรยาย / คาบเรียน
+수업=คลาสเรียน
+출석=การเข้าเรียน / เช็กชื่อ
+결석=ขาดเรียน
+지각=มาสาย
+조퇴=ออกจากห้องก่อนเวลา
+과제=งานส่ง / การบ้าน
+발표=พรีเซนต์
+시험=สอบ
+중간고사=สอบกลางภาค
+기말고사=สอบปลายภาค
+성적=เกรด
+성적표=ใบเกรด
+성적증명서=ใบแสดงผลการเรียน
+재학증명서=ใบรับรองการเป็นนักศึกษา
+졸업증명서=ใบรับรองจบการศึกษา
+휴학=พักการเรียน
+복학=กลับเข้าเรียน
+등록금=ค่าเทอม
+장학금=ทุนการศึกษา
+수강신청=ลงทะเบียนเรียน
+학점=หน่วยกิต
+졸업요건=เงื่อนไขจบการศึกษา
+오늘 수업 있어요?=วันนี้มีเรียนไหมครับ/คะ
+과제 제출했어요?=ส่งงานแล้วหรือยังครับ/คะ
+`;
+
+const HAIR_NAIL_SALON_VOCAB = `
+[Hair / nail / salon]
+미용실=ร้านทำผม
+머리 자르다=ตัดผม
+커트=ตัดผม
+앞머리=หน้าม้า
+옆머리=ผมด้านข้าง
+뒷머리=ผมด้านหลัง
+끝만 다듬다=เล็มปลายผม
+짧게 잘라 주세요=ตัดสั้นให้หน่อย
+조금만 잘라 주세요=ตัดออกนิดเดียว
+펌=ดัดผม
+매직=ยืดผม
+염색=ทำสีผม
+탈색=กัดสีผม
+뿌리염색=เติมสีโคนผม
+검은색=สีดำ
+갈색=สีน้ำตาล
+밝은 색=สีสว่าง
+상한 머리=ผมเสีย
+트리트먼트=ทรีตเมนต์
+네일샵=ร้านทำเล็บ
+젤네일=เล็บเจล
+네일 제거=ล้างเล็บ
+손톱=เล็บมือ
+발톱=เล็บเท้า
+속눈썹 연장=ต่อขนตา
+눈썹 문신=สักคิ้ว
+끝만 조금 다듬어 주세요=เล็มปลายผมนิดเดียวครับ/ค่ะ
+너무 짧게 자르지 말아 주세요=อย่าตัดสั้นเกินไปครับ/ค่ะ
+이 사진처럼 해 주세요=ทำแบบในรูปนี้ครับ/ค่ะ
+`;
+
+const HOSPITAL_ADMIN_CHECKUP_VOCAB = `
+[Hospital admin / checkup]
+접수=ลงทะเบียน / รับบัตรคิว
+진료 접수=ลงทะเบียนพบหมอ
+예약=จองคิว
+예약 확인=ยืนยันการจอง
+초진=มาครั้งแรก
+재진=มาตรวจซ้ำ
+문진표=แบบสอบถามอาการ
+보험증=บัตรประกันสุขภาพ
+건강보험=ประกันสุขภาพ
+비급여=ไม่ครอบคลุมประกัน
+진료비=ค่ารักษา
+수납=ชำระเงิน
+검사 결과=ผลตรวจ
+정상=ปกติ
+이상 있음=มีความผิดปกติ
+추가 검사=ตรวจเพิ่ม
+재검사=ตรวจซ้ำ
+금식=งดอาหาร
+공복=ท้องว่าง
+혈압=ความดัน
+체온=อุณหภูมิร่างกาย
+맥박=ชีพจร
+채혈=เจาะเลือด
+소변검사=ตรวจปัสสาวะ
+대변검사=ตรวจอุจจาระ
+심전도=ตรวจคลื่นไฟฟ้าหัวใจ
+내시경=ส่องกล้อง
+위내시경=ส่องกล้องกระเพาะ
+대장내시경=ส่องกล้องลำไส้ใหญ่
+예약하셨어요?=ได้จองไว้ไหมครับ/คะ
+처음 오셨어요?=มาครั้งแรกใช่ไหมครับ/คะ
+문진표 작성해 주세요=กรุณากรอกแบบสอบถามอาการครับ/ค่ะ
+오늘 금식하셨어요?=วันนี้งดอาหารมาไหมครับ/คะ
+검사 결과는 언제 나와요?=ผลตรวจออกเมื่อไหร่ครับ/คะ
+`;
+
+const LABOR_DETAIL_VOCAB = `
+[Labor detailed / accident at work]
+노동청=สำนักงานแรงงาน
+고용노동부=กระทรวงแรงงาน
+산재=อุบัติเหตุจากการทำงาน / ประกันอุบัติเหตุงาน
+산재보험=ประกันอุบัติเหตุจากการทำงาน
+업무상 재해=บาดเจ็บจากการทำงาน
+산재 신청=ยื่นเรื่อง 산재
+임금체불=ค้างจ่ายค่าแรง
+최저임금=ค่าแรงขั้นต่ำ
+주휴수당=ค่าวันหยุดประจำสัปดาห์
+연차수당=ค่าเงินวันลาพักร้อน
+야근수당=ค่าโอทีกลางคืน
+퇴직금=เงินแทจิก / เงินเกษียณ
+해고예고수당=ค่าชดเชยกรณีเลิกจ้างไม่แจ้งล่วงหน้า
+근로계약서=สัญญาจ้าง
+계약 위반=ผิดสัญญา
+무단결근=ขาดงานโดยไม่แจ้ง
+사업장 변경=เปลี่ยนที่ทำงาน
+근무시간=เวลาทำงาน
+휴게시간=เวลาพัก
+일하다가 다쳤어요=บาดเจ็บระหว่างทำงานครับ/ค่ะ
+산재 신청하고 싶어요=อยากยื่นเรื่องอุบัติเหตุจากการทำงานครับ/ค่ะ
+월급을 못 받았어요=ยังไม่ได้รับเงินเดือนครับ/ค่ะ
+퇴직금을 받을 수 있어요?=รับเงินแทจิกได้ไหมครับ/คะ
+`;
+
+const DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB = `
+[Do not hard-map these Korean words]
+네=ครับ/ค่ะ / ใช่ / ได้ / รับทราบ depending on context
+그래요=ใช่ / อย่างนั้นเหรอ / ได้ depending on context
+됐어요=ได้แล้ว / พอแล้ว / ไม่ต้องแล้ว depending on context
+괜찮아요=ไม่เป็นไร / โอเค / สบายดี depending on context
+아니에요=ไม่ใช่ / ไม่เป็นไร depending on context
+좋아요=ดี / ได้ / เอาแบบนี้ depending on context
+잠깐만요=รอสักครู่ / เดี๋ยวก่อน depending on context
+그러면=ถ้าอย่างนั้น / งั้น
+일단=ก่อนอื่น / เอาไว้ก่อน
+따로=แยกต่างหาก
+그냥=เฉย ๆ / แค่ / ไม่ต้องพิเศษ
+`;
