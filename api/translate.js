@@ -977,6 +977,17 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   if (/항공편.*취소|비행기.*취소/.test(compact)) return `เที่ยวบินถูกยกเลิก${polite}`;
   if (/수하물.*없|캐리어.*없/.test(compact)) return `กระเป๋าเดินทางหาย${polite}`;
   if (/탑승구.*어디/.test(compact)) return `ประตูขึ้นเครื่องอยู่ที่ไหน${question}`;
+  // Preserve K-pop artist/group name in Korean -> Thai concert context.
+  if (/블랙핑크.*콘서트.*보러|블랙핑크.*보러/.test(compact)) return `มาดูคอนเสิร์ต BLACKPINK${polite}`;
+  if (/(BTS|방탄소년단|방탄).*콘서트.*보러|(BTS|방탄소년단|방탄).*보러/.test(compact)) return `มาดูคอนเสิร์ต BTS${polite}`;
+  if (/트와이스.*콘서트.*보러|트와이스.*보러/.test(compact)) return `มาดูคอนเสิร์ต TWICE${polite}`;
+  if (/세븐틴.*콘서트.*보러|세븐틴.*보러/.test(compact)) return `มาดูคอนเสิร์ต SEVENTEEN${polite}`;
+  if (/스트레이키즈.*콘서트.*보러|스트레이키즈.*보러|스트레이 키즈.*보러/.test(raw + compact)) return `มาดูคอนเสิร์ต Stray Kids${polite}`;
+  if (/뉴진스.*콘서트.*보러|뉴진스.*보러/.test(compact)) return `มาดูคอนเสิร์ต NewJeans${polite}`;
+  if (/에스파.*콘서트.*보러|에스파.*보러/.test(compact)) return `มาดูคอนเสิร์ต aespa${polite}`;
+  if (/아이브.*콘서트.*보러|아이브.*보러/.test(compact)) return `มาดูคอนเสิร์ต IVE${polite}`;
+  if (/르세라핌.*콘서트.*보러|르세라핌.*보러/.test(compact)) return `มาดูคอนเสิร์ต LE SSERAFIM${polite}`;
+  if (/콘서트.*보러/.test(compact)) return `มาดูคอนเสิร์ต${polite}`;
   if (/콘서트.*티켓|티켓.*있/.test(compact)) return `มีบัตรคอนเสิร์ตไหม${question}`;
   if (/사진.*찍어도돼/.test(compact)) return `ถ่ายรูปได้ไหม${question}`;
   if (/영상촬영.*금지|촬영금지/.test(compact)) return `ห้ามถ่ายวิดีโอ${polite}`;
@@ -1083,8 +1094,38 @@ function hardThaiToKorean(raw, compact) {
   }
   if (/จองโรงแรม|ใบจองโรงแรม/.test(compact)) return '호텔 예약 확인서가 있어요.';
   if (/ตั๋วขากลับ|ตั๋วเครื่องบินขากลับ/.test(compact)) return '귀국 항공권이 있어요.';
-  if (/ไปดูคอนเสิร์ต|ดูคอนเสิร์ต/.test(compact)) return '콘서트를 보러 가요.';
-  if (/BLACKPINK|แบล็กพิงก์|แบล็คพิงค์/.test(compact)) return '블랙핑크 콘서트를 보러 가요.';
+  // K-pop concert intent must preserve the artist/group name before the generic concert rule.
+  // Example: "ผมมาดูคอนเสิร์ต BLACKPINK" -> "블랙핑크 콘서트를 보러 왔어요." not generic "콘서트" only.
+  if (/(BLACKPINK|Blackpink|blackpink|แบล็กพิงก์|แบล็คพิงค์|블랙핑크)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '블랙핑크 콘서트를 보러 왔어요.' : '블랙핑크 콘서트를 보러 가요.';
+  }
+  if (/(BTS|บีทีเอส|방탄|방탄소년단)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? 'BTS 콘서트를 보러 왔어요.' : 'BTS 콘서트를 보러 가요.';
+  }
+  if (/(TWICE|ทไวซ์|트와이스)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '트와이스 콘서트를 보러 왔어요.' : '트와이스 콘서트를 보러 가요.';
+  }
+  if (/(SEVENTEEN|เซเว่นทีน|세븐틴)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '세븐틴 콘서트를 보러 왔어요.' : '세븐틴 콘서트를 보러 가요.';
+  }
+  if (/(Stray Kids|สเตรย์คิดส์|스트레이키즈|스트레이 키즈)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '스트레이 키즈 콘서트를 보러 왔어요.' : '스트레이 키즈 콘서트를 보러 가요.';
+  }
+  if (/(NewJeans|นิวจีนส์|뉴진스)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '뉴진스 콘서트를 보러 왔어요.' : '뉴진스 콘서트를 보러 가요.';
+  }
+  if (/(aespa|Aespa|เอสป้า|에스파)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '에스파 콘서트를 보러 왔어요.' : '에스파 콘서트를 보러 가요.';
+  }
+  if (/(IVE|ไอฟ์|아이브)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '아이브 콘서트를 보러 왔어요.' : '아이브 콘서트를 보러 가요.';
+  }
+  if (/(LE SSERAFIM|Le Sserafim|เลเซราฟิม|르세라핌)/.test(raw + compact) && /(คอนเสิร์ต|concert|คอน|ดู|มาดู|มาชม|ไปดู|ไปชม|보러)/.test(raw + compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '르세라핌 콘서트를 보러 왔어요.' : '르세라핌 콘서트를 보러 가요.';
+  }
+  if (/ไปดูคอนเสิร์ต|ดูคอนเสิร์ต|มาดูคอนเสิร์ต|ชมคอนเสิร์ต/.test(compact)) {
+    return /มา|มาดู|มาชม/.test(compact) ? '콘서트를 보러 왔어요.' : '콘서트를 보러 가요.';
+  }
   if (/ฝากกระเป๋า/.test(compact) && /โรงแรม|ที่พัก|เช็กอิน|เช็คอิน/.test(compact)) return '체크인 전까지 짐을 맡길 수 있을까요?';
   if (/ขอเปลี่ยนห้อง/.test(compact)) return '방을 바꿔 주실 수 있을까요?';
 
