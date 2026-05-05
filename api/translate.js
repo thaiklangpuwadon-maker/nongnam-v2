@@ -141,7 +141,34 @@ export default async function handler(req, res) {
       temperature: 0
     });
 
-    const translation = sanitizeTranslation(aiResult.text, unclearReply);
+    let rawTranslation = aiResult.text;
+
+    // If the model accidentally answers as an interpreter/AI instead of translating,
+    // retry once with a stricter one-shot instruction before falling back.
+    if (isMetaRefusal(rawTranslation)) {
+      const retryResult = await callAnthropic({
+        apiKey,
+        model,
+        system: `${systemPrompt}
+
+ABSOLUTE RETRY RULE:
+The previous output was invalid because it answered/refused instead of translating.
+Translate the user's original sentence only.
+Never say you are an interpreter.
+Never say you cannot answer.
+Never answer the question.
+Output only the translation in ${targetLang}.`,
+        userContent: `Translate ONLY this ${sourceLang} sentence into ${targetLang}. Do not answer it. Do not explain. Do not refuse.
+
+${cleanedText}`,
+        maxTokens: chooseMaxTokens(cleanedText),
+        temperature: 0
+      });
+
+      rawTranslation = retryResult.text;
+    }
+
+    const translation = sanitizeTranslation(rawTranslation, unclearReply);
 
     const usage = aiResult.usage || {};
     const inputTokens = Number(usage.input_tokens || usage.inputTokens || 0);
@@ -226,9 +253,9 @@ function getCleanIP(req) {
 }
 
 function thaiEnding(partnerGender) {
-  if (partnerGender === 'female') return { polite: 'ค่ะ', question: 'คะ' };
-  if (partnerGender === 'male') return { polite: '', question: '' };
-  return { polite: '', question: '' };
+  if (partnerGender === 'female') return { polite: 'ค่ะ', question: 'คะ', ack: 'ค่ะ' };
+  if (partnerGender === 'male') return { polite: 'ครับ', question: 'ครับ', ack: 'ครับ' };
+  return { polite: 'ค่ะ', question: 'คะ', ack: 'ค่ะ' };
 }
 
 function buildThaiUnclearReply(partnerGender) {
@@ -326,12 +353,15 @@ function normalizeThaiLoanwords(text) {
 function normalizeKoreanSTT(text) {
   let t = String(text || '');
 
+  // ========= Original rules kept + expanded =========
   const pairs = [
-    // 몇 시에 들어와요 / 돌아와요 / 오세요
+    // 몇 시에 들어와요 / 돌아와요 / 오세요 / 와요 / 끝나요 / 출발해요
     [/마치마치 들어와요/g, '몇 시에 들어와요?'],
     [/마치 들어와요/g, '몇 시에 들어와요?'],
     [/매치 들어와요/g, '몇 시에 들어와요?'],
     [/미지근 들어와요/g, '몇 시에 들어와요?'],
+    [/미치근 들어와요/g, '몇 시에 들어와요?'],
+    [/미지근마치 들어와요/g, '몇 시에 들어와요?'],
     [/며칠 들어와요/g, '몇 시에 들어와요?'],
     [/며칠간 들어와요/g, '몇 시에 들어와요?'],
     [/며칠 동안 들어와요/g, '몇 시에 들어와요?'],
@@ -342,6 +372,8 @@ function normalizeKoreanSTT(text) {
     [/마치 돌아와요/g, '몇 시에 돌아와요?'],
     [/매치 돌아와요/g, '몇 시에 돌아와요?'],
     [/미지근 돌아와요/g, '몇 시에 돌아와요?'],
+    [/미치근 돌아와요/g, '몇 시에 돌아와요?'],
+    [/미지근마치 돌아와요/g, '몇 시에 돌아와요?'],
     [/며칠 돌아와요/g, '몇 시에 돌아와요?'],
     [/며칠간 돌아와요/g, '몇 시에 돌아와요?'],
     [/몇일 돌아와요/g, '몇 시에 돌아와요?'],
@@ -350,13 +382,34 @@ function normalizeKoreanSTT(text) {
     [/마치 오세요/g, '몇 시에 오세요?'],
     [/매치 오세요/g, '몇 시에 오세요?'],
     [/미지근 오세요/g, '몇 시에 오세요?'],
+    [/미치근 오세요/g, '몇 시에 오세요?'],
+    [/미지근마치 오세요/g, '몇 시에 오세요?'],
     [/며칠 오세요/g, '몇 시에 오세요?'],
     [/며칠간 오세요/g, '몇 시에 오세요?'],
+
+    [/마치 와요/g, '몇 시에 와요?'],
+    [/매치 와요/g, '몇 시에 와요?'],
+    [/미지근 와요/g, '몇 시에 와요?'],
+    [/며칠 와요/g, '몇 시에 와요?'],
+    [/몇일 와요/g, '몇 시에 와요?'],
+
+    [/마치 끝나요/g, '몇 시에 끝나요?'],
+    [/매치 끝나요/g, '몇 시에 끝나요?'],
+    [/미지근 끝나요/g, '몇 시에 끝나요?'],
+    [/며칠 끝나요/g, '몇 시에 끝나요?'],
+
+    [/마치 출발해요/g, '몇 시에 출발해요?'],
+    [/매치 출발해요/g, '몇 시에 출발해요?'],
+    [/미지근 출발해요/g, '몇 시에 출발해요?'],
+    [/며칠 출발해요/g, '몇 시에 출발해요?'],
 
     [/몇시에/g, '몇 시에'],
     [/몇 시 오세요/g, '몇 시에 오세요?'],
     [/몇 시 들어와요/g, '몇 시에 들어와요?'],
     [/몇 시 돌아와요/g, '몇 시에 돌아와요?'],
+    [/몇 시 와요/g, '몇 시에 와요?'],
+    [/몇 시 끝나요/g, '몇 시에 끝나요?'],
+    [/몇 시 출발해요/g, '몇 시에 출발해요?'],
 
     // 어디 / 언제 common STT fragments
     [/어 들었나/g, '들었나요?'],
@@ -388,6 +441,44 @@ function normalizeKoreanSTT(text) {
   ];
 
   for (const [a, b] of pairs) t = t.replace(a, b);
+
+  // ========= Expanded Korean STT correction =========
+  // General "what time" mishearing. Keep verb, correct only clearly known time-question patterns.
+  t = t.replace(/(미지근|마치|매치|며칠|몇일|미치근|미지근마치)\s*(들어와요|돌아와요|오세요|와요|끝나요|출발해요|퇴근해요)/g, '몇 시에 $2?');
+
+  // "when" mishearing where STT outputs 어디/오디 before action.
+  t = t.replace(/(어디|오디)\s*(들어왔어요|시작해요|갔어요|왔어요|끝났어요|출발했어요)/g, '언제 $2?');
+
+  // Common Korean questions from real conversations.
+  t = t.replace(/머\s*(하세요|해요|하는거예요)/g, '뭐 $1?');
+  t = t.replace(/뭐\s*하세요/g, '뭐 하세요?');
+  t = t.replace(/어디\s*아파요/g, '어디 아파요?');
+  t = t.replace(/뭐\s*필요하세요/g, '뭐 필요하세요?');
+  t = t.replace(/어디\s*가세요/g, '어디 가세요?');
+  t = t.replace(/뭐\s*도와드릴까요/g, '뭐 도와드릴까요?');
+  t = t.replace(/왜\s*그래요/g, '왜 그래요?');
+  t = t.replace(/이거\s*뭐예요/g, '이거 뭐예요?');
+  t = t.replace(/그게\s*무슨말이에요/g, '그게 무슨 말이에요?');
+  t = t.replace(/얼마\s*예요/g, '얼마예요?');
+  t = t.replace(/가능\s*해요/g, '가능해요?');
+  t = t.replace(/돼요$/g, '돼요?');
+  t = t.replace(/되나요/g, '되나요?');
+  t = t.replace(/될까요/g, '될까요?');
+
+  // Polite instruction spacing.
+  t = t.replace(/다시\s*말씀해주세요/g, '다시 말씀해 주세요.');
+  t = t.replace(/천천히\s*말씀해주세요/g, '천천히 말씀해 주세요.');
+  t = t.replace(/잘\s*못들었어요/g, '잘 못 들었어요.');
+  t = t.replace(/이해\s*못했어요/g, '이해 못 했어요.');
+
+  // SIM / phone / verification.
+  t = t.replace(/유심\s*개통/g, '유심 개통');
+  t = t.replace(/번호\s*바꾸/g, '번호 바꾸');
+  t = t.replace(/인증번호\s*안와요/g, '인증번호 안 와요');
+
+  // Food: do NOT force 맛있어요 into a question. It may be a statement.
+  // Hard translation layer separates 맛있어요. and 맛있어요? by punctuation.
+  t = t.replace(/배고파요/g, '배고파요.');
 
   return t;
 }
@@ -614,6 +705,7 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   const e = thaiEnding(partnerGender);
   const polite = e.polite || '';
   const question = e.question || '';
+  const ack = e.ack || polite || 'ค่ะ';
 
   // ============================================================
   // Time / coming / entering / returning
@@ -813,12 +905,33 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   // Food / daily
   // ============================================================
 
-  if (compact === '밥먹었어' || compact === '밥먹었어요') return `กินข้าวแล้ว${polite}`;
-  if (compact === '밥먹었어요') return `กินข้าวแล้วหรือยัง${question}`;
-  if (/밥.*먹었/.test(compact) && raw.includes('?')) return `กินข้าวแล้วหรือยัง${question}`;
-  if (/밥.*먹었/.test(compact)) return `กินข้าวแล้ว${polite}`;
-  if (/맛있어요/.test(compact)) return `อร่อยไหม${question}`;
-  if (/맛있다|맛있네|맛있겠다/.test(compact)) return `น่าอร่อย${polite}`;
+  if ((compact === '밥먹었어' || compact === '밥먹었어요') && raw.includes('?')) {
+    return `กินข้าวแล้วหรือยัง${question}`;
+  }
+
+  if (compact === '밥먹었어' || compact === '밥먹었어요') {
+    return `กินข้าวแล้ว${polite}`;
+  }
+
+  if (/밥.*먹었/.test(compact) && raw.includes('?')) {
+    return `กินข้าวแล้วหรือยัง${question}`;
+  }
+
+  if (/밥.*먹었/.test(compact)) {
+    return `กินข้าวแล้ว${polite}`;
+  }
+
+  if (/맛있어요/.test(compact) && raw.includes('?')) {
+    return `อร่อยไหม${question}`;
+  }
+
+  if (/맛있어요/.test(compact)) {
+    return `อร่อย${polite}`;
+  }
+
+  if (/맛있다|맛있네|맛있겠다/.test(compact)) {
+    return `น่าอร่อย${polite}`;
+  }
   if (/떡볶이/.test(compact)) return 'ต็อกบกกี';
   if (/김치/.test(compact)) return 'กิมจิ';
   if (/갈비탕/.test(compact)) return 'คัลบีทัง / ซุปซี่โครงเนื้อ';
@@ -826,6 +939,43 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   // ============================================================
   // Common short Korean
   // ============================================================
+
+
+  // ============================================================
+  // 네 / 예 before greetings = polite acknowledgement, not "ใช่"
+  // ============================================================
+
+  if (/^(네|예)안녕하세요$/.test(compact)) {
+    return `${ack} สวัสดี${polite}`;
+  }
+
+  if (/^(네|예)안녕하십니까$/.test(compact)) {
+    return `${ack} สวัสดี${polite}`;
+  }
+
+  if (/^(네|예)반갑습니다$/.test(compact)) {
+    return `${ack} ยินดีที่ได้รู้จัก${polite}`;
+  }
+
+  if (/^(네|예)처음뵙겠습니다$/.test(compact)) {
+    return `${ack} ยินดีที่ได้รู้จัก${polite}`;
+  }
+
+  if (/^(네|예)감사합니다$/.test(compact)) {
+    return `${ack} ขอบคุณ${polite}`;
+  }
+
+  if (/^(네|예)알겠습니다$/.test(compact)) {
+    return `${ack} เข้าใจแล้ว${polite}`;
+  }
+
+  if (/^(네|예)맞아요$/.test(compact)) {
+    return `${ack} ถูกต้อง${polite}`;
+  }
+
+  if (/^(네|예)괜찮아요$/.test(compact)) {
+    return `${ack} ไม่เป็นไร${polite}`;
+  }
 
   const commonMap = {
     '안녕하세요': `สวัสดี${polite}`,
@@ -845,7 +995,8 @@ function hardKoreanToThai(raw, compact, partnerGender) {
     '안돼': `ไม่ได้`,
     '안돼요': `ไม่ได้${polite}`,
     '아니요': `ไม่${polite}`,
-    '네': `ใช่${polite}`,
+    '네': ack,
+    '예': ack,
     '응': `อืม / ใช่`,
     '됐어요': `ได้แล้ว${polite} / พอแล้ว${polite}`,
     '됐다': 'ได้แล้ว / พอแล้ว',
@@ -1315,6 +1466,22 @@ CORE RULES:
 8. If audio is truly unclear, output exactly: ${unclearReply}
 9. If the input is explicit sexual harassment or a direct violent threat, output exactly: ${failReply}
 
+
+KOREAN 네 / 예 CONTEXT RULE:
+- 네 / 예 does NOT always mean "yes".
+- If 네 / 예 appears before a greeting such as 안녕하세요, 안녕하십니까, 반갑습니다, 처음 뵙겠습니다, translate it as a polite acknowledgement:
+  male speaker: "ครับ"
+  female speaker: "ค่ะ"
+- Example:
+  "네, 안녕하세요." = "ครับ สวัสดีครับ" or "ค่ะ สวัสดีค่ะ"
+- Do NOT translate this as "ใช่ครับ สวัสดีครับ" unless it clearly answers a yes/no question.
+- 네 means "ใช่" only when it clearly answers a yes/no question.
+- In greetings, phone calls, service calls, workplace replies, and conversation openings, 네 / 예 is usually "ครับ/ค่ะ" or an acknowledgement.
+
+META-REPLY GUARD:
+- Never output meta statements such as "저는 통역사입니다", "질문에 답변할 수 없습니다", "I am an interpreter", or "I cannot answer".
+- If the input is a question, translate the question only. Do not answer it. Do not refuse it. Do not explain your role.
+
 KOREAN STT CORRECTION:
 - 마치마치 들어와요 / 매치 들어와요 / 미지근 들어와요 / 며칠 들어와요 usually means 몇 시에 들어와요?
 - 마치마치 돌아와요 / 매치 돌아와요 / 며칠 돌아와요 usually means 몇 시에 돌아와요?
@@ -1412,15 +1579,18 @@ function chooseMaxTokens(text) {
   return 1400;
 }
 
+
+function isMetaRefusal(output) {
+  const s = String(output || '').trim();
+  return /(저는 통역사|저는 AI|질문에 답변할 수|답변할 수 없습니다|설명해 드리|도와드릴 수 없습니다|I am an AI|I am an interpreter|cannot answer|cannot respond|as an interpreter|as an AI)/i.test(s);
+}
+
 function sanitizeTranslation(output, unclearReply) {
   const s = String(output || '').trim();
 
   if (!s) return unclearReply;
 
-  const badReply =
-    /(저는 통역사|저는 AI|질문에 답변할 수|답변할 수 없습니다|설명해 드리|도와드릴 수 없습니다|I am an AI|I am an interpreter|cannot answer|cannot respond)/i;
-
-  if (badReply.test(s)) return unclearReply;
+  if (isMetaRefusal(s)) return unclearReply;
 
   return s.replace(/^["“”]+|["“”]+$/g, '').trim();
 }
@@ -2442,3 +2612,4 @@ const ONLINE_SELLER_CHAT_VOCAB = `
 รีวิวไม่ดี=나쁜 리뷰
 ให้คะแนนต่ำ=낮은 별점을 주다
 `;
+ 
