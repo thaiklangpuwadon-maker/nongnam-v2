@@ -59,6 +59,16 @@ export default async function handler(req, res) {
     let cleanedText = normalizeAll(String(text || ''), fromLang);
     cleanedText = addQuestionMarksLight(cleanedText, fromLang);
 
+    // Isan Bridge Layer: convert Thai-Isan structure to clear Standard Thai first,
+    // then let the normal Thai→Korean interpreter translate it. This prevents
+    // broad hard-map rules from dropping objects after words like "นำ" or misreading final "บ่".
+    if (isThaiLang(fromLang) && looksLikeIsan(cleanedText)) {
+      const isanBridgeText = normalizeIsanToStandardThai(cleanedText);
+      if (isanBridgeText && isanBridgeText !== cleanedText) {
+        cleanedText = addQuestionMarksLight(isanBridgeText, fromLang);
+      }
+    }
+
     const sourceLang = isThaiLang(fromLang) ? 'Thai' : 'Korean';
     const targetLang = sourceLang === 'Thai' ? 'Korean' : 'Thai';
 
@@ -675,6 +685,160 @@ function addQuestionMarksLight(text, fromLang) {
   return t;
 }
 
+
+function normalizeIsanToStandardThai(input) {
+  let t = String(input || '').trim();
+  if (!t) return t;
+
+  const hadQuestion = /[?？]$/.test(t);
+  t = t.replace(/[?？]+$/g, '').trim();
+
+  // Protect Thai central phrase "นำหน้า" before handling Isan "นำ".
+  t = t.replace(/นำหน้า/g, '__NAMNA__');
+
+  // Common STT / spelling variants
+  t = t
+    .replace(/โรงบาล/g, 'โรงพยาบาล')
+    .replace(/โฮงบาล/g, 'โรงพยาบาล')
+    .replace(/มื้ออื้น/g, 'มื้ออื่น')
+    .replace(/มื่อนี้/g, 'มื้อนี้')
+    .replace(/มื่อวาน/g, 'มื้อวาน')
+    .replace(/บ่ฮือ/g, 'บ่หือ')
+    .replace(/บ่ฮึ/g, 'บ่หึ')
+    .replace(/บ่ฮื/g, 'บ่หื')
+    .replace(/บ้อ/g, 'เบาะ')
+    .replace(/บ๋อ/g, 'เบาะ');
+
+  // Soft request tails before general "นำ + person" handling.
+  // นำเงินมานำแน = เอาเงินมาด้วยหน่อยนะ
+  t = t.replace(/^นำ(.+?)มา(นำแน|นำแหน่|แหน่)$/g, 'เอา$1มาด้วยหน่อยนะ');
+  t = t.replace(/^เอา(.+?)มา(นำแน|นำแหน่|แหน่)$/g, 'เอา$1มาด้วยหน่อยนะ');
+  t = t.replace(/^ซื้อ(.+?)มา(นำแน|นำแหน่|แหน่)$/g, 'ซื้อ$1มาด้วยหน่อยนะ');
+  t = t.replace(/(เบิ่งให้|ดูให้)(นำแน|นำแหน่|แหน่)$/g, 'ดูให้หน่อยนะ');
+  t = t.replace(/โทรหา(.+?)(นำแน|นำแหน่|แหน่)$/g, 'โทรหา$1หน่อยนะ');
+  t = t.replace(/(นำแน|นำแหน่|แหน่)$/g, 'ด้วยหน่อยนะ');
+
+  // Time and WH words
+  const replacements = [
+    [/มื้อนี้/g, 'วันนี้'],
+    [/มื้ออื่น/g, 'พรุ่งนี้'],
+    [/มื้อวาน/g, 'เมื่อวาน'],
+    [/มื้อใด๋/g, 'วันไหน'],
+    [/ยามใด๋/g, 'เมื่อไหร่'],
+    [/ยามได๋/g, 'เมื่อไหร่'],
+    [/จักโมง/g, 'กี่โมง'],
+    [/จั๊กโมง/g, 'กี่โมง'],
+    [/จั๊กบาท/g, 'กี่บาท'],
+    [/จักบาท/g, 'กี่บาท'],
+    [/จั๊กคน/g, 'กี่คน'],
+    [/จักคน/g, 'กี่คน'],
+    [/จั๊กหน่อย/g, 'สักหน่อย'],
+    [/จักหน่อย/g, 'สักหน่อย'],
+    [/บ่จัก/g, 'ไม่รู้'],
+    [/บ่จั๊ก/g, 'ไม่รู้'],
+    [/อีหยัง/g, 'อะไร'],
+    [/หยัง/g, 'อะไร'],
+    [/ไผ/g, 'ใคร'],
+    [/อยู่ไส/g, 'อยู่ที่ไหน'],
+    [/ไปไส/g, 'ไปไหน'],
+    [/ทางได๋/g, 'ทางไหน'],
+    [/แบบได๋/g, 'แบบไหน'],
+  ];
+  for (const [a, b] of replacements) t = t.replace(a, b);
+
+  // Names / pronouns / relationship terms
+  t = t
+    .replace(/ข่อย/g, 'ฉัน')
+    .replace(/ข้อย/g, 'ฉัน')
+    .replace(/เจ้า/g, 'คุณ')
+    .replace(/เพิ่น/g, 'เขา')
+    .replace(/เฮา/g, 'เรา')
+    .replace(/เอื้อย/g, 'พี่สาว')
+    .replace(/อ้าย/g, 'พี่ชาย');
+
+  // ซื่อ in Isan means name, not buy. Keep ซื้อ as buy.
+  t = t.replace(/ซื่อหยัง/g, 'ชื่ออะไร');
+  t = t.replace(/ฉันซื่อ/g, 'ฉันชื่อ');
+  t = t.replace(/คุณซื่อ/g, 'คุณชื่อ');
+  t = t.replace(/เขาซื่อ/g, 'เขาชื่อ');
+
+  // Core verbs / particles
+  t = t
+    .replace(/เฮ็ด/g, 'ทำ')
+    .replace(/เบิ่ง/g, 'ดู')
+    .replace(/ซ่อย/g, 'ช่วย')
+    .replace(/ฟ้าว/g, 'รีบ')
+    .replace(/เว้า/g, 'พูด')
+    .replace(/พ้อ/g, 'เจอ')
+    .replace(/เมือ/g, 'กลับ')
+    .replace(/ฮอด/g, 'ถึง')
+    .replace(/คึดฮอด/g, 'คิดถึง')
+    .replace(/ย่าน/g, 'กลัว')
+    .replace(/เมื่อย/g, 'เหนื่อย')
+    .replace(/คัก/g, 'มาก')
+    .replace(/หลาย/g, 'มาก')
+    .replace(/โพด/g, 'เกินไป')
+    .replace(/แฮง/g, 'มาก')
+    .replace(/บัดนี้/g, 'ตอนนี้')
+    .replace(/ยามนี้/g, 'ตอนนี้');
+
+  // หนอง ambiguity: medical vs water/fishing context
+  if (/(แผล|เจ็บ|ปวด|หมอ|โรงพยาบาล|ยา|ฝี|ติดเชื้อ|เลือด)/.test(t)) {
+    t = t.replace(/หนอง/g, 'หนอง');
+  } else if (/(ปลา|เบ็ด|ตกปลา|ใส่เบ็ด|ห้วย|คลอง|บึง|บ่อปลา)/.test(t)) {
+    t = t.replace(/หนอง/g, 'หนองน้ำ');
+  }
+
+  // เสีย ambiguity common in Isan
+  t = t
+    .replace(/เกิบเสีย/g, 'รองเท้าหาย')
+    .replace(/ของเสีย/g, 'ของชำรุด')
+    .replace(/เครื่องเสีย/g, 'เครื่องพัง')
+    .replace(/งานเสีย/g, 'งานมีปัญหา');
+
+  // Negative question first: ไม่...เหรอ
+  const negQuestionTail = /(หึ|หือ|หื|ติ|ตี้|น้อ|เนาะ|หนอ|หนา|ล่ะ|ละ|เบาะ)$/;
+  if (/^บ่/.test(t) && negQuestionTail.test(t)) {
+    t = t.replace(/^บ่/, 'ไม่').replace(negQuestionTail, 'เหรอ');
+  }
+
+  // Negation: บ่ + verb/adjective = ไม่...
+  t = t.replace(/บ่(?=(ไป|มา|กิน|เข้าใจ|มี|ได้|อยาก|เอา|เห็น|รู้|ว่าง|สบาย|ใช่|แม่น|เข้า|ออก|ทำ|พูด|ดู|ช่วย|รีบ|ดี|ถูก|แพง|เจ็บ|ปวด|ให้|เอิ้น|โทร|กลับ|ซื้อ|ขาย|จ่าย|รับ|ส่ง|นอน|ทำงาน))/g, 'ไม่');
+
+  // Final Isan question markers: clause + บ่/บ่หึ/เบาะ/etc. = ...ไหม / ...หรือยัง
+  const finalQuestionTail = /(บ่หึ|บ่หือ|บ่หื|บ่ติ|บ่ตี้|บ่เบาะ|บ่น้อ|บ่เนาะ|บ่หนอ|บ่หนา|บ่ล่ะ|บ่ละ|เบาะ|บ่)$/;
+  if (finalQuestionTail.test(t)) {
+    const stem = t.replace(finalQuestionTail, '');
+    if (/แล้ว$/.test(stem)) {
+      t = stem + 'หรือยัง';
+    } else if (/(แม่น|ใช่)$/.test(stem)) {
+      t = stem.replace(/(แม่น|ใช่)$/, 'ใช่') + 'ไหม';
+    } else if (/(ได้|มี)$/.test(stem)) {
+      t = stem + 'ไหม';
+    } else {
+      t = stem + 'ไหม';
+    }
+  } else if (hadQuestion) {
+    t += '?';
+  }
+
+  // นำ + person after travel/social verbs = with/together with.
+  // Keep the object after นำ. Do not drop names/family terms.
+  t = t.replace(/((?:ไป|มา|เที่ยว|กิน|อยู่|กลับ|นอน|ทำงาน|เล่น|ดูหนัง|เดิน|นั่ง|ขึ้นรถ|ลงรถ)[^\s?]*?)นำ([^\s?]+)(ไหม|เหรอ|หรือยัง)?/g, '$1กับ$2$3');
+  // Handle spaced/common activity forms.
+  t = t.replace(/ไปกินข้าวนำ([^\s?]+)(ไหม|เหรอ|หรือยัง)?/g, 'ไปกินข้าวกับ$1$2');
+  t = t.replace(/ไปเที่ยวนำ([^\s?]+)(ไหม|เหรอ|หรือยัง)?/g, 'ไปเที่ยวกับ$1$2');
+  t = t.replace(/ไปนำ([^\s?]+)(ไหม|เหรอ|หรือยัง)?/g, 'ไปกับ$1$2');
+  t = t.replace(/มานำ([^\s?]+)(ไหม|เหรอ|หรือยัง)?/g, 'มากับ$1$2');
+
+  // Restore protected central Thai phrase.
+  t = t.replace(/__NAMNA__/g, 'นำหน้า');
+
+  // Normalize duplicated or awkward spaces.
+  t = t.replace(/\s+/g, ' ').trim();
+  return t;
+}
+
 // ============================================================
 // Hard translate rules
 // ============================================================
@@ -1139,6 +1303,17 @@ function hardThaiToKorean(raw, compact) {
     if (/ได้/.test(baseQ)) return '돼요?';
     if (/ว่าง/.test(baseQ)) return '시간 있어요?';
     if (/สบาย|โอเค/.test(baseQ)) return '괜찮아요?';
+
+    // Isan social/travel questions: keep the object and companion context.
+    // Example: มื้ออื่นไปเที่ยวนำข้อยบ่ = 내일 저랑 같이 놀러 갈래요?
+    if (/(มื้ออื่น|พรุ่งนี้).*ไปเที่ยว.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู)/.test(baseQ)) return '내일 저랑 같이 놀러 갈래요?';
+    if (/(มื้อนี้|วันนี้).*ไปเที่ยว.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู)/.test(baseQ)) return '오늘 저랑 같이 놀러 갈래요?';
+    if (/ไปเที่ยว.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู)/.test(baseQ)) return '저랑 같이 놀러 갈래요?';
+    if (/(มื้ออื่น|พรุ่งนี้).*ไป.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู)/.test(baseQ)) return '내일 저랑 같이 갈래요?';
+    if (/(มื้อนี้|วันนี้).*ไป.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู)/.test(baseQ)) return '오늘 저랑 같이 갈래요?';
+    if (/ไป.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู)/.test(baseQ)) return '저랑 같이 갈래요?';
+    if (/ไปเที่ยว/.test(baseQ)) return '놀러 갈래요?';
+
     if (/ไป/.test(baseQ)) return '가요?';
     if (/มา/.test(baseQ)) return '와요?';
     if (/กิน/.test(baseQ)) return '먹어요?';
@@ -1155,6 +1330,15 @@ function hardThaiToKorean(raw, compact) {
   if (/กินข้าว.*บ่$/.test(compact)) return '밥 먹었어요?';
   if (/เลิกงาน.*บ่$/.test(compact)) return '퇴근했어요?';
   if (/ได้.*บ่$/.test(compact)) return '돼요?';
+
+  // Isan social/travel final บ่ questions — do not collapse to generic 가요?
+  if (/(มื้ออื่น|พรุ่งนี้).*ไปเที่ยว.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู).*บ่$/.test(compact)) return '내일 저랑 같이 놀러 갈래요?';
+  if (/(มื้อนี้|วันนี้).*ไปเที่ยว.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู).*บ่$/.test(compact)) return '오늘 저랑 같이 놀러 갈래요?';
+  if (/ไปเที่ยว.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู).*บ่$/.test(compact)) return '저랑 같이 놀러 갈래요?';
+  if (/(มื้ออื่น|พรุ่งนี้).*ไป.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู).*บ่$/.test(compact)) return '내일 저랑 같이 갈래요?';
+  if (/(มื้อนี้|วันนี้).*ไป.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู).*บ่$/.test(compact)) return '오늘 저랑 같이 갈래요?';
+  if (/ไป.*(นำข้อย|กับข้อย|กับผม|กับฉัน|กับหนู).*บ่$/.test(compact)) return '저랑 같이 갈래요?';
+  if (/ไปเที่ยว.*บ่$/.test(compact)) return '놀러 갈래요?';
   // Massage / safety boundary Thai -> Korean
   if (/ที่นี่.*นวด.*สุขภาพเท่านั้น/.test(compact) || /นวดเพื่อสุขภาพเท่านั้น/.test(compact)) return '여기는 건강 마사지 서비스만 제공합니다.';
   if (/ไม่มีบริการพิเศษ/.test(compact)) return '특별 서비스는 없습니다.';
@@ -1650,7 +1834,7 @@ function buildVocabHint(text, finalSit, uiSit) {
   if (shouldLoadKoreanShortResponseVocab(text)) sections.push(KOREAN_SHORT_RESPONSE_AMBIGUITY_VOCAB, DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB);
 
   if (finalSit === 'isaan' || looksLikeIsan(text)) {
-    sections.push(ISAN_CORE_COMPACT, ISAN_AMBIGUITY_RULES);
+    sections.push(ISAN_CORE_COMPACT, ISAN_AMBIGUITY_RULES, ISAN_STRUCTURAL_BRIDGE_RULES);
   }
 
   if (VOCAB_BY_SITUATION[finalSit]) {
@@ -1859,6 +2043,14 @@ HOSPITAL / MEDICINE:
 - ฟันคุด = 사랑니, never 충치 and never 앞니.
 
 ISAN CONTEXT:
+- If Thai-Isan is detected, first understand it as Standard Thai structure, then translate. Do not translate word-by-word.
+- Do not drop subjects, objects, names, family terms, or the person/object after “นำ”.
+- “นำ + person” after ไป/มา/เที่ยว/กิน/อยู่/กลับ means กับ / ไปด้วยกันกับ, Korean ~랑 같이.
+- “นำ + object + มา” means เอา/นำสิ่งของนั้นมา, Korean 가져오다.
+- “...นำแน / ...นำแหน่ / ...แหน่” means ...ด้วยหน่อย / ...ให้หน่อย.
+- “นำหน้า” means นำทาง / อยู่ข้างหน้า / 앞서 가다, not กับ.
+- ซื่อหยัง / ข่อยซื่อ = ชื่ออะไร / ฉันชื่อ. Do not confuse with ซื้อ=buy.
+- จัก/จั๊ก can mean ไม่รู้, กี่, or สัก depending on context: บ่จัก=ไม่รู้, จักบาท=กี่บาท, จักหน่อย=สักหน่อย.
 - บ่ at the END of a clause/sentence usually marks a yes/no question like ไหม/หรือยัง. Do NOT translate final บ่ as Korean 안/못 negation.
   Example: มื้ออื่นไปโรงพยาบาลบ่? = 내일 병원에 갈 거예요?
   Example: กินข้าวแล้วบ่? = 밥 먹었어요?
@@ -2488,6 +2680,9 @@ statement=거래내역서
 const ISAN_CORE_COMPACT = `
 [Isan Core Compact]
 ข่อย=ฉัน/ผม
+ข้อย=ฉัน/ผม
+นำข้อย=กับฉัน/กับผม/ไปด้วยกันกับฉัน
+ไปเที่ยวนำข้อยบ่=ไปเที่ยวกับฉันไหม
 เจ้า=คุณ
 เฮา=เรา
 เพิ่น=เขา/เธอ/คนนั้น
@@ -2550,6 +2745,68 @@ Final บ่หึ/บ่ฮึ/บ่หือ/บ่ฮือ/บ่ติ/บ
 หนอง:
 - medical context: pus / 고름.
 - rural Isan/fishing/water context: pond / 연못.
+`;
+
+
+const ISAN_STRUCTURAL_BRIDGE_RULES = `
+[Isan structural bridge rules]
+ถ้าเจอภาษาอีสาน ให้เข้าใจเป็นไทยกลางก่อนแล้วค่อยแปลเกาหลี ห้ามแปลคำต่อคำแบบตัดบริบท
+
+บ่:
+- บ่ + กริยา/คุณศัพท์ = ไม่...
+- ประโยค/กริยา + บ่ = ...ไหม / หรือเปล่า
+- แล้วบ่ = แล้วหรือยัง
+- แม่นบ่ = ใช่ไหม
+- ได้บ่ = ได้ไหม
+- มีบ่ = มีไหม
+- บ่ + กริยา + หึ/หือ/เบาะ/บ้อ/ติ = ไม่...เหรอ?
+ตัวอย่าง: บ่ไป=ไม่ไป, ไปบ่=ไปไหม, บ่ไปหึ=ไม่ไปเหรอ, กินข้าวแล้วบ่=กินข้าวแล้วหรือยัง
+
+นำ:
+- ไป/มา/เที่ยว/กิน/อยู่ + นำ + คน = ไป/มา/เที่ยว/กิน/อยู่ กับคนนั้น / ด้วยกันกับคนนั้น
+- เกาหลีใช้ ~랑 같이
+- ห้ามตัดคำหลัง “นำ” เด็ดขาด
+- นำ + สิ่งของ + มา = เอาสิ่งของนั้นมา / 가져오다
+- ...นำแน / ...นำแหน่ / ...แหน่ = ...ด้วยหน่อย / ...ให้หน่อย
+- นำหน้า = นำทาง / อยู่ข้างหน้า / 앞서 가다 ไม่ใช่ “กับ”
+ตัวอย่าง: ไปนำแม่บ่=ไปกับแม่ไหม, นำเงินมานำแน=เอาเงินมาด้วยหน่อยนะ
+
+เวลา/คำถาม:
+- มื้อนี้/มื้อนี่=วันนี้
+- มื้ออื่น/มื้ออื้น=พรุ่งนี้
+- มื้อวาน/มื่อวาน=เมื่อวาน
+- มื้อใด๋=วันไหน
+- ยามใด๋/ยามได๋=เมื่อไหร่
+- จักโมง/จั๊กโมง=กี่โมง
+
+ซื่อ/ซื้อ:
+- ซื่อหยัง=ชื่ออะไร
+- ข้อยซื่อ/ข่อยซื่อ=ฉันชื่อ
+- ซื้อของ=ซื้อของ / buy
+
+จัก/จั๊ก:
+- บ่จัก/บ่จั๊ก=ไม่รู้
+- จักบาท/จั๊กบาท=กี่บาท
+- จักคน/จั๊กคน=กี่คน
+- จักหน่อย/จั๊กหน่อย=สักหน่อย
+
+หนอง:
+- แผล/เจ็บ/หมอ/โรงพยาบาล + หนอง = pus / 고름
+- ปลา/เบ็ด/ห้วย/คลอง/บึง + หนอง = pond / 연못
+
+เสีย:
+- เกิบเสีย=รองเท้าหาย
+- ของเสีย=ของชำรุด
+- เครื่องเสีย=เครื่องพัง
+- งานเสีย=งานมีปัญหา
+
+คำทั่วไป:
+- ฟ้าว=รีบ, ซ่อย=ช่วย, เบิ่ง=ดู, เฮ็ด=ทำ, เว้า=พูด, พ้อ=เจอ, เมือ=กลับ, ฮอด=ถึง
+- คัก=มาก, หลาย=มาก/เยอะ, โพด=เกินไป, แฮง=มาก/แรง/เหนื่อยมาก
+- บัดนี้/ยามนี้=ตอนนี้
+
+ชื่อคน:
+- เอิร์น, แมน, บิว, ปู, ยา, ลูกลา, น้องหล้า และคำไทย/อีสานที่ไม่ชัดใกล้กริยา ให้รักษาเป็นชื่อคนโดยทับเสียง ห้ามแปลเป็นคำนามแปลก ๆ
 `;
 
 const THAI_SIA_AMBIGUITY_VOCAB = `
