@@ -709,6 +709,15 @@ function normalizeIsanToStandardThai(input) {
     .replace(/บ้อ/g, 'เบาะ')
     .replace(/บ๋อ/g, 'เบาะ');
 
+  // Common spoken filler that can appear before the real request.
+  // Example: เจ้า คือไป ผมอยากให้เจ้าไปนำผม -> ผมอยากให้เจ้าไปนำผม
+  t = t.replace(/^เจ้า(คือ|คึ)ไป(?=(ผม|ฉัน|หนู|ข่อย|ข้อย))/, '');
+  t = t.replace(/^คุณ(คือ|คึ)ไป(?=(ผม|ฉัน|หนู))/, '');
+
+  // Final Isan question marker followed by a vocative address.
+  // Example: เจ้าไปนำข้อยบ่เอื้อย -> เจ้าไปนำข้อยไหม เอื้อย
+  t = t.replace(/(บ่หึ|บ่หือ|บ่หื|บ่ติ|บ่ตี้|บ่เบาะ|บ่น้อ|บ่เนาะ|บ่หนอ|บ่หนา|บ่ล่ะ|บ่ละ|เบาะ|บ่)(เอื้อย|อ้าย|แม่|พ่อ|ครู|หมอ)$/g, 'ไหม $2');
+
   // Soft request tails before general "นำ + person" handling.
   // นำเงินมานำแน = เอาเงินมาด้วยหน่อยนะ
   t = t.replace(/^นำ(.+?)มา(นำแน|นำแหน่|แหน่)$/g, 'เอา$1มาด้วยหน่อยนะ');
@@ -855,7 +864,7 @@ function hardTranslate(text, fromLang, userGender, partnerGender) {
     return hardKoreanToThai(raw, compact, partnerGender);
   }
 
-  return hardThaiToKorean(raw, compact);
+  return hardThaiToKorean(raw, compact, userGender);
 }
 
 function hardKoreanToThai(raw, compact, partnerGender) {
@@ -893,6 +902,11 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   if (compact === '어디있어요' || compact === '어디있어') return `อยู่ที่ไหน${question}`;
   if (compact === '어디가요' || compact === '어디가세요') return `ไปไหน${question}`;
   if (compact === '어디로가요' || compact === '어디로가세요') return `ไปทางไหน${question}`;
+
+  // Korean negative replies. Do not translate 아니 as an extra leading "ครับ/ค่ะ".
+  if (/^아니안가(요)?$/.test(compact) || /^아니요안가(요)?$/.test(compact)) return `ไม่ไป${polite}`;
+  if (/^아니안해(요)?$/.test(compact) || /^아니요안해(요)?$/.test(compact)) return `ไม่ทำ${polite}`;
+  if (/^아니안먹어(요)?$/.test(compact) || /^아니요안먹어(요)?$/.test(compact)) return `ไม่กิน${polite}`;
 
   // ============================================================
   // 출장 / 외근
@@ -1262,7 +1276,10 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   return '';
 }
 
-function hardThaiToKorean(raw, compact) {
+function hardThaiToKorean(raw, compact, userGender) {
+  const olderSisterKr = userGender === 'female' ? '언니' : '누나';
+  const olderBrotherKr = userGender === 'female' ? '오빠' : '형';
+
   // Isan/Lao-style question tails: บ่, บ่หึ/บ่ฮึ/บ่หือ, เบาะ, บ้อ, etc.
   // These tails at the END usually mean ไหม/หรือเปล่า/ใช่ไหม, not negation.
   const isanQuestionTailRe = /(บ่หึ|บ่ฮึ|บ่หือ|บ่ฮือ|บ่หื|บ่ฮื|บ่ติ|บ่ตี้|บ่เบาะ|บ่น้อ|บ่เนาะ|บ่หนอ|บ่หนา|บ่ล่ะ|บ่ละ|เบาะ|บ้อ|บ๋อ|บ่)$/;
@@ -1284,6 +1301,13 @@ function hardThaiToKorean(raw, compact) {
     if (/ว่าง/.test(baseNeg)) return '시간 없어요?';
     if (/สบาย|โอเค/.test(baseNeg)) return '괜찮지 않아요?';
   }
+
+  // Common Isan bridge outputs that need exact Korean relationship terms / request intent.
+  if (/^(คุณ)?ไปกับ(ฉัน|ผม|หนู)ไหมพี่สาว$/.test(compact) || /^พี่สาว(คุณ)?ไปกับ(ฉัน|ผม|หนู)ไหม$/.test(compact)) return `${olderSisterKr}, 저랑 같이 갈래요?`;
+  if (/^(คุณ)?ไปกับ(ฉัน|ผม|หนู)ไหมพี่ชาย$/.test(compact) || /^พี่ชาย(คุณ)?ไปกับ(ฉัน|ผม|หนู)ไหม$/.test(compact)) return `${olderBrotherKr}, 저랑 같이 갈래요?`;
+  if (/อยากให้คุณไปกับ(ผม|ฉัน|หนู)/.test(compact) || /อยากให้เจ้าไปนำ(ผม|ฉัน|หนู|ข้อย|ข่อย)/.test(compact)) return '저랑 같이 가줬으면 좋겠어요.';
+  if (/อยากให้พี่สาวไปกับ(ผม|ฉัน|หนู)/.test(compact)) return `${olderSisterKr}, 저랑 같이 가줬으면 좋겠어요.`;
+  if (/อยากให้พี่ชายไปกับ(ผม|ฉัน|หนู)/.test(compact)) return `${olderBrotherKr}, 저랑 같이 가줬으면 좋겠어요.`;
 
   // Positive yes/no question tails: verb/clause + บ่หึ/บ่ฮึ/เบาะ/บ้อ/etc.
   if (hasIsanQuestionTail) {
@@ -2804,6 +2828,14 @@ const ISAN_STRUCTURAL_BRIDGE_RULES = `
 - ฟ้าว=รีบ, ซ่อย=ช่วย, เบิ่ง=ดู, เฮ็ด=ทำ, เว้า=พูด, พ้อ=เจอ, เมือ=กลับ, ฮอด=ถึง
 - คัก=มาก, หลาย=มาก/เยอะ, โพด=เกินไป, แฮง=มาก/แรง/เหนื่อยมาก
 - บัดนี้/ยามนี้=ตอนนี้
+
+คำเรียกญาติ/คำลงท้ายเรียกคน:
+- เอื้อย = พี่สาว / older sister. If Thai speaker is male, Korean should use 누나. If Thai speaker is female, Korean should use 언니.
+- อ้าย = พี่ชาย / older brother. If Thai speaker is male, Korean should use 형. If Thai speaker is female, Korean should use 오빠.
+- ถ้า เอื้อย/อ้าย อยู่หลังคำถาม เช่น ไปบ่เอื้อย, ไปบ่หึอ้าย ให้ถือว่าเป็นคำเรียกปลายประโยค ไม่ใช่กรรมของกริยา
+
+คำฟิลเลอร์/ประโยคติดปาก:
+- เจ้า คือไป + ประโยคจริง มักเป็นเสียงพูดติด/ฟิลเลอร์ ให้แปลเจตนาหลักของประโยคหลัง ไม่ต้องแปลว่า คุณไม่ไป
 
 ชื่อคน:
 - เอิร์น, แมน, บิว, ปู, ยา, ลูกลา, น้องหล้า และคำไทย/อีสานที่ไม่ชัดใกล้กริยา ให้รักษาเป็นชื่อคนโดยทับเสียง ห้ามแปลเป็นคำนามแปลก ๆ
