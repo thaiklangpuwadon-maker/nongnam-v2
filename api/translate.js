@@ -282,6 +282,8 @@ function normalizeCommonThai(text) {
     .replace(/ไฟแน้น/g, 'ไฟแนนซ์')
     .replace(/ไฟแนน/g, 'ไฟแนนซ์')
     .replace(/เลขไม/g, 'เลขไมล์')
+    .replace(/โรงบาล/g, 'โรงพยาบาล')
+    .replace(/โฮงบาล/g, 'โรงพยาบาล')
     .replace(/ใบตรวจสภาพรถ/g, 'ใบตรวจสภาพ')
     .replace(/ใบเช็คสภาพรถ/g, 'ใบตรวจสภาพ');
 }
@@ -660,7 +662,7 @@ function addQuestionMarksLight(text, fromLang) {
 
   if (isThaiLang(fromLang)) {
     const thaiQuestion =
-      /(ไหม|มั้ย|หรือเปล่า|หรือไม่|เหรอ|หรอ|บ่|เบาะ|แม่นบ่|ได้ไหม|ได้บ่|อะไร|ใคร|ที่ไหน|อยู่ไส|ไปไส|เท่าไหร่|เท่าไร|กี่โมง|เมื่อไหร่|ยามใด๋|ยามได๋|ยังไง|อย่างไร|ทำไม)(ครับ|ค่ะ|คะ|เด้อ|เนาะ|น้อ|น้า)?$/;
+      /(ไหม|มั้ย|หรือเปล่า|หรือไม่|เหรอ|หรอ|บ่|บ่หึ|บ่ฮึ|บ่หือ|บ่ฮือ|บ่หื|บ่ฮื|บ่ติ|บ่ตี้|บ่เบาะ|บ่น้อ|บ่เนาะ|บ่หนอ|บ่หนา|บ่ล่ะ|บ่ละ|เบาะ|บ้อ|บ๋อ|แม่นบ่|ได้ไหม|ได้บ่|อะไร|ใคร|ที่ไหน|อยู่ไส|ไปไส|เท่าไหร่|เท่าไร|กี่โมง|เมื่อไหร่|ยามใด๋|ยามได๋|ยังไง|อย่างไร|ทำไม)(ครับ|ค่ะ|คะ|เด้อ|เนาะ|น้อ|น้า)?$/;
 
     if (thaiQuestion.test(t)) return `${t}?`;
   } else {
@@ -908,6 +910,32 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   if (/갈비탕/.test(compact)) return 'คัลบีทัง / ซุปซี่โครงเนื้อ';
 
   // ============================================================
+  // Massage / boundary / harassment / pharmacy quick Korean -> Thai
+  // ============================================================
+
+  if (/특별서비스.*있어요/.test(compact) || /특별서비스.*돼요/.test(compact)) return `มีบริการพิเศษไหม${question}`;
+  if (/2차.*가능/.test(compact) || compact === '2차돼요' || compact === '2차가능해요') return `ไปต่อหรือมีบริการต่อได้ไหม${question}`;
+  if (/추가요금.*돼요/.test(compact) || /얼마더주면돼요/.test(compact)) return `ถ้าเพิ่มเงินได้ไหม${question}`;
+  if (/만져도돼요/.test(compact)) return `จับได้ไหม${question}`;
+  if (/손잡아도돼요/.test(compact)) return `จับมือได้ไหม${question}`;
+  if (/연락처.*주세요/.test(compact)) return `ขอเบอร์ติดต่อหน่อย${polite}`;
+  if (/술한잔.*할래요/.test(compact)) return `ไปดื่มด้วยกันไหม${question}`;
+  if (/개인적으로.*만날수있어요/.test(compact)) return `เจอกันส่วนตัวได้ไหม${question}`;
+  if (/직원.*만지지마세요/.test(compact) || /만지지말아주세요/.test(compact)) return `กรุณาอย่าแตะตัวพนักงาน${polite}`;
+  if (/성적인서비스.*제공하지않습니다/.test(compact)) return `ไม่มีบริการทางเพศ${polite}`;
+  if (/건강마사지.*제공/.test(compact)) return `ที่นี่ให้บริการนวดเพื่อสุขภาพเท่านั้น${polite}`;
+  if (/성희롱/.test(compact)) return `การล่วงละเมิดทางเพศ${polite}`;
+
+  if (/사후피임약|응급피임약/.test(compact)) return `ยาคุมฉุกเฉิน${polite}`;
+  if (/피임약/.test(compact) && !/사후|응급/.test(compact)) return `ยาคุมกำเนิด${polite}`;
+  if (/콘돔/.test(compact)) return `ถุงยางอนามัย${polite}`;
+  if (/임신테스트기/.test(compact)) return `ที่ตรวจครรภ์${polite}`;
+  if (/생리통/.test(compact)) return `ปวดท้องประจำเดือน${polite}`;
+  if (/생리/.test(compact)) return `ประจำเดือน${polite}`;
+  if (/처방전.*필요/.test(compact)) return `ต้องใช้ใบสั่งยา${polite}`;
+  if (/약국.*어디/.test(compact)) return `ร้านขายยาอยู่ที่ไหน${question}`;
+
+  // ============================================================
   // Common short Korean
   // ============================================================
 
@@ -1071,6 +1099,84 @@ function hardKoreanToThai(raw, compact, partnerGender) {
 }
 
 function hardThaiToKorean(raw, compact) {
+  // Isan/Lao-style question tails: บ่, บ่หึ/บ่ฮึ/บ่หือ, เบาะ, บ้อ, etc.
+  // These tails at the END usually mean ไหม/หรือเปล่า/ใช่ไหม, not negation.
+  const isanQuestionTailRe = /(บ่หึ|บ่ฮึ|บ่หือ|บ่ฮือ|บ่หื|บ่ฮื|บ่ติ|บ่ตี้|บ่เบาะ|บ่น้อ|บ่เนาะ|บ่หนอ|บ่หนา|บ่ล่ะ|บ่ละ|เบาะ|บ้อ|บ๋อ|บ่)$/;
+  const isanNegativeQuestionTailRe = /(หึ|ฮึ|หือ|ฮือ|หื|ฮื|ติ|ตี้|น้อ|เนาะ|หนอ|หนา|ล่ะ|ละ)$/;
+  const hasIsanQuestionTail = isanQuestionTailRe.test(compact);
+  const stripIsanQuestionTail = (v) => String(v || '').replace(isanQuestionTailRe, '');
+  const stripIsanNegativeQuestionTail = (v) => String(v || '').replace(isanNegativeQuestionTailRe, '');
+
+  // Negative question: บ่ + verb/adjective + หึ/ฮึ/หือ... = ไม่...เหรอ?
+  // Example: บ่ไปหึ = 안 가요? | บ่เข้าใจหึ = 이해 못 했어요?
+  if (/^บ่/.test(compact) && isanNegativeQuestionTailRe.test(compact) && !isanQuestionTailRe.test(compact)) {
+    const baseNeg = stripIsanNegativeQuestionTail(compact).replace(/^บ่/, '');
+    if (/ไป/.test(baseNeg)) return '안 가요?';
+    if (/มา/.test(baseNeg)) return '안 와요?';
+    if (/กิน/.test(baseNeg)) return '안 먹어요?';
+    if (/เข้าใจ/.test(baseNeg)) return '이해 못 했어요?';
+    if (/มี/.test(baseNeg)) return '없어요?';
+    if (/ได้/.test(baseNeg)) return '안 돼요?';
+    if (/ว่าง/.test(baseNeg)) return '시간 없어요?';
+    if (/สบาย|โอเค/.test(baseNeg)) return '괜찮지 않아요?';
+  }
+
+  // Positive yes/no question tails: verb/clause + บ่หึ/บ่ฮึ/เบาะ/บ้อ/etc.
+  if (hasIsanQuestionTail) {
+    const baseQ = stripIsanQuestionTail(compact);
+    if (/(มื้ออื่น|พรุ่งนี้).*(ไป)?โรงพยาบาล/.test(baseQ)) return '내일 병원에 갈 거예요?';
+    if (/(มื้อนี้|วันนี้).*(ไป)?โรงพยาบาล/.test(baseQ)) return '오늘 병원에 갈 거예요?';
+    if (/(มื้อวาน|เมื่อวาน).*(ไป)?โรงพยาบาล/.test(baseQ)) return '어제 병원에 갔어요?';
+    if (/เอิร์น.*(ไป)?โรงพยาบาล/.test(baseQ)) return '언 씨, 병원에 가요?';
+    if (/(ไป)?โรงพยาบาล/.test(baseQ)) return '병원에 가요?';
+    if (/กินข้าว.*แล้ว/.test(baseQ)) return '밥 먹었어요?';
+    if (/กินข้าว/.test(baseQ)) return '밥 먹어요?';
+    if (/เลิกงาน.*แล้ว/.test(baseQ)) return '퇴근했어요?';
+    if (/เลิกงาน/.test(baseQ)) return '퇴근해요?';
+    if (/เข้าใจ/.test(baseQ)) return '이해했어요?';
+    if (/แม่น|ใช่/.test(baseQ)) return '맞아요?';
+    if (/มี/.test(baseQ)) return '있어요?';
+    if (/ได้/.test(baseQ)) return '돼요?';
+    if (/ว่าง/.test(baseQ)) return '시간 있어요?';
+    if (/สบาย|โอเค/.test(baseQ)) return '괜찮아요?';
+    if (/ไป/.test(baseQ)) return '가요?';
+    if (/มา/.test(baseQ)) return '와요?';
+    if (/กิน/.test(baseQ)) return '먹어요?';
+  }
+
+  // Isan final question marker: บ่ at the end usually means "ไหม/หรือยัง", NOT Korean negation.
+  // Examples: "มื้ออื่นไปโรงพยาบาลบ่" = 내일 병원에 갈 거예요?
+  // "เอิร์นไปโรงพยาบาลบ่" = 언 씨, 병원에 가요?
+  if (/(มื้ออื่น|พรุ่งนี้).*(ไป)?โรงพยาบาล.*บ่$/.test(compact)) return '내일 병원에 갈 거예요?';
+  if (/(มื้อนี้|วันนี้).*(ไป)?โรงพยาบาล.*บ่$/.test(compact)) return '오늘 병원에 갈 거예요?';
+  if (/(มื้อวาน|เมื่อวาน).*(ไป)?โรงพยาบาล.*บ่$/.test(compact)) return '어제 병원에 갔어요?';
+  if (/เอิร์น.*(ไป)?โรงพยาบาล.*บ่$/.test(compact)) return '언 씨, 병원에 가요?';
+  if (/(ไป)?โรงพยาบาล.*บ่$/.test(compact)) return '병원에 가요?';
+  if (/กินข้าว.*บ่$/.test(compact)) return '밥 먹었어요?';
+  if (/เลิกงาน.*บ่$/.test(compact)) return '퇴근했어요?';
+  if (/ได้.*บ่$/.test(compact)) return '돼요?';
+  // Massage / safety boundary Thai -> Korean
+  if (/ที่นี่.*นวด.*สุขภาพเท่านั้น/.test(compact) || /นวดเพื่อสุขภาพเท่านั้น/.test(compact)) return '여기는 건강 마사지 서비스만 제공합니다.';
+  if (/ไม่มีบริการพิเศษ/.test(compact)) return '특별 서비스는 없습니다.';
+  if (/ไม่มีบริการทางเพศ/.test(compact)) return '성적인 서비스는 제공하지 않습니다.';
+  if (/อย่าพูดแบบนั้น|กรุณาอย่าพูดแบบนั้น/.test(compact)) return '그런 말씀은 하지 말아 주세요.';
+  if (/อย่าแตะตัวพนักงาน|ห้ามแตะตัวพนักงาน|อย่าจับตัว/.test(compact)) return '직원을 만지지 말아 주세요.';
+  if (/จะหยุดบริการ|หยุดนวด/.test(compact) && /พูด|ทำ|แบบนี้|ยัง/.test(compact)) return '계속 그러시면 서비스를 중단하겠습니다.';
+  if (/เรียกผู้จัดการ/.test(compact)) return '매니저를 부르겠습니다.';
+  if (/แจ้งตำรวจ|โทรตำรวจ/.test(compact)) return '경찰에 신고하겠습니다.';
+  if (/ฉันรู้สึกไม่ปลอดภัย|ไม่ปลอดภัย/.test(compact)) return '저는 안전하지 않다고 느껴요.';
+  if (/ล่วงละเมิดทางเพศ|คุกคามทางเพศ/.test(compact)) return '이건 성희롱입니다.';
+  if (/ออกจากห้อง|ออกไปจากห้อง/.test(compact)) return '방에서 나가 주세요.';
+
+  // Pharmacy / women health Thai -> Korean
+  if (/ยาคุมฉุกเฉิน/.test(compact)) return '사후피임약이 필요해요.';
+  if (/ยาคุมกำเนิด|ยาคุม/.test(compact) && !/ฉุกเฉิน/.test(compact)) return '피임약이 필요해요.';
+  if (/ถุงยาง/.test(compact)) return '콘돔 주세요.';
+  if (/ที่ตรวจครรภ์|ชุดตรวจครรภ์|ตรวจครรภ์/.test(compact)) return '임신 테스트기 주세요.';
+  if (/ปวดท้องประจำเดือน|ปวดท้องเมนส์/.test(compact)) return '생리통이 있어요.';
+  if (/ประจำเดือนมาไม่ปกติ|เมนส์มาไม่ปกติ/.test(compact)) return '생리가 불규칙해요.';
+  if (/ต้องใช้ใบสั่งยาไหม/.test(compact)) return '처방전이 필요해요?';
+
   // Korean loanword spoken by Thai users
   if (compact === '출장') return '출장';
   if (/ชุลจัง|ชุนจัง|ชูจัง/.test(compact)) return '출장';
@@ -1288,6 +1394,8 @@ function detectSituationFromUIContext(context) {
   if (/สนามบิน|เที่ยวบิน|airport|flight|공항|항공편/.test(c)) return 'airport';
   if (/ตม|ห้องเย็น|ตรวจคนเข้าเมือง|immigration|입국심사|출입국심사|2차 심사/.test(c)) return 'airport_immigration';
   if (/คอนเสิร์ต|แฟนมีต|K-?pop|BLACKPINK|BTS|콘서트|팬미팅|아이돌/.test(c)) return 'concert_kpop';
+  if (/นวด|หมอนวด|massage|마사지|안마|스웨디시|아로마/.test(c)) return 'massage_safety';
+  if (/ยา|ร้านขายยา|ยาคุม|ฉุกเฉิน|피임약|사후피임약|약국|생리|임신/.test(c)) return 'pharmacy_women_health';
   if (/เที่ยว|ท่องเที่ยว|tour|travel spot|관광|관광지/.test(c)) return 'tourism';
   if (/tax.?refund|택스리펀드|면세|ปลอดภาษี|คืนภาษี|เครื่องสำอาง/.test(c)) return 'shopping_taxfree';
   if (/อีสาน|Isaan/.test(c)) return 'isaan';
@@ -1312,6 +1420,8 @@ function autoDetectSituation(text, fallback = 'general') {
   if (shouldLoadConcertKpopVocab(t)) return 'concert_kpop';
   if (shouldLoadTourismVocab(t)) return 'tourism';
   if (shouldLoadShoppingTaxfreeVocab(t)) return 'shopping_taxfree';
+  if (shouldLoadMassageSafetyVocab(t)) return 'massage_safety';
+  if (shouldLoadPharmacyWomenHealthVocab(t)) return 'pharmacy_women_health';
   if (/출장|외근|ชุลจัง|ชุนจัง|ชูจัง/.test(t)) return 'work';
   if (shouldLoadOnlineShoppingVocab(t)) return 'online';
   if (shouldLoadDentalVocab(t) || shouldLoadMedicalBodyDetailVocab(t) || shouldLoadMedicineVocab(t)) return 'hospital';
@@ -1518,6 +1628,16 @@ function shouldLoadShoppingTaxfreeVocab(text) {
   return /ปลอดภาษี|คืนภาษี|Tax refund|tax refund|แท็กซ์รีฟันด์|ดิวตี้ฟรี|Duty Free|พาสปอร์ตต้องใช้ไหม|ร้านเครื่องสำอาง|เครื่องสำอาง|สกินแคร์|กันแดด|มาสก์หน้า|ลิปสติก|รองพื้น|ของแท้ไหม|ลดราคาไหม|Olive Young|โอลีฟยัง|면세|택스리펀드|세금 환급|여권 필요|화장품|스킨케어|선크림|마스크팩|립스틱|파운데이션|정품|할인|올리브영/.test(t);
 }
 
+function shouldLoadMassageSafetyVocab(text) {
+  const t = String(text || '');
+  return /นวด|หมอนวด|นวดไทย|นวดน้ำมัน|นวดอโรม่า|นวดสปอร์ต|ร้านนวด|กดแรง|กดเบา|พลิกตัว|นอนคว่ำ|นอนหงาย|บริการพิเศษ|ไปต่อ|เพิ่มเงิน|จับได้ไหม|ขอเบอร์|ล่วงเกิน|คุกคาม|ไม่ปลอดภัย|ผู้จัดการ|마사지|안마|타이마사지|오일마사지|아로마|스포츠마사지|스웨디시|특별 서비스|2차|추가 요금|얼마 더|만져도|손 잡아도|연락처|술 한잔|성희롱|불쾌|매니저|직원을 만지|나가 주세요/.test(t);
+}
+
+function shouldLoadPharmacyWomenHealthVocab(text) {
+  const t = String(text || '');
+  return /ยา|ร้านขายยา|ยาแก้ปวด|ยาแก้อักเสบ|ยาแก้แพ้|ยาคุม|ยาคุมฉุกเฉิน|ยาคุมกำเนิด|ถุงยาง|ตรวจครรภ์|ประจำเดือน|เมนส์|ปวดท้องเมนส์|ตั้งครรภ์|ท้องไหม|โรคติดต่อทางเพศ|ตกขาว|คัน|ปัสสาวะแสบ|กระเพาะปัสสาวะ|약국|약|진통제|소염제|항생제|피임약|사후피임약|응급피임약|콘돔|임신테스트기|생리|생리통|임신|성병|질염|방광염|소변 볼 때 아파|처방전/.test(t);
+}
+
 function shouldLoadKoreanCommonVocab(text) {
   const t = String(text || '');
   return /몇시|언제|어디|들어와요|돌아와요|오세요|와요|가요|출발|도착|기숙사|회사|수업|질문|괜찮아요|안돼요|돼요|몰라요|알겠어요|네|예|그래요|그렇군요|됐어요|아니에요|좋아요|잠깐만요|잠시만요/.test(t);
@@ -1554,6 +1674,8 @@ function buildVocabHint(text, finalSit, uiSit) {
   if (shouldLoadConcertKpopVocab(text) || finalSit === 'concert_kpop' || uiSit === 'concert_kpop') sections.push(CONCERT_KPOP_ENTERTAINMENT_VOCAB);
   if (shouldLoadTourismVocab(text) || finalSit === 'tourism' || uiSit === 'tourism') sections.push(TOURISM_PHOTO_ATTRACTION_VOCAB);
   if (shouldLoadShoppingTaxfreeVocab(text) || finalSit === 'shopping_taxfree' || uiSit === 'shopping_taxfree') sections.push(SHOPPING_TAXFREE_COSMETICS_VOCAB);
+  if (shouldLoadMassageSafetyVocab(text) || finalSit === 'massage_safety' || uiSit === 'massage_safety') sections.push(MASSAGE_PROFESSIONAL_SAFETY_VOCAB);
+  if (shouldLoadPharmacyWomenHealthVocab(text) || finalSit === 'pharmacy_women_health' || uiSit === 'pharmacy_women_health') sections.push(PHARMACY_WOMEN_HEALTH_VOCAB);
   if (shouldLoadThaiSiaAmbiguity(text)) sections.push(THAI_SIA_AMBIGUITY_VOCAB);
   if (shouldLoadDentalVocab(text)) sections.push(DENTAL_VOCAB);
   if (shouldLoadMedicalBodyDetailVocab(text)) sections.push(MEDICAL_BODY_DETAIL_VOCAB);
@@ -1700,6 +1822,20 @@ SERVICE / OFFICE / HOSPITAL SPEECH:
 - Korean staff often use indirect polite questions. Translate naturally into Thai without changing who asks or who answers.
 - 예약하셨어요? = ได้จองไว้ไหม, 접수하셨어요? = ลงทะเบียน/รับคิวแล้วไหม, 신분증 있으세요? = มีบัตรประจำตัวไหม.
 
+MASSAGE / HARASSMENT SAFETY RULE:
+- In massage context, translate sexual harassment or boundary-violating phrases accurately so the worker understands them.
+- Do not encourage, negotiate, or imply consent to sexual services.
+- If the worker refuses or sets a boundary, translate politely but firmly.
+- Professional massage means health/body massage only unless the input explicitly says otherwise.
+
+PHARMACY / WOMEN HEALTH RULE:
+- Translate medicine and women-health terms accurately.
+- Do not provide dosage, diagnosis, or medical advice. Translate only.
+- 사후피임약 / 응급피임약 = ยาคุมฉุกเฉิน.
+- 피임약 = ยาคุมกำเนิด.
+- 콘돔 = ถุงยางอนามัย.
+- 임신 테스트기 = ที่ตรวจครรภ์.
+
 KOREAN STT CORRECTION:
 - 마치마치 들어와요 / 매치 들어와요 / 미지근 들어와요 / 며칠 들어와요 usually means 몇 시에 들어와요?
 - 마치마치 돌아와요 / 매치 돌아와요 / 며칠 돌아와요 usually means 몇 시에 돌아와요?
@@ -1723,6 +1859,16 @@ HOSPITAL / MEDICINE:
 - ฟันคุด = 사랑니, never 충치 and never 앞니.
 
 ISAN CONTEXT:
+- บ่ at the END of a clause/sentence usually marks a yes/no question like ไหม/หรือยัง. Do NOT translate final บ่ as Korean 안/못 negation.
+  Example: มื้ออื่นไปโรงพยาบาลบ่? = 내일 병원에 갈 거예요?
+  Example: กินข้าวแล้วบ่? = 밥 먹었어요?
+- บ่ before a verb/adjective can mean ไม่, but final บ่ is usually a question marker.
+- บ่หึ / บ่ฮึ / บ่หือ / บ่ฮือ / บ่ติ / บ่ตี้ / บ่เบาะ / บ่น้อ / บ่เนาะ / บ่หนอ / บ่ล่ะ at the END of a clause are question markers like ไหม/หรือเปล่า/ใช่ไหม.
+  Example: ไปบ่หึ? = 가요? | เข้าใจบ่ฮึ? = 이해했어요? | กินข้าวแล้วบ่หือ? = 밥 먹었어요?
+- บ่ + verb/adjective + หึ/ฮึ/หือ/etc. = negative question like ไม่...เหรอ.
+  Example: บ่ไปหึ? = 안 가요? | บ่เข้าใจฮึ? = 이해 못 했어요?
+- เบาะ / บ้อ / บ๋อ at the END can also be Isan/Lao-style question markers like ไหม/เหรอ.
+- Names such as เอิร์น must be kept as a name by sound, not translated as 어른/adult.
 - ซิดเบ็ด / ซิสเบ็ด / สิดเบ็ด / สิทเบ็ด / สิบเบ็ด / 10เบ็ด means ตกเบ็ด / ตกปลา / 낚시하다. Never treat as number ten.
 - มื้อนี้ means วันนี้, not meal.
 - มื้ออื่น means พรุ่งนี้, not another meal.
@@ -2075,6 +2221,8 @@ const SITUATION_CONTEXT = {
   hotel: 'Hotel / check-in / checkout / room / luggage storage / room problems.',
   concert_kpop: 'Concert / fan meeting / K-pop / idol goods / seats / entry / photography rules.',
   tourism: 'Tourism / attractions / photo spots / opening hours / entrance fee / directions.',
+  massage_safety: 'Professional massage context. Translate normal massage service vocabulary and boundary/safety phrases. Understand risky sexual-harassment phrases only for accurate translation and safe refusal; never imply agreement to sexual services.',
+  pharmacy_women_health: 'Pharmacy and women health context. Focus on medicine names, contraception, emergency contraception, condoms, pregnancy tests, period pain, prescription, and pharmacy communication. Translate only; do not give medical advice.',
   shopping_taxfree: 'Shopping / tax refund / duty free / cosmetics / Olive Young / authentic products.'
 };
 
@@ -2345,7 +2493,10 @@ const ISAN_CORE_COMPACT = `
 เพิ่น=เขา/เธอ/คนนั้น
 อ้าย=พี่ชาย, not AI
 เอื้อย=พี่สาว, not name
-บ่=ไม่
+บ่=ไม่ when before verb/adjective; final บ่=ไหม/หรือยัง question marker
+บ่หึ/บ่ฮึ/บ่หือ/บ่ฮือ=ไหม/หรือเปล่า/ใช่ไหม when at sentence end
+บ่ติ/บ่ตี้/บ่เบาะ/บ่น้อ/บ่เนาะ/บ่หนอ/บ่ล่ะ/บ่ละ=ไหม/หรือเปล่า/ใช่ไหม when at sentence end
+เบาะ/บ้อ/บ๋อ=ไหม/เหรอ/หรือเปล่า when at sentence end
 แม่น=ใช่/ถูก
 หยัง/อีหยัง=อะไร
 ไผ=ใคร
@@ -2382,6 +2533,12 @@ const ISAN_CORE_COMPACT = `
 
 const ISAN_AMBIGUITY_RULES = `
 [Isan ambiguity rules]
+Final บ่ at the end of a sentence = ไหม/หรือยัง question marker, not negation.
+Do not translate final บ่ as 안/못.
+Final บ่หึ/บ่ฮึ/บ่หือ/บ่ฮือ/บ่ติ/บ่ตี้/บ่เบาะ/บ่น้อ/บ่เนาะ/บ่หนอ/บ่ล่ะ/บ่ละ = ไหม/หรือเปล่า/ใช่ไหม.
+บ่ + verb/adjective + หึ/ฮึ/หือ/ฮือ/ติ/ตี้/etc. = negative question, e.g. บ่ไปหึ = ไม่ไปเหรอ = 안 가요?
+เบาะ/บ้อ/บ๋อ at sentence end can be question markers, not nouns.
+เอิร์น is usually a Thai name (Earn/Un) when followed by a verb; do not translate as 어른/adult.
 อ้าย at beginning or end = older brother / friendly male address, not AI.
 เอื้อย = older sister / friendly female address.
 เกิบ = shoes.
@@ -3422,6 +3579,131 @@ Olive Young/โอลีฟยัง=올리브영
 택스리펀드 가능해요?=ทำ Tax refund ได้ไหมครับ/คะ
 여권 필요해요?=ต้องใช้พาสปอร์ตไหมครับ/คะ
 정품이에요?=เป็นของแท้ไหมครับ/คะ
+`;
+
+
+const MASSAGE_PROFESSIONAL_SAFETY_VOCAB = `
+[Professional massage / boundary safety]
+นวด=마사지
+นวดไทย=타이 마사지
+นวดน้ำมัน=오일 마사지
+นวดอโรม่า=아로마 마사지
+นวดสปอร์ต=스포츠 마사지
+นวดคอ=목 마사지
+นวดไหล่=어깨 마사지
+นวดหลัง=등 마사지
+นวดเอว=허리 마사지
+นวดขา=다리 마사지
+นวดเท้า=발 마사지
+กดแรงขึ้น=조금 더 세게 해 주세요
+กดเบาลง=조금 약하게 해 주세요
+เจ็บไหม=아프세요?
+เจ็บตรงไหน=어디가 아프세요?
+พลิกตัว=몸을 뒤집어 주세요
+นอนคว่ำ=엎드려 주세요
+นอนหงาย=바로 누워 주세요
+ผ่อนคลาย=편하게 쉬세요
+น้ำมันนวด=마사지 오일
+ผ้าขนหนู=수건
+ห้องเปลี่ยนเสื้อผ้า=탈의실
+สเต็ปหนึ่ง/สเต็ปสอง/สเต็ปสาม=1단계/2단계/3단계 หรือ 1번 코스/2번 코스/3번 코스 ตามบริบท
+คอร์ส=코스
+เวลานวด=마사지 시간
+ต่อเวลา=시간 연장
+
+[Boundary / safety]
+ที่นี่ให้บริการนวดเพื่อสุขภาพเท่านั้น=여기는 건강 마사지 서비스만 제공합니다.
+ไม่มีบริการพิเศษ=특별 서비스는 없습니다.
+ไม่มีบริการทางเพศ=성적인 서비스는 제공하지 않습니다.
+กรุณาอย่าพูดแบบนั้น=그런 말씀은 하지 말아 주세요.
+กรุณาให้เกียรติพนักงาน=직원을 존중해 주세요.
+กรุณาอย่าแตะตัวพนักงาน=직원을 만지지 말아 주세요.
+ถ้ายังพูดแบบนี้ จะหยุดบริการ=계속 그런 말씀을 하시면 서비스를 중단하겠습니다.
+ถ้ายังทำแบบนี้ จะเรียกผู้จัดการ=계속 그러시면 매니저를 부르겠습니다.
+ถ้ายังล่วงเกิน จะโทรแจ้งตำรวจ=계속 성희롱하시면 경찰에 신고하겠습니다.
+ฉันรู้สึกไม่สบายใจ=저는 불쾌합니다.
+ฉันรู้สึกไม่ปลอดภัย=저는 안전하지 않다고 느껴요.
+นี่เป็นการล่วงละเมิดทางเพศ=이건 성희롱입니다.
+กรุณาออกจากห้อง=방에서 나가 주세요.
+
+[Risky customer phrases — understand and translate only]
+특별 서비스 있어요?=มีบริการพิเศษไหม
+2차 가능해요?=ไปต่อ/มีบริการต่อได้ไหม
+추가 요금 내면 돼요?=ถ้าเพิ่มเงินได้ไหม
+얼마 더 주면 돼요?=ต้องจ่ายเพิ่มเท่าไหร่
+끝나고 같이 갈래요?=เสร็จแล้วไปด้วยกันไหม
+개인적으로 만날 수 있어요?=เจอกันส่วนตัวได้ไหม
+연락처 주세요=ขอเบอร์ติดต่อหน่อย
+술 한잔할래요?=ไปดื่มด้วยกันไหม
+만져도 돼요?=จับได้ไหม
+손 잡아도 돼요?=จับมือได้ไหม
+몸매가 좋네요=รูปร่างดีนะ
+남자친구 있어요?=มีแฟนหรือยัง
+혼자 살아요?=อยู่คนเดียวไหม
+어디 살아?=พักอยู่แถวไหน
+손님이 성희롱 발언을 했어요=ลูกค้าพูดจาล่วงเกิน
+손님이 직원을 만졌어요=ลูกค้าแตะตัวพนักงาน
+손님이 나가지 않아요=ลูกค้าไม่ยอมออกไป
+손님이 협박했어요=ลูกค้าข่มขู่
+매니저를 불러 주세요=ช่วยเรียกผู้จัดการ
+경찰에 전화해 주세요=ช่วยโทรตำรวจ
+`;
+
+const PHARMACY_WOMEN_HEALTH_VOCAB = `
+[Pharmacy / women health / medicine]
+ร้านขายยา=약국
+ยา=약
+เภสัชกร=약사
+ใบสั่งยา=처방전
+ต้องใช้ใบสั่งยา=처방전이 필요해요
+ไม่ต้องใช้ใบสั่งยา=처방전 없이 살 수 있어요
+ยาเม็ด=알약 / 정제
+ยาแคปซูล=캡슐
+ยาน้ำ=시럽 / 물약
+ยาทา=연고
+แผ่นแปะ=패치
+ยาแก้ปวด=진통제
+พาราเซตามอล=아세트아미노펜 / 타이레놀 계열
+ไอบูโพรเฟน=이부프로펜
+ยาแก้อักเสบ=소염제
+ยาปฏิชีวนะ/ยาฆ่าเชื้อ=항생제
+ยาแก้แพ้=알레르기약 / 항히스타민제
+ยาแก้ไอ=기침약
+ยาแก้เจ็บคอ=인후통 약
+ยาแก้ท้องเสีย=설사약
+ยาแก้ท้องผูก=변비약
+ยาลดกรด=제산제
+ยาแก้เมารถ=멀미약
+ยานอนหลับ=수면제
+ยาหยอดตา=안약
+สเปรย์พ่นจมูก=코 스프레이
+แพ้ยา=약 알레르기가 있어요
+ผลข้างเคียง=부작용
+กินหลังอาหาร=식후에 복용하세요
+กินก่อนอาหาร=식전에 복용하세요
+วันละกี่ครั้ง=하루에 몇 번 복용해요?
+
+[Contraception / sexual health / women health]
+ยาคุมกำเนิด=피임약
+ยาคุมฉุกเฉิน=사후피임약 / 응급피임약
+ถุงยางอนามัย=콘돔
+เจลหล่อลื่น=윤활젤
+ที่ตรวจครรภ์/ชุดตรวจครรภ์=임신 테스트기
+ตั้งครรภ์=임신
+ประจำเดือน/เมนส์=생리
+ปวดท้องประจำเดือน=생리통
+ประจำเดือนมาไม่ปกติ=생리가 불규칙해요
+เลือดออกผิดปกติ=비정상 출혈
+ตกขาว=질 분비물
+คันช่องคลอด=질 가려움
+ช่องคลอดอักเสบ=질염
+ปัสสาวะแสบ=소변 볼 때 아파요
+กระเพาะปัสสาวะอักเสบ=방광염
+โรคติดต่อทางเพศสัมพันธ์=성병 / 성매개감염
+ตรวจโรคติดต่อทางเพศ=성병 검사를 받고 싶어요
+ฉันต้องการปรึกษาเภสัชกร=약사님과 상담하고 싶어요
+ยานี้กินยังไง=이 약은 어떻게 먹어요?
+ยานี้มีผลข้างเคียงอะไรไหม=이 약은 부작용이 있어요?
 `;
 
 const DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB = `
