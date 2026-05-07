@@ -13,6 +13,7 @@
 // - Hospital / dental / wisdom tooth / pus / bone / body pain
 // - Isan / fishing / food / ceremony / banter
 // - SIM / mobile / used car / work / housing / visa / bank
+// - Massage safety / consent / pharmacy / consular / insurance final coverage
 // - Google Sheet logging
 // ============================================================
 
@@ -265,6 +266,7 @@ function normalizeAll(input, fromLang) {
 
   t = normalizeCommonThai(t);
   t = normalizeThaiLoanwords(t);
+  t = normalizeThaiPlaceLoanwords(t);
   t = normalizeKoreanSTT(t);
   t = normalizeCoupangAndOnline(t);
   t = normalizeIsanAndHobby(t);
@@ -321,8 +323,47 @@ function normalizeThaiLoanwords(text) {
     [/ซาจัง/g, '사장님'],
     [/สาจำนี/g, '사장님'],
     [/สจนี/g, '사장님'],
+    [/พันจังนิม/g, '반장님'],
     [/พันจัง/g, '반장님'],
+    [/บันจังนิม/g, '반장님'],
     [/บันจัง/g, '반장님'],
+
+    // Korean workplace titles spoken by Thai workers (with/without 님)
+    [/พูจังนิม/g, '부장님'],
+    [/บูจังนิม/g, '부장님'],
+    [/พูจัง/g, '부장님'],
+    [/บูจัง/g, '부장님'],
+    [/ควาจังนิม/g, '과장님'],
+    [/กวาจังนิม/g, '과장님'],
+    [/ควาจัง/g, '과장님'],
+    [/กวาจัง/g, '과장님'],
+    [/ชาจังนิม/g, '차장님'],
+    [/ชาจัง/g, '차장님'],
+    [/แทรีนิม/g, '대리님'],
+    [/เทรีนิม/g, '대리님'],
+    [/แทรี/g, '대리님'],
+    [/เทรี/g, '대리님'],
+    [/จูอิมนิม/g, '주임님'],
+    [/จูอิม/g, '주임님'],
+    [/ทีมจังนิม/g, '팀장님'],
+    [/ทีมจัง/g, '팀장님'],
+    [/โจจังนิม/g, '조장님'],
+    [/โจจัง/g, '조장님'],
+    [/อีซานิม/g, '이사님'],
+    [/อีซา/g, '이사님'],
+    [/ซิลจังนิม/g, '실장님'],
+    [/ชิลจังนิม/g, '실장님'],
+    [/ซิลจัง/g, '실장님'],
+    [/ชิลจัง/g, '실장님'],
+    [/คงจังจังนิม/g, '공장장님'],
+    [/กงจังจังนิม/g, '공장장님'],
+    [/คงจังจัง/g, '공장장님'],
+    [/กงจังจัง/g, '공장장님'],
+    [/ซังมูนิม/g, '상무님'],
+    [/จอนมูนิม/g, '전무님'],
+    [/ฮเวจังนิม/g, '회장님'],
+    [/แทพโยนิม/g, '대표님'],
+    [/แทพโย/g, '대표님'],
 
     [/เวกุกอิน/g, '외국인'],
     [/เวกุกคน/g, '외국인'],
@@ -332,6 +373,98 @@ function normalizeThaiLoanwords(text) {
 
   let t = String(text || '');
   for (const [a, b] of pairs) t = t.replace(a, b);
+  return t;
+}
+
+
+function normalizeThaiPlaceLoanwords(text) {
+  let t = String(text || '');
+
+  // Korean station suffix spoken by Thai users:
+  // หย็อก/หยอก/หยก/ย็อก/ยอก = 역 = station. Do not treat as joking or jade.
+  const stationAliases = [
+    ['อันซัน', '안산'], ['อันซาน', '안산'], ['ansan', '안산'],
+    ['โซล', '서울'], ['ซออุล', '서울'], ['ซ Seoul', '서울'],
+    ['ซูวอน', '수원'], ['สุวอน', '수원'],
+    ['อินชอน', '인천'], ['อินcheon', '인천'],
+    ['พยองแท็ก', '평택'], ['พยองเท็ก', '평택'], ['พย็องแท็ก', '평택'],
+    ['ชอนอัน', '천안'], ['ชอนัน', '천안'], ['เชนัน', '천안'],
+    ['คังนัม', '강남'], ['กังนัม', '강남'], ['แกงนัม', '강남'],
+    ['เมียงดง', '명동'], ['มยองดง', '명동'], ['เมียงดง', '명동'],
+    ['ฮงแดอิบกู', '홍대입구'], ['ฮงแด입구', '홍대입구'], ['ฮงแด', '홍대입구'], ['ฮงเด', '홍대입구'],
+    ['ทงแดมุน', '동대문'], ['ดงแดมุน', '동대문'],
+    ['นัมแดมุน', '남대문'], ['นัมเดมุน', '남대문'],
+    ['อีแทวอน', '이태원'], ['อิแทวอน', '이태원'], ['อีเทวอน', '이태원'],
+    ['อินซาดง', '인사동'], ['อิกซอนดง', '익선동'], ['อิคซอนดง', '익선동'],
+    ['ซองซู', '성수'], ['ซองซูดง', '성수'],
+    ['ยอนนัมดง', '연남동'], ['ยอนนัม', '연남동'],
+    ['ชินชน', '신촌'], ['ชินชอน', '신촌'],
+    ['อัพกูจอง', '압구정'], ['อับกูจอง', '압구정'],
+    ['ชองดัม', '청담'], ['ชองดัมดง', '청담'],
+    ['มังวอน', '망원'], ['จัมซิล', '잠실'], ['ชัมชิล', '잠실'],
+    ['กิมโป', '김포공항'], ['คิมโพ', '김포공항'],
+    ['สนามบินอินชอน', '인천공항'], ['อินชอนคงฮัง', '인천공항'], ['คงฮังอินชอน', '인천공항'],
+    ['สนามบินกิมโป', '김포공항'], ['กิมโปคงฮัง', '김포공항'], ['คิมโพคงฮัง', '김포공항']
+  ];
+
+  for (const [thai, kr] of stationAliases) {
+    const re = new RegExp(escapeRegExp(thai) + '\\s*(หย็อก|หยอก|หยก|ย็อก|ยอก|역)', 'gi');
+    t = t.replace(re, kr.endsWith('공항') ? kr : kr + '역');
+  }
+
+  const placeAliases = [
+    ['เมียงดง', '명동'], ['มยองดง', '명동'],
+    ['ฮงแดอิบกู', '홍대입구'], ['ฮงแด', '홍대'], ['ฮงเด', '홍대'],
+    ['คังนัม', '강남'], ['กังนัม', '강남'], ['แกงนัม', '강남'],
+    ['อีแทวอน', '이태원'], ['อิแทวอน', '이태원'], ['อีเทวอน', '이태원'],
+    ['ทงแดมุน', '동대문'], ['ดงแดมุน', '동대문'],
+    ['นัมแดมุน', '남대문'], ['นัมเดมุน', '남대문'],
+    ['อินซาดง', '인사동'], ['อิกซอนดง', '익선동'], ['อิคซอนดง', '익선동'],
+    ['ซองซูดง', '성수동'], ['ซองซู', '성수'],
+    ['ยอนนัมดง', '연남동'], ['ยอนนัม', '연남동'],
+    ['ชินชน', '신촌'], ['ชินชอน', '신촌'],
+    ['อัพกูจอง', '압구정'], ['อับกูจอง', '압구정'],
+    ['ชองดัม', '청담'], ['ชองดัมดง', '청담동'],
+    ['มังวอน', '망원'], ['จัมซิล', '잠실'], ['ชัมชิล', '잠실'],
+    ['ล็อตเต้เวิลด์', '롯데월드'], ['ลอตเต้เวิลด์', '롯데월드'],
+    ['โซลทาวเวอร์', 'N서울타워'], ['นัมซานทาวเวอร์', '남산타워'], ['นัมซาน', '남산'],
+    ['เคียงบกกุง', '경복궁'], ['คยองบกกุง', '경복궁'], ['กยองบกกุง', '경복궁'],
+    ['ชางด็อกกุง', '창덕궁'], ['ชางด๊อกกุง', '창덕궁'],
+    ['ชางกยองกุง', '창경궁'], ['ถ็อกซูกุง', '덕수궁'], ['ด็อกซูกุง', '덕수궁'],
+    ['ชองกเยชอน', '청계천'], ['คลองชองกเยชอน', '청계천'],
+    ['ฮันกัง', '한강'], ['แม่น้ำฮัน', '한강'], ['สวนฮันกัง', '한강공원'],
+    ['เกาะนามิ', '남이섬'], ['นามิซอม', '남이섬'],
+    ['เอเวอร์แลนด์', '에버랜드'],
+    ['เชจู', '제주도'], ['เจจู', '제주도'], ['เกาะเชจู', '제주도'], ['เกาะเจจู', '제주도'],
+    ['ปูซาน', '부산'], ['บูซาน', '부산'],
+    ['แฮอุนแด', '해운대'], ['เฮอุนแด', '해운대'],
+    ['ควางอัลลี', '광안리'], ['กวางอัลลี', '광안리'],
+    ['คยองจู', '경주'], ['กยองจู', '경주'],
+    ['ซกโช', '속초'], ['ซ็อกโช', '속초'],
+    ['คังนึง', '강릉'], ['กังนึง', '강릉'],
+    ['อินชอน', '인천'], ['อันซัน', '안산'], ['ซูวอน', '수원'], ['ชอนอัน', '천안'], ['พยองแท็ก', '평택']
+  ];
+
+  // Replace only when written as Thai place name; do not touch already-Korean words.
+  for (const [thai, kr] of placeAliases) {
+    const re = new RegExp(escapeRegExp(thai), 'g');
+    t = t.replace(re, kr);
+  }
+
+  // Transportation loanwords Thai users often speak in Korea.
+  const transportPairs = [
+    [/จีฮาชอล/g, '지하철'], [/จีฮาชอน/g, '지하철'], [/ชิฮาชอล/g, '지하철'],
+    [/ซับเวย์/g, '지하철'], [/ซับเว/g, '지하철'],
+    [/คีชา/g, '기차'], [/กีชา/g, '기차'], [/กี차/g, '기차'],
+    [/เคทีเอ็กซ์/g, 'KTX'], [/เคทีเอ็ก/g, 'KTX'],
+    [/บาซือ/g, '버스'], [/บัส/g, '버스'],
+    [/แทกซี่/g, '택시'], [/แท็กซี่/g, '택시'],
+    [/ชอง류จัง/g, '정류장'], [/จอง류จัง/g, '정류장'], [/ป้ายบัส/g, '버스 정류장'], [/ป้ายรถเมล์/g, '버스 정류장'],
+    [/บัสเทอมินอล/g, '버스터미널'], [/เทอมินอล/g, '터미널'], [/เทอร์มินอล/g, '터미널'],
+    [/คงฮัง/g, '공항'], [/กงฮัง/g, '공항']
+  ];
+  for (const [a, b] of transportPairs) t = t.replace(a, b);
+
   return t;
 }
 
@@ -1059,6 +1192,44 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   if (/나도못해요/.test(compact)) return `ผมก็ทำไม่เป็น${polite}`;
   if (/운동.*못해요|게임.*못해요|잘못해요/.test(compact)) return `ทำไม่ค่อยเป็น${polite}`;
 
+  const titleMap = {
+    '사장님': `เถ้าแก่ / นายจ้าง / คุณ${polite}`,
+    '대표님': `ผู้แทนบริษัท / CEO / กรรมการผู้จัดการ${polite}`,
+    '회장님': `ประธานใหญ่ / ประธานบริษัท${polite}`,
+    '부회장님': `รองประธานใหญ่${polite}`,
+    '이사님': `กรรมการ / ผู้อำนวยการ / อีซานิม${polite}`,
+    '상무님': `กรรมการบริหารระดับสูง${polite}`,
+    '전무님': `กรรมการบริหารอาวุโส${polite}`,
+    '본부장님': `ผู้อำนวยการฝ่ายใหญ่ / หัวหน้าสำนักงานใหญ่${polite}`,
+    '실장님': `หัวหน้าสำนักงาน / ผู้จัดการฝ่าย / ซิลจังนิม${polite}`,
+    '부장님': `ผู้จัดการแผนก / พูจังนิม${polite}`,
+    '차장님': `รองผู้จัดการแผนก / ชาจังนิม${polite}`,
+    '과장님': `หัวหน้าฝ่าย / ผู้จัดการย่อย / ควาจังนิม${polite}`,
+    '대리님': `รองหัวหน้า / เจ้าหน้าที่อาวุโส / แทรีนิม${polite}`,
+    '주임님': `หัวหน้างานระดับต้น / จูอิมนิม${polite}`,
+    '사원': `พนักงานทั่วไป${polite}`,
+    '직원': `พนักงาน${polite}`,
+    '팀장님': `หัวหน้าทีม / ทีมจังนิม${polite}`,
+    '반장님': `หัวหน้าหน้างาน / พันจังนิม${polite}`,
+    '조장님': `หัวหน้ากลุ่มย่อย / โจจังนิม${polite}`,
+    '현장소장님': `หัวหน้าไซต์งาน / ผู้ควบคุมหน้างาน${polite}`,
+    '공장장님': `ผู้จัดการโรงงาน / คงจังจังนิม${polite}`,
+    '관리자': `ผู้ดูแล / ผู้จัดการ${polite}`,
+    '담당자': `เจ้าหน้าที่ผู้รับผิดชอบ${polite}`,
+    '인사담당자': `เจ้าหน้าที่ฝ่ายบุคคล${polite}`,
+    '총무': `ฝ่ายธุรการ${polite}`,
+    '경리': `ฝ่ายบัญชี/การเงิน${polite}`,
+    '회계': `ฝ่ายบัญชี${polite}`,
+    '생산관리': `ฝ่ายควบคุมการผลิต${polite}`,
+    '품질관리': `ฝ่ายควบคุมคุณภาพ / QC${polite}`,
+    '안전관리자': `เจ้าหน้าที่ความปลอดภัย${polite}`
+  };
+  if (titleMap[compact]) return titleMap[compact];
+
+  if (/담당자.*누구/.test(compact)) return `ใครเป็นเจ้าหน้าที่ผู้รับผิดชอบเรื่องนี้${question}`;
+  if (/인사담당자.*어디/.test(compact)) return `เจ้าหน้าที่ฝ่ายบุคคลอยู่ที่ไหน${question}`;
+  if (/팀장님.*계세요|부장님.*계세요|과장님.*계세요|반장님.*계세요/.test(compact)) return `หัวหน้า/ผู้จัดการอยู่ไหม${question}`;
+
   const workMap = {
     '출근했어요': `ไปทำงานแล้ว${polite}`,
     '출근하세요': `ไปทำงานนะ${polite}`,
@@ -1384,8 +1555,23 @@ function hardKoreanToThai(raw, compact, partnerGender) {
     '차': 'รถ / ชา',
     '수건주세요': `ขอผ้าเช็ดตัวหน่อย${polite}`,
     '이거주세요': `ขออันนี้หน่อย${polite}`,
-    '누나': 'พี่สาว',
-    '오빠': 'พี่ชาย / โอปป้า',
+    '형': 'พี่ชาย (ผู้ชายเรียก)',
+    '오빠': 'พี่ชาย (ผู้หญิงเรียก) / โอปป้า',
+    '누나': 'พี่สาว (ผู้ชายเรียก)',
+    '언니': 'พี่สาว (ผู้หญิงเรียก)',
+    '남동생': 'น้องชาย',
+    '여동생': 'น้องสาว',
+    '아버지': 'พ่อ',
+    '어머니': 'แม่',
+    '아빠': 'พ่อ',
+    '엄마': 'แม่',
+    '아들': 'ลูกชาย',
+    '딸': 'ลูกสาว',
+    '조카': 'หลาน (ลูกของพี่หรือน้อง)',
+    '손자': 'หลานชาย (ลูกของลูก)',
+    '손녀': 'หลานสาว (ลูกของลูก)',
+    '사촌': 'ลูกพี่ลูกน้อง',
+    '친척': 'ญาติ',
     '남편': 'สามี',
     '소방관': 'นักดับเพลิง',
     '기술자': 'ช่างเทคนิค',
@@ -1722,6 +1908,8 @@ function detectSituationFromUIContext(context) {
   const c = String(context || '');
 
   if (/โรงพยาบาล|medical|hospital/.test(c)) return 'hospital';
+  if (/ตำแหน่ง|หัวหน้า|ผู้จัดการ|ซาจัง|ควาจัง|พูจัง|บูจัง|ชาจัง|แทรี|เทรี|ทีมจัง|พันจัง|บันจัง|อีซา|อีซานิม|직급|직책|과장|부장|차장|대리|주임|팀장|반장|이사|실장|공장장/.test(c)) return 'company_titles';
+  if (/เครือญาติ|ญาติ|ครอบครัว|พ่อ|แม่|ลูก|หลาน|ลุง|ป้า|น้า|อา|พี่ชาย|พี่สาว|น้องชาย|น้องสาว|family|kinship|친척|가족|아버지|어머니|조카|손자|형|누나|언니|오빠/.test(c)) return 'kinship';
   if (/โรงงาน|เครื่องจักร|ช่าง|กลึง|มิลลิ่ง|ปั๊ม|ปืนลม|แอร์กัน|factory|machine|CNC|선반|밀링|프레스|에어건/.test(c)) return 'factory_detail';
   if (/ทำงาน|แรงงาน|work/.test(c)) return 'work';
   if (/ราชการ|วีซ่า|immigration|legal/.test(c)) return 'visa';
@@ -1759,6 +1947,8 @@ function autoDetectSituation(text, fallback = 'general') {
 
   if (/ช่วยด้วย|ฉุกเฉิน|รถพยาบาล|ตำรวจ|โดนทำร้าย|ไฟไหม้|หมดสติ|119|112|응급|구급차|경찰|화재|의식/.test(t)) return 'emergency';
   if (shouldLoadBirthRegistrationVocab(t)) return 'birth_registration';
+  if (shouldLoadCompanyTitleVocab(t)) return 'company_titles';
+  if (shouldLoadKinshipVocab(t)) return 'kinship';
   if (shouldLoadFactoryDetailedVocab(t)) return 'factory_detail';
   if (shouldLoadTaxOfficeVocab(t)) return 'tax_office';
   if (shouldLoadGovernmentAgencyVocab(t)) return 'government_agencies';
@@ -1979,6 +2169,12 @@ function shouldLoadTourismVocab(text) {
   return /ท่องเที่ยว|สถานที่ท่องเที่ยว|จุดถ่ายรูป|ถ่ายรูป|ช่วยถ่ายรูป|ค่าเข้า|เปิดกี่โมง|ปิดกี่โมง|ใกล้สถานีไหน|ต้องจองไหม|คนเยอะไหม|ร้านดัง|คาเฟ่ดัง|พระราชวัง|ฮงแด|เมียงดง|คังนัม|นัมซาน|관광지|사진 찍|포토존|입장료|몇 시에 열|몇 시에 닫|예약해야|사람 많|유명한 가게|유명한 카페|궁궐|홍대|명동|강남|남산/.test(t);
 }
 
+
+function shouldLoadTouristPlaceAliasVocab(text) {
+  const t = String(text || '');
+  return /หย็อก|หยอก|หยก|ย็อก|ยอก|สถานี|เมียงดง|มยองดง|ฮงแด|ฮงเด|คังนัม|กังนัม|อีแทวอน|อิแทวอน|ทงแดมุน|ดงแดมุน|นัมแดมุน|อินซาดง|อิกซอนดง|ซองซู|ยอนนัม|ชินชน|อัพกูจอง|ชองดัม|มังวอน|จัมซิล|ล็อตเต้เวิลด์|โซลทาวเวอร์|นัมซาน|เคียงบกกุง|คยองบกกุง|ชางด็อกกุง|ชองกเยชอน|ฮันกัง|นามิ|เอเวอร์แลนด์|เชจู|เจจู|ปูซาน|บูซาน|แฮอุนแด|ควางอัลลี|คยองจู|ซกโช|คังนึง|จีฮาชอล|ซับเวย์|ซับเว|คีชา|KTX|เคทีเอ็กซ์|บาซือ|บัส|แท็กซี่|ชอง류จัง|ชอง류จัง|จอง류จัง|เทอมินอล|คงฮัง|명동|홍대|홍대입구|강남|이태원|동대문|남대문|인사동|익선동|성수|연남동|신촌|압구정|청담|망원|잠실|롯데월드|남산|경복궁|창덕궁|창경궁|덕수궁|청계천|한강|남이섬|에버랜드|제주도|부산|해운대|광안리|경주|속초|강릉|역|지하철|기차|버스정류장|버스터미널|공항/.test(t);
+}
+
 function shouldLoadShoppingTaxfreeVocab(text) {
   const t = String(text || '');
   return /ปลอดภาษี|คืนภาษี|Tax refund|tax refund|แท็กซ์รีฟันด์|ดิวตี้ฟรี|Duty Free|พาสปอร์ตต้องใช้ไหม|ร้านเครื่องสำอาง|เครื่องสำอาง|สกินแคร์|กันแดด|มาสก์หน้า|ลิปสติก|รองพื้น|ของแท้ไหม|ลดราคาไหม|Olive Young|โอลีฟยัง|면세|택스리펀드|세금 환급|여권 필요|화장품|스킨케어|선크림|마스크팩|립스틱|파운데이션|정품|할인|올리브영/.test(t);
@@ -1986,12 +2182,17 @@ function shouldLoadShoppingTaxfreeVocab(text) {
 
 function shouldLoadMassageSafetyVocab(text) {
   const t = String(text || '');
-  return /นวด|หมอนวด|นวดไทย|นวดน้ำมัน|นวดอโรม่า|นวดสปอร์ต|ร้านนวด|กดแรง|กดเบา|พลิกตัว|นอนคว่ำ|นอนหงาย|บริการพิเศษ|ไปต่อ|เพิ่มเงิน|จับได้ไหม|ขอเบอร์|ล่วงเกิน|คุกคาม|ไม่ปลอดภัย|ผู้จัดการ|마사지|안마|타이마사지|오일마사지|아로마|스포츠마사지|스웨디시|특별 서비스|2차|추가 요금|얼마 더|만져도|손 잡아도|연락처|술 한잔|성희롱|불쾌|매니저|직원을 만지|나가 주세요/.test(t);
+  return /นวด|หมอนวด|นวดไทย|นวดน้ำมัน|นวดอโรม่า|นวดสปอร์ต|ร้านนวด|กดแรง|กดเบา|พลิกตัว|นอนคว่ำ|นอนหงาย|บริการพิเศษ|ไปต่อ|เพิ่มเงิน|จับได้ไหม|ขอเบอร์|ล่วงเกิน|คุกคาม|ไม่ปลอดภัย|ผู้จัดการ|ยินยอม|ไม่ยินยอม|หยุดก่อน|เจ็บ|ป้องกัน|ถุงยาง|ตรวจโรค|โรคติดต่อ|ตั้งครรภ์|ยาคุมฉุกเฉิน|อวัยวะเพศ|ล่วงละเมิด|คุกคามทางเพศ|마사지|안마|타이마사지|오일마사지|아로마|스포츠마사지|스웨디시|특별 서비스|2차|추가 요금|얼마 더|만져도|손 잡아도|연락처|술 한잔|성희롱|성추행|성폭력|불쾌|동의|동의하지|멈춰|그만|콘돔|성병|임신|사후피임약|응급피임약|매니저|직원을 만지|나가 주세요/.test(t);
 }
 
 function shouldLoadPharmacyWomenHealthVocab(text) {
   const t = String(text || '');
   return /ยา|ร้านขายยา|ยาแก้ปวด|ยาแก้อักเสบ|ยาแก้แพ้|ยาคุม|ยาคุมฉุกเฉิน|ยาคุมกำเนิด|ถุงยาง|ตรวจครรภ์|ประจำเดือน|เมนส์|ปวดท้องเมนส์|ตั้งครรภ์|ท้องไหม|โรคติดต่อทางเพศ|ตกขาว|คัน|ปัสสาวะแสบ|กระเพาะปัสสาวะ|약국|약|진통제|소염제|항생제|피임약|사후피임약|응급피임약|콘돔|임신테스트기|생리|생리통|임신|성병|질염|방광염|소변 볼 때 아파|처방전/.test(t);
+}
+
+function shouldLoadFinalCoverageVocab(text) {
+  const t = String(text || '');
+  return /สถานทูต|กงสุล|อัครราชทูต|หนังสือรับรอง|รับรองเอกสาร|แปลเอกสาร|อพอสทีล|Apostille|ใบมอบอำนาจ|รับรองลายเซ็น|혼인신고|이혼|양육권|친권|인지신고|입양|대사관|영사관|공증|번역공증|아포스티유|위임장|서명인증|보험금 청구|실손보험|보험사|진단서 제출|사고 접수|청구서|보상|ค่าสินไหม|เคลมประกัน|ประกันเดินทาง|ประกันสุขภาพเอกชน|ประกันอุบัติเหตุ/.test(t);
 }
 
 
@@ -2021,6 +2222,17 @@ function shouldLoadLegalOfficeAgentVocab(text) {
   return /สำนักงานกฎหมาย|ทนาย|ที่ปรึกษากฎหมาย|รับจ้างเดินเรื่อง|เดินเรื่องแทน|มอบอำนาจ|หนังสือมอบอำนาจ|ตัวแทน|ผู้รับมอบอำนาจ|ยื่นแทน|ติดตามเรื่อง|เคสลูกค้า|법률사무소|변호사|법무사|행정사|대리인|위임장|위임받은 사람|대리 신청|대리 접수|사건 의뢰인|의뢰인|상담 예약|서류 대행|민원 대행/.test(t);
 }
 
+
+function shouldLoadCompanyTitleVocab(text) {
+  const t = String(text || '');
+  return /ตำแหน่ง|หัวหน้า|ผู้จัดการ|เจ้าหน้าที่ผู้รับผิดชอบ|ฝ่ายบุคคล|ฝ่ายบัญชี|ฝ่ายผลิต|ฝ่ายคุณภาพ|ซาจัง|สาจัง|ซาจังนิม|สาจังนิม|พูจัง|บูจัง|พูจังนิม|บูจังนิม|ควาจัง|กวาจัง|ควาจังนิม|กวาจังนิม|ชาจัง|ชาจังนิม|แทรี|เทรี|แทรีนิม|เทรีนิม|จูอิม|จูอิมนิม|ทีมจัง|ทีมจังนิม|พันจัง|บันจัง|พันจังนิม|บันจังนิม|โจจัง|โจจังนิม|อีซา|อีซานิม|ซิลจัง|ซิลจังนิม|ชิลจัง|ชิลจังนิม|คงจังจัง|กงจังจัง|คงจังจังนิม|กงจังจังนิม|직급|직책|사장님|대표님|회장님|부회장님|이사님|상무님|전무님|본부장님|실장님|부장님|차장님|과장님|대리님|주임님|사원|직원|팀장님|반장님|조장님|현장소장님|공장장님|관리자|담당자|인사담당자|총무|경리|회계|생산관리|품질관리|안전관리자/.test(t);
+}
+
+function shouldLoadKinshipVocab(text) {
+  const t = String(text || '');
+  return /เครือญาติ|ญาติ|ญาติสนิท|ญาติห่าง|ครอบครัว|พ่อ|แม่|บิดา|มารดา|ผู้ปกครอง|ลูกชาย|ลูกสาว|ลูก|บุตร|ผู้เยาว์|สามี|ภรรยา|คู่สมรส|แฟน|พี่ชาย|พี่สาว|น้องชาย|น้องสาว|ปู่|ย่า|ตา|ยาย|ลุง|ป้า|น้า|อา|หลาน|หลานชาย|หลานสาว|ลูกพี่ลูกน้อง|ฝั่งพ่อ|ฝั่งแม่|ลูกของพี่|ลูกของน้อง|가족|친척|부모|아버지|어머니|아빠|엄마|자녀|아들|딸|남편|아내|배우자|형|오빠|누나|언니|남동생|여동생|형제|자매|할아버지|할머니|외할아버지|외할머니|큰아버지|큰어머니|작은아버지|삼촌|고모|이모|외삼촌|조카|손자|손녀|외손자|외손녀|사촌|보호자|미성년자/.test(t);
+}
+
 function shouldLoadKoreanCommonVocab(text) {
   const t = String(text || '');
   return /몇시|언제|어디|들어와요|돌아와요|오세요|와요|가요|출발|도착|기숙사|회사|수업|질문|괜찮아요|안돼요|돼요|몰라요|알겠어요|네|예|그래요|그렇군요|됐어요|아니에요|좋아요|잠깐만요|잠시만요/.test(t);
@@ -2031,6 +2243,8 @@ function buildVocabHint(text, finalSit, uiSit) {
 
   if (shouldLoadKoreanCommonVocab(text)) sections.push(KOREAN_COMMON_REAL_LIFE_VOCAB);
   if (shouldLoadKoreanShortResponseVocab(text)) sections.push(KOREAN_SHORT_RESPONSE_AMBIGUITY_VOCAB, DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB);
+  if (shouldLoadCompanyTitleVocab(text) || finalSit === 'company_titles' || uiSit === 'company_titles') sections.push(COMPANY_TITLES_KOREAN_WORKPLACE_VOCAB);
+  if (shouldLoadKinshipVocab(text) || finalSit === 'kinship' || uiSit === 'kinship') sections.push(KINSHIP_FAMILY_RELATION_VOCAB);
 
   if (finalSit === 'isaan' || looksLikeIsan(text)) {
     sections.push(ISAN_CORE_COMPACT, ISAN_AMBIGUITY_RULES, ISAN_STRUCTURAL_BRIDGE_RULES);
@@ -2056,9 +2270,11 @@ function buildVocabHint(text, finalSit, uiSit) {
   if (shouldLoadHotelVocab(text) || finalSit === 'hotel' || uiSit === 'hotel') sections.push(HOTEL_TRAVEL_STAY_VOCAB);
   if (shouldLoadConcertKpopVocab(text) || finalSit === 'concert_kpop' || uiSit === 'concert_kpop') sections.push(CONCERT_KPOP_ENTERTAINMENT_VOCAB);
   if (shouldLoadTourismVocab(text) || finalSit === 'tourism' || uiSit === 'tourism') sections.push(TOURISM_PHOTO_ATTRACTION_VOCAB);
+  if (shouldLoadTouristPlaceAliasVocab(text) || finalSit === 'tourist_place_aliases' || uiSit === 'tourist_place_aliases') sections.push(TOURIST_PLACE_ALIASES_STATION_VOCAB);
   if (shouldLoadShoppingTaxfreeVocab(text) || finalSit === 'shopping_taxfree' || uiSit === 'shopping_taxfree') sections.push(SHOPPING_TAXFREE_COSMETICS_VOCAB);
   if (shouldLoadMassageSafetyVocab(text) || finalSit === 'massage_safety' || uiSit === 'massage_safety') sections.push(MASSAGE_PROFESSIONAL_SAFETY_VOCAB);
   if (shouldLoadPharmacyWomenHealthVocab(text) || finalSit === 'pharmacy_women_health' || uiSit === 'pharmacy_women_health') sections.push(PHARMACY_WOMEN_HEALTH_VOCAB);
+  if (shouldLoadFinalCoverageVocab(text)) sections.push(CONSULAR_FAMILY_INSURANCE_FINAL_VOCAB);
   if (shouldLoadBirthRegistrationVocab(text) || finalSit === 'birth_registration' || uiSit === 'birth_registration') sections.push(BIRTH_REGISTRATION_KOREA_VOCAB, PUBLIC_OFFICE_AGENT_COMMON_PHRASES_VOCAB);
   if (shouldLoadFactoryDetailedVocab(text) || finalSit === 'factory_detail' || uiSit === 'factory_detail') sections.push(FACTORY_DETAILED_WORKSHOP_VOCAB, FACTORY_REAL_SPEECH_PHRASES_VOCAB);
   if (shouldLoadTaxOfficeVocab(text) || finalSit === 'tax_office' || uiSit === 'tax_office') sections.push(TAX_OFFICE_KOREA_VOCAB, TAX_OFFICE_REAL_PHRASES_VOCAB);
@@ -2210,10 +2426,12 @@ SERVICE / OFFICE / HOSPITAL SPEECH:
 - Korean staff often use indirect polite questions. Translate naturally into Thai without changing who asks or who answers.
 - 예약하셨어요? = ได้จองไว้ไหม, 접수하셨어요? = ลงทะเบียน/รับคิวแล้วไหม, 신분증 있으세요? = มีบัตรประจำตัวไหม.
 
-MASSAGE / HARASSMENT SAFETY RULE:
-- In massage context, translate sexual harassment or boundary-violating phrases accurately so the worker understands them.
-- Do not encourage, negotiate, or imply consent to sexual services.
-- If the worker refuses or sets a boundary, translate politely but firmly.
+MASSAGE / CONSENT / BOUNDARY SAFETY RULE:
+- In massage context, translate boundary, consent, pain, condom, medical, STI, emergency contraception, harassment, and unsafe-customer phrases accurately so the worker understands the situation.
+- Use clinical, neutral wording for sexual-health or body-part terms. Do not make the wording erotic, suggestive, persuasive, or service-promotional.
+- Do not encourage, negotiate, upsell, or imply consent to sexual services.
+- If the input is a refusal, boundary, pain report, request to stop, condom/safety request, or request for help, translate clearly and firmly.
+- If the input is a direct request/offer for sexual service, keep translation neutral and do not add any invitation, price negotiation, or extra detail.
 - Professional massage means health/body massage only unless the input explicitly says otherwise.
 
 PHARMACY / WOMEN HEALTH RULE:
@@ -2294,6 +2512,22 @@ AIRPORT IMMIGRATION / THAI SLANG:
 
 VOCABULARY:
 ${vocabHint}
+
+COMPANY TITLE RULES:
+- Korean company titles may appear alone or after a name, e.g. 김 과장님, 박 부장님, 이 팀장님.
+- Preserve the person's name and translate the title role.
+- Example: 김 과장님한테 확인해 보세요 = ลองเช็กกับคุณคิมหัวหน้าฝ่ายก่อนครับ/ค่ะ.
+- Thai workers may say Korean titles without 님, e.g. ควาจัง, พูจัง, แทรี, ทีมจัง. Treat them as 과장님, 부장님, 대리님, 팀장님 and translate politely.
+- 사장님 in work/salary/contract/factory/order context = เถ้าแก่ / นายจ้าง / เจ้าของกิจการ.
+- 사장님 used as a polite direct address in shops, taxis, restaurants, customer service, or without clear employer context = คุณ / ท่าน, not literal employer.
+
+KINSHIP RULES:
+- Thai kinship terms and Korean kinship terms are context-sensitive. Do not guess family relationships beyond the words spoken.
+- พี่/น้อง/ลุง/ป้า/น้า/อา may be real relatives OR friendly social address. If used as direct address in service/general conversation, translate naturally as คุณ / 아저씨 / 아주머니 / 선생님 rather than blood relative.
+- พี่ชาย/พี่สาว in Korean depends on speaker gender: male speaker older brother=형, male speaker older sister=누나, female speaker older brother=오빠, female speaker older sister=언니.
+- หลาน is ambiguous: 조카 for niece/nephew; 손자/손녀 for grandchild. Use context.
+- ลูกของพี่/น้อง = 조카. ลูกของลูก = 손자/손녀.
+- Preserve names attached to kinship terms: พี่ขวัญ, น้องมิน, ป้าแดง, อาแมน are often title + name.
 
 FINAL OUTPUT:
 Return only the translation in ${targetLang}. No explanation.
@@ -2468,6 +2702,14 @@ function detectKeywords(text, situation) {
     '국민연금': 'ประกัน/กุกมิน',
     'เทจิก': 'เทจิก/ออกงาน',
     '퇴직금': 'เทจิก/ออกงาน',
+    '과장님': 'ตำแหน่ง/หัวหน้าฝ่าย',
+    '부장님': 'ตำแหน่ง/ผู้จัดการแผนก',
+    '팀장님': 'ตำแหน่ง/หัวหน้าทีม',
+    '반장님': 'ตำแหน่ง/หัวหน้าหน้างาน',
+    '사장님': 'ตำแหน่ง/ซาจังนิม',
+    '조카': 'เครือญาติ/หลาน',
+    '손자': 'เครือญาติ/หลานลูกของลูก',
+    '친척': 'เครือญาติ/ญาติ',
     'ห้องเย็น': 'สนามบิน/ห้องเย็น ตม.',
     '입국심사': 'สนามบิน/ตม.',
     '2차 심사': 'สนามบิน/2차 심사',
@@ -4040,6 +4282,94 @@ const TOURISM_PHOTO_ATTRACTION_VOCAB = `
 몇 시에 닫아요?=ปิดกี่โมงครับ/คะ
 `;
 
+
+const TOURIST_PLACE_ALIASES_STATION_VOCAB = `
+[Tourist place aliases / Thai accent / station suffix]
+Rule: Thai users often pronounce Korean station 역 as หย็อก / หยอก / หยก / ย็อก / ยอก.
+- [place] + หย็อก/หยอก/หยก/ย็อก/ยอก = [place]역 / สถานี[place]
+- Do NOT translate หยก as jade or หยอก as joking when it follows a place name.
+- Preserve Korean place names; do not translate their literal meaning.
+
+[Station suffix examples]
+อันซันหย็อก/อันซันหยก=안산역
+ซูวอนหย็อก=수원역
+โซลหย็อก=서울역
+อินชอนหย็อก=인천역
+พยองแท็กหย็อก=평택역
+ชอนอันหย็อก=천안역
+คังนัมหย็อก/กังนัมหย็อก=강남역
+เมียงดงหย็อก/มยองดงหย็อก=명동역
+ฮงแดหย็อก/ฮงแดอิบกูหย็อก=홍대입구역
+ทงแดมุนหย็อก=동대문역
+จัมซิลหย็อก=잠실역
+กิมโปคงฮัง=김포공항
+อินชอนคงฮัง=인천공항
+
+[Seoul popular places]
+เมียงดง/มยองดง=명동
+ฮงแด/ฮงเด=홍대
+ฮงแดอิบกู=홍대입구
+คังนัม/กังนัม=강남
+อีแทวอน/อิแทวอน=이태원
+ทงแดมุน/ดงแดมุน=동대문
+นัมแดมุน=남대문
+อินซาดง=인사동
+อิกซอนดง=익선동
+ซองซู/ซองซูดง=성수/성수동
+ยอนนัม/ยอนนัมดง=연남동
+ชินชน/ชินชอน=신촌
+อัพกูจอง/อับกูจอง=압구정
+ชองดัม=청담
+มังวอน=망원
+จัมซิล/ชัมชิล=잠실
+ล็อตเต้เวิลด์=롯데월드
+โซลทาวเวอร์/N Seoul Tower= N서울타워
+นัมซานทาวเวอร์=남산타워
+นัมซาน=남산
+
+[Palaces / landmarks]
+เคียงบกกุง/คยองบกกุง=경복궁
+ชางด็อกกุง=창덕궁
+ชางกยองกุง=창경궁
+ถ็อกซูกุง/ด็อกซูกุง=덕수궁
+คลองชองกเยชอน=청계천
+ฮันกัง/แม่น้ำฮัน=한강
+สวนฮันกัง=한강공원
+เกาะนามิ/นามิซอม=남이섬
+เอเวอร์แลนด์=에버랜드
+
+[Outside Seoul]
+เชจู/เจจู/เกาะเชจู=제주도
+ปูซาน/บูซาน=부산
+แฮอุนแด=해운대
+ควางอัลลี/กวางอัลลี=광안리
+คยองจู/กยองจู=경주
+ซกโช=속초
+คังนึง/กังนึง=강릉
+อินชอน=인천
+อันซัน=안산
+ซูวอน=수원
+ชอนอัน=천안
+พยองแท็ก=평택
+
+[Transportation loanwords]
+จีฮาชอล/จีฮาชอน/ซับเวย์/ซับเว=지하철
+คีชา/กีชา=기차
+เคทีเอ็กซ์=KTX
+บาซือ/บัส=버스
+แท็กซี่=택시
+ชอง류จัง/จอง류จัง/ป้ายรถเมล์=정류장/버스 정류장
+บัสเทอมินอล/เทอมินอล=버스터미널/터미널
+คงฮัง/กงฮัง=공항
+
+[Useful phrases]
+ไปอันซันหย็อกครับ=안산역에 가 주세요.
+ช่วยไปส่งที่คังนัมหย็อกครับ=강남역까지 데려다 주세요.
+ลงที่ฮงแดอิบกูหย็อกได้ไหม=홍대입구역에서 내려도 돼요?
+จากอินชอนไปเมียงดงไกลไหม=인천에서 명동까지 멀어요?
+สถานีไหนใกล้ที่สุด=어느 역이 제일 가까워요?
+`;
+
 const SHOPPING_TAXFREE_COSMETICS_VOCAB = `
 [Shopping / tax refund / cosmetics]
 ปลอดภาษี=면세
@@ -4131,6 +4461,40 @@ const MASSAGE_PROFESSIONAL_SAFETY_VOCAB = `
 손님이 협박했어요=ลูกค้าข่มขู่
 매니저를 불러 주세요=ช่วยเรียกผู้จัดการ
 경찰에 전화해 주세요=ช่วยโทรตำรวจ
+
+[Consent / pain / sexual-health safety — clinical neutral wording]
+ยินยอม=동의
+ไม่ยินยอม=동의하지 않습니다
+ฉันไม่ยินยอม=저는 동의하지 않습니다.
+หยุดก่อน=잠깐 멈춰 주세요
+หยุดเดี๋ยวนี้=지금 멈춰 주세요
+ฉันเจ็บ=아파요
+ฉันเจ็บมาก=많이 아파요
+ฉันไม่โอเค=저는 괜찮지 않습니다
+อย่าฝืน=억지로 하지 말아 주세요
+อย่าบังคับ=강요하지 말아 주세요
+กรุณาใช้ถุงยาง=콘돔을 사용해 주세요
+ไม่ใช้ถุงยางไม่ได้=콘돔 없이 하면 안 됩니다
+ฉันต้องการไปโรงพยาบาล=병원에 가고 싶어요
+ฉันต้องการตรวจโรคติดต่อทางเพศสัมพันธ์=성병 검사를 받고 싶어요
+ฉันต้องการยาคุมฉุกเฉิน=응급피임약이 필요해요
+ฉันต้องการที่ตรวจครรภ์=임신 테스트기가 필요해요
+เลือดออก=피가 나요
+มีแผล=상처가 있어요
+ปวดท้องน้อย=아랫배가 아파요
+อวัยวะเพศ=생식기 / 성기 (clinical term)
+บริเวณส่วนตัว=민감한 부위 / 사적인 부위
+ห้ามแตะบริเวณส่วนตัว=민감한 부위는 만지지 말아 주세요
+การล่วงละเมิดทางเพศ=성희롱 / 성추행
+การบังคับทางเพศ=성폭력
+동의하지 않습니다=ฉันไม่ยินยอมค่ะ
+지금 멈춰 주세요=กรุณาหยุดเดี๋ยวนี้ค่ะ
+콘돔을 사용해 주세요=กรุณาใช้ถุงยางค่ะ
+성병 검사를 받고 싶어요=ต้องการตรวจโรคติดต่อทางเพศสัมพันธ์ค่ะ
+응급피임약이 필요해요=ต้องการยาคุมฉุกเฉินค่ะ
+
+[Safety interpretation rule]
+If sexual or intimate terms appear in massage context, interpret them as safety/consent/medical/boundary context unless the current utterance clearly says otherwise. Translate neutrally and clinically. Never add encouragement, negotiation, or service-promotional wording.
 `;
 
 const PHARMACY_WOMEN_HEALTH_VOCAB = `
@@ -4205,6 +4569,60 @@ const DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB = `
 그냥=เฉย ๆ / แค่ / ไม่ต้องพิเศษ
 `;
 
+
+
+const CONSULAR_FAMILY_INSURANCE_FINAL_VOCAB = `
+[Consular / embassy / document authentication]
+สถานทูต=대사관
+สถานกงสุล=영사관
+แผนกกงสุล=영사과
+นัดหมายสถานทูต=대사관 예약
+รับรองเอกสาร=서류 인증 / 공증
+รับรองลายเซ็น=서명 인증
+แปลเอกสาร=서류 번역
+แปลรับรอง=번역공증
+อพอสทีล/Apostille=아포스티유
+หนังสือมอบอำนาจ=위임장
+ใบรับรองสัญชาติ=국적 증명서
+หนังสือเดินทางชั่วคราว=긴급여권 / 임시여권
+หนังสือรับรองโสด=미혼증명서
+ใบเกิด/สูติบัตร=출생증명서
+ใบสมรส=혼인증명서
+ใบหย่า=이혼증명서
+ต้องจองคิวก่อนไหม=예약을 먼저 해야 하나요?
+เอกสารนี้ต้องรับรองที่ไหน=이 서류는 어디에서 인증받아야 하나요?
+ใช้ตัวจริงหรือสำเนา=원본이 필요해요, 아니면 사본도 가능해요?
+
+[Family law / civil registration]
+จดทะเบียนสมรส=혼인신고
+จดทะเบียนหย่า=이혼신고
+สิทธิเลี้ยงดูบุตร=양육권
+อำนาจปกครองบุตร=친권
+รับรองบุตร=인지신고
+รับบุตรบุญธรรม=입양
+ค่าเลี้ยงดูบุตร=양육비
+ผู้ปกครองตามกฎหมาย=법정대리인
+เจ้าตัวต้องมาด้วยตนเอง=본인이 직접 와야 합니다
+ถ้าเป็นตัวแทนต้องใช้หนังสือมอบอำนาจ=대리인이면 위임장이 필요합니다
+
+[Insurance claim / accident paperwork]
+เคลมประกัน=보험금을 청구하다
+บริษัทประกัน=보험사
+ประกันเอกชน=민간보험
+ประกันสุขภาพเอกชน=실손보험 / 민간 건강보험
+ประกันเดินทาง=여행자보험
+ประกันอุบัติเหตุ=상해보험
+ยื่นเคลม=보험금 청구를 하다
+เอกสารเคลม=보험금 청구 서류
+ใบรับรองแพทย์=진단서
+ใบเสร็จค่ารักษา=진료비 영수증
+รายละเอียดค่ารักษา=진료비 세부내역서
+บันทึกอุบัติเหตุ=사고 접수 기록
+เลขเคลม=접수번호 / 청구번호
+ค่าสินไหม=보험금 / 보상금
+보험금 청구 서류를 제출해 주세요=กรุณายื่นเอกสารเคลมประกันครับ/ค่ะ
+진단서와 영수증이 필요합니다=ต้องใช้ใบรับรองแพทย์และใบเสร็จครับ/ค่ะ
+`;
 
 const TAX_OFFICE_KOREA_VOCAB = `
 [สรรพากรเกาหลี / 세무서 / 국세청 / Tax office]
@@ -4560,4 +4978,166 @@ const FACTORY_REAL_SPEECH_PHRASES_VOCAB = `
 วันนี้เทรนเครื่องปั๊ม=오늘은 프레스 작업 교육을 합니다.
 เครื่องกลึงนี้ต้องตั้งศูนย์ก่อน=이 선반은 먼저 중심을 맞춰야 합니다.
 งานหลอมอันตราย ระวังความร้อน=용해 작업은 위험하니까 열을 조심하세요.
+`;
+
+const COMPANY_TITLES_KOREAN_WORKPLACE_VOCAB = `
+[Company titles / Korean workplace hierarchy]
+Core rule:
+- Translate company titles as meaning + keep Korean/title when useful.
+- Do not over-guess actual authority; company structures vary.
+- If a Korean title appears with a name, preserve the name.
+- Thai workers often say Korean titles by sound, with or without “นิม”. Normalize to the polite Korean title when translating Thai→Korean.
+
+[Top / executives]
+사장님=เจ้าของกิจการ / เถ้าแก่ / ประธานบริษัท / ซาจังนิม
+대표님=ผู้แทนบริษัท / CEO / กรรมการผู้จัดการ
+회장님=ประธานใหญ่ / ประธานกลุ่มบริษัท
+부회장님=รองประธานใหญ่
+이사님=กรรมการ / ผู้อำนวยการ / อีซานิม
+상무님=กรรมการบริหารระดับสูง / ซังมูนิม
+전무님=กรรมการบริหารอาวุโส / จอนมูนิม
+본부장님=ผู้อำนวยการฝ่ายใหญ่ / หัวหน้าสำนักงานใหญ่
+실장님=หัวหน้าสำนักงาน / ผู้จัดการฝ่าย / ซิลจังนิม
+
+[Managers / office ranks]
+부장님=ผู้จัดการแผนก / พูจังนิม
+차장님=รองผู้จัดการแผนก / ชาจังนิม
+과장님=หัวหน้าฝ่าย / ผู้จัดการย่อย / ควาจังนิม
+대리님=รองหัวหน้า / เจ้าหน้าที่อาวุโส / แทรีนิม
+주임님=หัวหน้างานระดับต้น / จูอิมนิม
+사원=พนักงานทั่วไป
+직원=พนักงาน
+
+[Factory / field ranks]
+팀장님=หัวหน้าทีม / ทีมจังนิม
+반장님=หัวหน้าหน้างาน / พันจังนิม
+조장님=หัวหน้ากลุ่มย่อย / โจจังนิม
+현장소장님=หัวหน้าไซต์งาน / ผู้ควบคุมหน้างาน
+공장장님=ผู้จัดการโรงงาน / คงจังจังนิม
+관리자=ผู้ดูแล / ผู้จัดการ
+담당자=เจ้าหน้าที่ผู้รับผิดชอบ
+인사담당자=เจ้าหน้าที่ฝ่ายบุคคล
+총무=ฝ่ายธุรการ
+경리=ฝ่ายบัญชี/การเงินในบริษัทเล็ก
+회계=ฝ่ายบัญชี
+생산관리=ฝ่ายควบคุมการผลิต
+품질관리/QC=ฝ่ายควบคุมคุณภาพ
+안전관리자=เจ้าหน้าที่ความปลอดภัย
+
+[Thai spoken variants]
+ซาจัง/ซาจังนิม/สาจัง/สาจังนิม=사장님
+พูจัง/พูจังนิม/บูจัง/บูจังนิม=부장님
+ควาจัง/ควาจังนิม/กวาจัง/กวาจังนิม=과장님
+ชาจัง/ชาจังนิม=차장님
+แทรี/แทรีนิม/เทรี/เทรีนิม=대리님
+จูอิม/จูอิมนิม=주임님
+ทีมจัง/ทีมจังนิม=팀장님
+พันจัง/พันจังนิม/บันจัง/บันจังนิม=반장님
+โจจัง/โจจังนิม=조장님
+อีซา/อีซานิม=이사님
+ซิลจัง/ซิลจังนิม/ชิลจัง/ชิลจังนิม=실장님
+คงจังจัง/คงจังจังนิม/กงจังจัง/กงจังจังนิม=공장장님
+
+[Context rules]
+사장님 in workplace/factory/salary/contract/resignation/order context = เถ้าแก่ / นายจ้าง / เจ้าของกิจการ.
+사장님 as direct polite address in restaurant/shop/taxi/service context = คุณ / ท่าน, not literal employer.
+우리 사장님 / 회사 사장님 / 공장 사장님 / 사장이 = our boss/employer/owner.
+Name + title: 김 과장님=คุณคิมหัวหน้าฝ่าย, 박 부장님=คุณพัคผู้จัดการแผนก, 이 팀장님=คุณอีหัวหน้าทีม.
+
+[Useful phrases]
+팀장님 계세요?=หัวหน้าทีมอยู่ไหมครับ/คะ
+부장님 계세요?=ผู้จัดการแผนกอยู่ไหมครับ/คะ
+담당자님과 이야기하고 싶습니다=อยากคุยกับเจ้าหน้าที่ผู้รับผิดชอบครับ/ค่ะ
+이 일 담당자가 누구예요?=ใครเป็นผู้รับผิดชอบเรื่องนี้ครับ/คะ
+인사담당자는 어디 계세요?=เจ้าหน้าที่ฝ่ายบุคคลอยู่ที่ไหนครับ/คะ
+사장님이 물어보라고 하셨습니다=เถ้าแก่ให้มาถามครับ/ค่ะ
+반장님이 이렇게 하라고 하셨습니다=หัวหน้าหน้างานบอกให้ทำแบบนี้ครับ/ค่ะ
+`;
+
+const KINSHIP_FAMILY_RELATION_VOCAB = `
+[Kinship / Family relations Thai-Korean]
+Core rule:
+- Thai and Korean kinship terms depend heavily on speaker gender, father's/mother's side, and whether the word is a real relative or social address.
+- Do not invent family relationships. Preserve names and roles.
+
+[Immediate family]
+ครอบครัว=가족
+พ่อ/บิดา=아버지/아빠
+แม่/มารดา=어머니/엄마
+พ่อแม่/บิดามารดา=부모님
+ลูก/บุตร=자녀/아이
+ลูกชาย=아들
+ลูกสาว=딸
+สามี=남편
+ภรรยา=아내/부인
+คู่สมรส=배우자
+แฟนผู้ชาย=남자친구
+แฟนผู้หญิง=여자친구
+ผู้ปกครอง=보호자
+ผู้เยาว์=미성년자
+
+[Siblings - depends on speaker gender]
+พี่ชาย ผู้ชายเรียก=형
+พี่ชาย ผู้หญิงเรียก=오빠
+พี่สาว ผู้ชายเรียก=누나
+พี่สาว ผู้หญิงเรียก=언니
+น้องชาย=남동생
+น้องสาว=여동생
+พี่น้อง=형제자매
+พี่น้องแท้ ๆ=친형제/친자매
+พี่น้องต่างพ่อ/ต่างแม่=이복형제/이부형제 depending on context
+
+[Grandparents]
+ปู่=친할아버지 / 할아버지
+ย่า=친할머니 / 할머니
+ตา=외할아버지
+ยาย=외할머니
+ปู่ย่าตายาย=조부모님
+
+[Uncles / aunts]
+ลุง=큰아버지 / 외삼촌 / 아저씨 depending on father/mother side and context
+ป้า=큰어머니 / 고모 / 이모 / 아주머니 depending on side/context
+อาผู้ชายฝั่งพ่อ=삼촌 / 작은아버지
+อาผู้หญิงฝั่งพ่อ=고모
+น้าผู้ชายฝั่งแม่=외삼촌
+น้าผู้หญิงฝั่งแม่=이모
+If side is unclear, use a safer broad translation: ญาติผู้ใหญ่ / 친척 어른 / 아저씨 / 아주머니.
+
+[Nieces/nephews/grandchildren]
+หลาน is ambiguous:
+- ลูกของพี่/น้อง = 조카 (niece/nephew)
+- หลานชายที่เป็นลูกของพี่/น้อง = 남자 조카
+- หลานสาวที่เป็นลูกของพี่/น้อง = 여자 조카
+- ลูกของลูก = 손자/손녀 (grandchild)
+- หลานชายลูกของลูก = 손자
+- หลานสาวลูกของลูก = 손녀
+- ลูกของลูกสาว = 외손자/외손녀 if maternal grandchild context is needed
+ลูกของน้องสาว=여동생의 아이 / 조카
+ลูกของพี่สาว=언니/누나의 아이 / 조카, choose based on speaker gender when needed
+ลูกของพี่ชาย=형/오빠의 아이 / 조카, choose based on speaker gender when needed
+ลูกของน้องชาย=남동생의 아이 / 조카
+ลูกพี่ลูกน้อง=사촌
+ญาติ=친척
+ญาติสนิท=가까운 친척
+ญาติห่าง ๆ=먼 친척
+ญาติฝั่งพ่อ=아버지 쪽 친척
+ญาติฝั่งแม่=어머니 쪽 친척
+
+[Social address vs real family]
+พี่/น้อง/ลุง/ป้า/น้า/อา in Thai can be social address, not real relatives.
+พี่ครับ ขอถามหน่อย = 저기요, 질문 좀 해도 될까요? (not necessarily 형)
+ป้าครับ อันนี้เท่าไหร่ = 아주머니, 이거 얼마예요? (not necessarily aunt)
+น้องมิน / พี่ขวัญ / ป้าแดง / อาแมน often = title + name. Preserve the name.
+
+[Useful document/legal family phrases]
+แม่ของเด็ก=아이의 어머니
+พ่อของเด็ก=아이의 아버지
+ผู้ปกครองตามกฎหมาย=법정대리인 / 법적 보호자
+สิทธิเลี้ยงดูบุตร=양육권
+รับรองบุตร=인지
+จดทะเบียนสมรส=혼인신고
+หย่า=이혼
+ใบรับรองความสัมพันธ์ครอบครัว=가족관계증명서
+ใบรับรองการสมรส=혼인관계증명서
+สูติบัตร/ใบเกิด=출생증명서
 `;
