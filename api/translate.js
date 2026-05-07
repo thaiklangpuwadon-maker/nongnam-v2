@@ -452,6 +452,31 @@ function normalizeKoreanSTT(text) {
   t = t.replace(/번호\s*바꾸/g, '번호 바꾸');
   t = t.replace(/인증번호\s*안와요/g, '인증번호 안 와요');
 
+  // Factory / repair common STT normalizations
+  // 에어 alone often means 에어건/compressed air in factory, but keep it context-friendly via vocab too.
+  t = t.replace(/에어\s*건/g, '에어건');
+  t = t.replace(/에어\s*호스/g, '에어호스');
+  t = t.replace(/바람\s*으로\s*불어/g, '에어건으로 불어');
+  t = t.replace(/공기\s*로\s*불어/g, '에어건으로 불어');
+  t = t.replace(/씨엔씨/g, 'CNC');
+  t = t.replace(/시엔시/g, 'CNC');
+  t = t.replace(/밀링\s*기/g, '밀링기');
+  t = t.replace(/선반\s*기계/g, '선반기계');
+  t = t.replace(/프레스\s*기/g, '프레스기');
+  t = t.replace(/작업\s*지시서/g, '작업지시서');
+  t = t.replace(/불량\s*품/g, '불량품');
+  t = t.replace(/치수\s*확인/g, '치수 확인');
+  t = t.replace(/도면\s*보고/g, '도면 보고');
+
+  // Birth registration / public office STT normalizations
+  t = t.replace(/출생\s*신고/g, '출생신고');
+  t = t.replace(/출생\s*증명서/g, '출생증명서');
+  t = t.replace(/가족\s*관계\s*증명서/g, '가족관계증명서');
+  t = t.replace(/기본\s*증명서/g, '기본증명서');
+  t = t.replace(/혼인\s*관계\s*증명서/g, '혼인관계증명서');
+  t = t.replace(/주민\s*센터/g, '주민센터');
+  t = t.replace(/행정\s*복지\s*센터/g, '행정복지센터');
+
   // Food: do not force 맛있어요 into a question; punctuation/context will decide.
   t = t.replace(/맛있어요$/g, '맛있어요.');
   t = t.replace(/배고파요/g, '배고파요.');
@@ -658,6 +683,28 @@ function normalizeRepeatedSpeech(text, fromLang) {
   t = t.replace(/\b(다른|지금|오늘|내일|제가|저는|수업|기숙사|물건|회사|택배|유심)\s+\1\s+\1\s*/g, '$1 ');
   t = t.replace(/([가-힣]{2,8})\1{2,}/g, '$1');
 
+  // Phrase-level repetition from mobile STT. Keep one phrase, not word-by-word leftovers.
+  const repeatedPhrases = [
+    '나중에', '무조건', '나중에 무조건', '나중에 무조건 가져와요',
+    '같이', '같이 운동했어요', '심심한', '심심한 것', '심심한 것 같아서',
+    '잠깐만요', '잠시만요', '기다려 주세요', '알았죠',
+    '에어건', '불어 주세요', '치수 확인', '불량 확인'
+  ];
+  for (const ph of repeatedPhrases) {
+    const compactRe = new RegExp(`(${escapeRegExp(ph)}){2,}`, 'g');
+    t = t.replace(compactRe, ph);
+    const spacedRe = new RegExp(`(${escapeRegExp(ph)}\\s*){2,}`, 'g');
+    t = t.replace(spacedRe, ph + ' ');
+  }
+  t = t.replace(/나중에\s*무조건\s*나중에\s*무조건/g, '나중에 무조건');
+  t = t.replace(/나중에\s*무조건\s*가져와요\s*나중에\s*무조건\s*가져와요/g, '나중에 무조건 가져와요');
+  t = t.replace(/심심한 것\s*심심한 것 같아서/g, '심심한 것 같아서');
+
+  // Thai phrase repetition from speech recognition.
+  t = t.replace(/(พี่ไม่ค่อย)\s*\1/g, '$1');
+  t = t.replace(/(ไม่ค่อย)\s*\1/g, '$1');
+  t = t.replace(/(ช่วยดู)\s*\1/g, '$1');
+
   return t.trim();
 }
 
@@ -676,10 +723,13 @@ function addQuestionMarksLight(text, fromLang) {
 
     if (thaiQuestion.test(t)) return `${t}?`;
   } else {
-    const koreanQuestion =
-      /(까요|니까|나요|어요|예요|이에요|있어요|없어요|어때요|뭐예요|누구예요|어디예요|얼마예요|오세요|들어와요|돌아와요|가요|되나요|될까요)\??$/;
+    // Korean - be conservative. Do NOT add ? just because a sentence ends with 어요/해요/있어요.
+    // Mobile STT often loses intonation, and adding ? to statements changes meaning.
+    const hasQuestionWord = /(뭐|무엇|어디|언제|왜|어떻게|얼마|누구|몇|무슨|어느|어때)/.test(t);
+    const hasQuestionEnding = /(까요|나요|습니까|입니까|됩니까|될까요|되나요|맞죠|알았죠|그렇죠|괜찮으세요|가능하세요|가능해요|해도 돼요|있나요|없나요)\??$/.test(t);
+    const serviceQuestion = /(예약하셨어요|접수하셨어요|결제하셨어요|입금하셨어요|송금하셨어요|신분증 있어요|외국인등록증 있어요|여권 있어요)\??$/.test(t);
 
-    if (koreanQuestion.test(t)) return `${t}?`;
+    if (hasQuestionWord || hasQuestionEnding || serviceQuestion) return `${t}?`;
   }
 
   return t;
@@ -909,6 +959,74 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   if (/^아니안먹어(요)?$/.test(compact) || /^아니요안먹어(요)?$/.test(compact)) return `ไม่กิน${polite}`;
 
   // ============================================================
+  // Tax office / public agency / legal-agent hard maps
+  // ============================================================
+
+  if (compact === '세무서') return 'สำนักงานสรรพากร';
+  if (compact === '국세청') return 'กรมสรรพากรเกาหลี';
+  if (compact === '홈택스') return 'โฮมแท็กซ์ / ระบบภาษีออนไลน์เกาหลี';
+  if (compact === '손택스') return 'ซนแท็กซ์ / แอปภาษีมือถือเกาหลี';
+  if (compact === '소득금액증명원') return 'ใบรับรองรายได้';
+  if (compact === '원천징수영수증') return 'ใบหักภาษี ณ ที่จ่าย';
+  if (compact === '납세증명서') return 'ใบรับรองการเสียภาษี';
+  if (compact === '사업자등록증') return 'ใบทะเบียนธุรกิจ';
+  if (compact === '종합소득세') return 'ภาษีเงินได้รวมประจำปี';
+  if (compact === '연말정산') return 'การปรับภาษีสิ้นปี';
+
+  if (/세무서.*가야/.test(compact)) return `ต้องไปสำนักงานสรรพากร${polite}`;
+  if (/국세청.*문의/.test(compact)) return `ต้องสอบถามกรมสรรพากรเกาหลี${polite}`;
+  if (/홈택스.*확인/.test(compact)) return `ตรวจสอบในโฮมแท็กซ์ได้${polite}`;
+  if (/세금.*신고.*해야/.test(compact)) return `ต้องยื่นภาษี${polite}`;
+  if (/세금.*환급.*받을수/.test(compact)) return `สามารถขอคืนภาษีได้ไหม${question}`;
+  if (/환급금.*있/.test(compact)) return `มีเงินคืนภาษี${polite}`;
+  if (/체납.*있/.test(compact)) return `มีภาษีค้างชำระ${polite}`;
+  if (/원천징수영수증.*필요/.test(compact)) return `ต้องใช้ใบหักภาษี ณ ที่จ่าย${polite}`;
+  if (/소득금액증명원.*발급/.test(compact)) return `ออกใบรับรองรายได้${polite}`;
+  if (/납세증명서.*발급/.test(compact)) return `ออกใบรับรองการเสียภาษี${polite}`;
+  if (/어떤서류.*필요/.test(compact) || /필요한서류.*뭐/.test(compact)) return `ต้องใช้เอกสารอะไรบ้าง${question}`;
+  if (/대리인.*오셨어요/.test(compact)) return `มาในฐานะตัวแทนใช่ไหม${question}`;
+  if (/위임장.*있어요/.test(compact)) return `มีหนังสือมอบอำนาจไหม${question}`;
+  if (/본인.*와야/.test(compact)) return `เจ้าตัวต้องมาด้วยตัวเอง${polite}`;
+  if (/신분증.*보여/.test(compact)) return `ขอดูบัตรประจำตัว${polite}`;
+  if (/외국인등록증.*보여/.test(compact)) return `ขอดูบัตรต่างด้าว${polite}`;
+  if (/접수.*하셨/.test(compact)) return `ได้ยื่นเรื่อง/ลงทะเบียนไว้แล้วไหม${question}`;
+  if (/번호표.*뽑/.test(compact)) return `กดบัตรคิวก่อน${polite}`;
+
+  // ============================================================
+  // Birth registration / public office hard maps
+  // ============================================================
+  if (compact === '출생신고') return 'แจ้งเกิด';
+  if (compact === '출생증명서') return 'ใบรับรองการเกิด / สูติบัตร';
+  if (compact === '가족관계증명서') return 'ใบรับรองความสัมพันธ์ครอบครัว';
+  if (compact === '기본증명서') return 'ใบรับรองข้อมูลพื้นฐาน';
+  if (/출생신고.*하러/.test(compact) || /출생신고.*왔/.test(compact)) return `มาแจ้งเกิด${polite}`;
+  if (/아기.*이름.*정했/.test(compact)) return `ตั้งชื่อเด็กแล้วหรือยัง${question}`;
+  if (/출생증명서.*필요/.test(compact)) return `ต้องใช้ใบรับรองการเกิด${polite}`;
+  if (/부모.*신분증.*필요/.test(compact)) return `ต้องใช้บัตรประจำตัวของพ่อแม่${polite}`;
+  if (/신고기한.*지났/.test(compact)) return `เลยกำหนดแจ้งแล้ว${polite}`;
+  if (/과태료.*나올수/.test(compact)) return `อาจมีค่าปรับทางปกครอง${polite}`;
+
+  // ============================================================
+  // Factory / workshop hard maps
+  // ============================================================
+  if (compact === '에어건' || compact === '에어') return 'ปืนลม / แอร์เป่าฝุ่น';
+  if (compact === '에어호스') return 'สายลม / สายปืนลม';
+  if (/에어건.*불어/.test(compact) || /에어.*불어/.test(compact)) return `ใช้ปืนลมเป่า${polite}`;
+  if (/먼지.*불어/.test(compact)) return `เป่าฝุ่นออก${polite}`;
+  if (/칩.*불어/.test(compact) || /쇳가루.*불어/.test(compact)) return `เป่าเศษเหล็กออก${polite}`;
+  if (/치수.*확인/.test(compact)) return `เช็กขนาดงาน${polite}`;
+  if (/도면.*보고/.test(compact)) return `ดูแบบงาน${polite}`;
+  if (/불량.*확인/.test(compact)) return `เช็กงานเสีย/ของเสีย${polite}`;
+  if (/작업지시서.*보고/.test(compact)) return `ดูใบสั่งงาน${polite}`;
+  if (/안전장갑.*끼/.test(compact)) return `ใส่ถุงมือนิรภัย${polite}`;
+  if (/보안경.*쓰/.test(compact)) return `ใส่แว่นตานิรภัย${polite}`;
+  if (/기계.*멈추/.test(compact)) return `หยุดเครื่องจักร${polite}`;
+  if (/기계.*돌리/.test(compact)) return `เดินเครื่องจักร${polite}`;
+  if (/선반/.test(compact) && /작업/.test(compact)) return `งานเครื่องกลึง${polite}`;
+  if (/밀링/.test(compact) && /작업/.test(compact)) return `งานเครื่องมิลลิ่ง${polite}`;
+  if (/프레스/.test(compact) && /작업/.test(compact)) return `งานเครื่องปั๊ม${polite}`;
+
+  // ============================================================
   // 출장 / 외근
   // ============================================================
 
@@ -937,6 +1055,9 @@ function hardKoreanToThai(raw, compact, partnerGender) {
   // ============================================================
   // Work / company / job
   // ============================================================
+
+  if (/나도못해요/.test(compact)) return `ผมก็ทำไม่เป็น${polite}`;
+  if (/운동.*못해요|게임.*못해요|잘못해요/.test(compact)) return `ทำไม่ค่อยเป็น${polite}`;
 
   const workMap = {
     '출근했어요': `ไปทำงานแล้ว${polite}`,
@@ -1385,6 +1506,24 @@ function hardThaiToKorean(raw, compact, userGender) {
   if (/ประจำเดือนมาไม่ปกติ|เมนส์มาไม่ปกติ/.test(compact)) return '생리가 불규칙해요.';
   if (/ต้องใช้ใบสั่งยาไหม/.test(compact)) return '처방전이 필요해요?';
 
+  // Tax office / government agency / legal-agent Thai -> Korean
+  if (/สรรพากร|สำนักงานสรรพากร/.test(compact)) return '세무서에 문의하고 싶습니다.';
+  if (/กรมสรรพากรเกาหลี/.test(compact)) return '국세청에 문의하고 싶습니다.';
+  if (/โฮมแท็กซ์|홈택스/.test(compact)) return '홈택스에서 확인하고 싶습니다.';
+  if (/อยากสอบถาม.*คืนภาษี|สอบถาม.*คืนภาษี/.test(compact)) return '세금 환급에 대해 문의하고 싶습니다.';
+  if (/ขอคืนภาษี|อยากขอคืนภาษี/.test(compact)) return '세금 환급을 신청하고 싶습니다.';
+  if (/ต้องยื่นภาษีไหม|ยื่นภาษีไหม/.test(compact)) return '제가 세금 신고를 해야 하나요?';
+  if (/มีภาษีค้าง|ภาษีค้างชำระ/.test(compact)) return '체납된 세금이 있는지 확인하고 싶습니다.';
+  if (/ใบรับรองรายได้|ขอใบรับรองรายได้/.test(compact)) return '소득금액증명원을 발급받고 싶습니다.';
+  if (/ใบหักภาษี|หักณที่จ่าย|หัก ณ ที่จ่าย/.test(compact)) return '원천징수영수증이 필요합니다.';
+  if (/ใบรับรองการเสียภาษี/.test(compact)) return '납세증명서를 발급받고 싶습니다.';
+  if (/ต้องใช้เอกสารอะไร|ใช้เอกสารอะไร/.test(compact)) return '어떤 서류가 필요해요?';
+  if (/ผมเป็นตัวแทน|ฉันเป็นตัวแทน|มาดำเนินการแทน|เดินเรื่องแทน/.test(compact)) return '저는 대리인으로 왔습니다.';
+  if (/หนังสือมอบอำนาจ|ใบมอบอำนาจ/.test(compact)) return '위임장이 있습니다.';
+  if (/ลูกค้า.*ให้.*ดำเนินการแทน|ลูกค้า.*มอบอำนาจ/.test(compact)) return '의뢰인이 저에게 위임했습니다.';
+  if (/ช่วยอธิบายง่าย|อธิบายง่ายๆ|อธิบายง่าย ๆ/.test(compact)) return '쉽게 설명해 주실 수 있을까요?';
+  if (/ช่วยเขียนให้ดู|เขียนให้ดู/.test(compact)) return '글로 써 주실 수 있을까요?';
+
   // Korean loanword spoken by Thai users
   if (compact === '출장') return '출장';
   if (/ชุลจัง|ชุนจัง|ชูจัง/.test(compact)) return '출장';
@@ -1583,10 +1722,14 @@ function detectSituationFromUIContext(context) {
   const c = String(context || '');
 
   if (/โรงพยาบาล|medical|hospital/.test(c)) return 'hospital';
+  if (/โรงงาน|เครื่องจักร|ช่าง|กลึง|มิลลิ่ง|ปั๊ม|ปืนลม|แอร์กัน|factory|machine|CNC|선반|밀링|프레스|에어건/.test(c)) return 'factory_detail';
   if (/ทำงาน|แรงงาน|work/.test(c)) return 'work';
   if (/ราชการ|วีซ่า|immigration|legal/.test(c)) return 'visa';
   if (/ธนาคาร|bank/.test(c)) return 'bank';
-  if (/เงิน|ประกัน|tax|insurance/.test(c)) return 'money';
+  if (/แจ้งเกิด|เด็กเกิด|เกิดในเกาหลี|สูติบัตร|birth registration|출생신고|출생증명서/.test(c)) return 'birth_registration';
+  if (/สรรพากร|ภาษี|tax office|tax|세무서|국세청|홈택스|원천징수|소득금액|종합소득세|연말정산/.test(c)) return 'tax_office';
+  if (/หน่วยงาน|ราชการ|สำนักงาน|주민센터|행정복지센터|구청|시청|노동청|고용센터|공단|보건소|법원|차량등록|면허시험장/.test(c)) return 'government_agencies';
+  if (/เงิน|ประกัน|insurance/.test(c)) return 'money';
   if (/ร้านอาหาร|food/.test(c)) return 'food';
   if (/ออนไลน์|online|ช้อปปิ้ง|shop/.test(c)) return 'online';
   if (/เดินทาง|travel/.test(c)) return 'travel';
@@ -1615,6 +1758,11 @@ function autoDetectSituation(text, fallback = 'general') {
   const t = String(text || '');
 
   if (/ช่วยด้วย|ฉุกเฉิน|รถพยาบาล|ตำรวจ|โดนทำร้าย|ไฟไหม้|หมดสติ|119|112|응급|구급차|경찰|화재|의식/.test(t)) return 'emergency';
+  if (shouldLoadBirthRegistrationVocab(t)) return 'birth_registration';
+  if (shouldLoadFactoryDetailedVocab(t)) return 'factory_detail';
+  if (shouldLoadTaxOfficeVocab(t)) return 'tax_office';
+  if (shouldLoadGovernmentAgencyVocab(t)) return 'government_agencies';
+  if (shouldLoadLegalOfficeAgentVocab(t)) return 'legal_agent';
   if (shouldLoadPoliceAccidentVocab(t)) return 'police';
   if (shouldLoadPostCustomsVocab(t)) return 'post';
   if (shouldLoadRepairApplianceVocab(t)) return 'repair';
@@ -1846,6 +1994,33 @@ function shouldLoadPharmacyWomenHealthVocab(text) {
   return /ยา|ร้านขายยา|ยาแก้ปวด|ยาแก้อักเสบ|ยาแก้แพ้|ยาคุม|ยาคุมฉุกเฉิน|ยาคุมกำเนิด|ถุงยาง|ตรวจครรภ์|ประจำเดือน|เมนส์|ปวดท้องเมนส์|ตั้งครรภ์|ท้องไหม|โรคติดต่อทางเพศ|ตกขาว|คัน|ปัสสาวะแสบ|กระเพาะปัสสาวะ|약국|약|진통제|소염제|항생제|피임약|사후피임약|응급피임약|콘돔|임신테스트기|생리|생리통|임신|성병|질염|방광염|소변 볼 때 아파|처방전/.test(t);
 }
 
+
+function shouldLoadBirthRegistrationVocab(text) {
+  const t = String(text || '');
+  return /แจ้งเกิด|เด็กเกิด|เกิดในเกาหลี|สูติบัตร|ใบเกิด|ใบรับรองการเกิด|พ่อเด็ก|แม่เด็ก|ชื่อเด็ก|สัญชาติเด็ก|ทะเบียนเกิด|ทะเบียนครอบครัว|สถานทูตไทย|출생신고|출생증명서|가족관계등록부|가족관계증명서|기본증명서|혼인관계증명서|주민센터|행정복지센터|아기 이름|부모|보호자|국적|신고기한|과태료/.test(t);
+}
+
+function shouldLoadFactoryDetailedVocab(text) {
+  const t = String(text || '');
+  return /โรงงาน|เครื่องจักร|เครื่องกลึง|กลึง|มิลลิ่ง|เครื่องมิลลิ่ง|เครื่องปั๊ม|ปั๊มงาน|เตาหลอม|หลอม|แม่พิมพ์|จิ๊ก|ฟิกซ์เจอร์|ปืนลม|แอร์กัน|พาลม|เป่าฝุ่น|เป่าชิ้นงาน|เช็คงาน|งานเสีย|ของเสีย|ชิ้นงานเสีย|งาน NG|ขนาดงาน|วัดขนาด|เวอร์เนียร์|ไมโครมิเตอร์|ประแจ|หกเหลี่ยม|ไขควง|คีม|คัตเตอร์|ดอกสว่าน|ต๊าป|เจียร|ใบเจียร|เชื่อม|รอยเชื่อม|CNC|cnc|선반|밀링|밀링기|프레스|프레스기|CNC|씨엔씨|용접|그라인더|드릴|탭|금형|지그|치공구|에어건|에어호스|압축공기|불량|불량품|치수|공차|도면|작업지시서|검사|측정|버니어|마이크로미터|스패너|렌치|육각렌치|드라이버|펜치|니퍼|커터칼|보안경|안전장갑|안전모/.test(t);
+}
+
+
+function shouldLoadTaxOfficeVocab(text) {
+  const t = String(text || '');
+  return /สรรพากร|สำนักงานสรรพากร|กรมสรรพากร|ภาษีเงินได้|ภาษีท้องถิ่น|ภาษีมูลค่าเพิ่ม|ภาษีหัก ณ ที่จ่าย|หัก ณ ที่จ่าย|ใบหักภาษี|ยื่นภาษี|คืนภาษี|ขอคืนภาษี|ภาษีค้าง|ภาษีค้างชำระ|ใบแจ้งภาษี|หลักฐานรายได้|ใบรับรองรายได้|ใบรับรองการเสียภาษี|ประวัติการจ่ายภาษี|โฮมแท็กซ์|홈택스|손택스|세무서|국세청|지방세|소득세|종합소득세|근로소득세|사업소득세|부가가치세|원천징수|원천징수영수증|세금 신고|세금 환급|환급금|체납|납부|고지서|소득금액증명원|납세증명서|납부내역|연말정산|현금영수증|전자세금계산서|사업자등록|사업자등록증|폐업신고|개인사업자/.test(t);
+}
+
+function shouldLoadGovernmentAgencyVocab(text) {
+  const t = String(text || '');
+  return /หน่วยงานราชการ|ราชการเกาหลี|จูมินเซ็นเตอร์|ศูนย์บริการชุมชน|สำนักงานเขต|ศาลากลางเมือง|สำนักงานเมือง|สำนักงานแรงงาน|ศูนย์จัดหางาน|องค์กรสวัสดิการแรงงาน|ประกันสุขภาพแห่งชาติ|กองทุนบำนาญ|สำนักงานทะเบียนรถ|สนามสอบใบขับขี่|ศาล|สำนักงานกฎหมาย|ช่วยเหลือทางกฎหมาย|ศูนย์แรงงานต่างชาติ|ศูนย์ครอบครัวพหุวัฒนธรรม|주민센터|행정복지센터|동사무소|구청|시청|군청|도청|출입국관리사무소|출입국|고용센터|고용노동부|노동청|근로복지공단|국민연금공단|국민건강보험공단|보건소|운전면허시험장|차량등록사업소|법원|검찰청|대한법률구조공단|외국인노동자지원센터|다문화가족지원센터|상담센터|공단|민원실/.test(t);
+}
+
+function shouldLoadLegalOfficeAgentVocab(text) {
+  const t = String(text || '');
+  return /สำนักงานกฎหมาย|ทนาย|ที่ปรึกษากฎหมาย|รับจ้างเดินเรื่อง|เดินเรื่องแทน|มอบอำนาจ|หนังสือมอบอำนาจ|ตัวแทน|ผู้รับมอบอำนาจ|ยื่นแทน|ติดตามเรื่อง|เคสลูกค้า|법률사무소|변호사|법무사|행정사|대리인|위임장|위임받은 사람|대리 신청|대리 접수|사건 의뢰인|의뢰인|상담 예약|서류 대행|민원 대행/.test(t);
+}
+
 function shouldLoadKoreanCommonVocab(text) {
   const t = String(text || '');
   return /몇시|언제|어디|들어와요|돌아와요|오세요|와요|가요|출발|도착|기숙사|회사|수업|질문|괜찮아요|안돼요|돼요|몰라요|알겠어요|네|예|그래요|그렇군요|됐어요|아니에요|좋아요|잠깐만요|잠시만요/.test(t);
@@ -1884,6 +2059,11 @@ function buildVocabHint(text, finalSit, uiSit) {
   if (shouldLoadShoppingTaxfreeVocab(text) || finalSit === 'shopping_taxfree' || uiSit === 'shopping_taxfree') sections.push(SHOPPING_TAXFREE_COSMETICS_VOCAB);
   if (shouldLoadMassageSafetyVocab(text) || finalSit === 'massage_safety' || uiSit === 'massage_safety') sections.push(MASSAGE_PROFESSIONAL_SAFETY_VOCAB);
   if (shouldLoadPharmacyWomenHealthVocab(text) || finalSit === 'pharmacy_women_health' || uiSit === 'pharmacy_women_health') sections.push(PHARMACY_WOMEN_HEALTH_VOCAB);
+  if (shouldLoadBirthRegistrationVocab(text) || finalSit === 'birth_registration' || uiSit === 'birth_registration') sections.push(BIRTH_REGISTRATION_KOREA_VOCAB, PUBLIC_OFFICE_AGENT_COMMON_PHRASES_VOCAB);
+  if (shouldLoadFactoryDetailedVocab(text) || finalSit === 'factory_detail' || uiSit === 'factory_detail') sections.push(FACTORY_DETAILED_WORKSHOP_VOCAB, FACTORY_REAL_SPEECH_PHRASES_VOCAB);
+  if (shouldLoadTaxOfficeVocab(text) || finalSit === 'tax_office' || uiSit === 'tax_office') sections.push(TAX_OFFICE_KOREA_VOCAB, TAX_OFFICE_REAL_PHRASES_VOCAB);
+  if (shouldLoadGovernmentAgencyVocab(text) || finalSit === 'government_agencies' || uiSit === 'government_agencies') sections.push(KOREAN_GOVERNMENT_AGENCIES_VOCAB, PUBLIC_OFFICE_AGENT_COMMON_PHRASES_VOCAB);
+  if (shouldLoadLegalOfficeAgentVocab(text) || finalSit === 'legal_agent' || uiSit === 'legal_agent') sections.push(LEGAL_OFFICE_AGENT_WORKFLOW_VOCAB, PUBLIC_OFFICE_AGENT_COMMON_PHRASES_VOCAB);
   if (shouldLoadThaiSiaAmbiguity(text)) sections.push(THAI_SIA_AMBIGUITY_VOCAB);
   if (shouldLoadDentalVocab(text)) sections.push(DENTAL_VOCAB);
   if (shouldLoadMedicalBodyDetailVocab(text)) sections.push(MEDICAL_BODY_DETAIL_VOCAB);
@@ -2190,6 +2370,18 @@ function detectKeywords(text, situation) {
   const found = [];
 
   const keywordMap = {
+    '세무서': 'สรรพากร/세무서',
+    '국세청': 'สรรพากร/국세청',
+    '홈택스': 'สรรพากร/홈택스',
+    '원천징수영수증': 'สรรพากร/ใบหักภาษี',
+    '소득금액증명원': 'สรรพากร/ใบรับรองรายได้',
+    '종합소득세': 'สรรพากร/ภาษีเงินได้รวม',
+    'สรรพากร': 'สรรพากร',
+    'คืนภาษี': 'สรรพากร/คืนภาษี',
+    'ใบรับรองรายได้': 'สรรพากร/ใบรับรองรายได้',
+    'หนังสือมอบอำนาจ': 'ราชการ/มอบอำนาจ',
+    '위임장': 'ราชการ/มอบอำนาจ',
+    '대리인': 'ราชการ/ตัวแทน',
     '몇 시에': 'เกาหลี/ถามเวลา',
     '들어와요': 'เกาหลี/เข้ามา',
     '돌아와요': 'เกาหลี/กลับมา',
@@ -2439,7 +2631,10 @@ const SITUATION_CONTEXT = {
   tourism: 'Tourism / attractions / photo spots / opening hours / entrance fee / directions.',
   massage_safety: 'Professional massage context. Translate normal massage service vocabulary and boundary/safety phrases. Understand risky sexual-harassment phrases only for accurate translation and safe refusal; never imply agreement to sexual services.',
   pharmacy_women_health: 'Pharmacy and women health context. Focus on medicine names, contraception, emergency contraception, condoms, pregnancy tests, period pain, prescription, and pharmacy communication. Translate only; do not give medical advice.',
-  shopping_taxfree: 'Shopping / tax refund / duty free / cosmetics / Olive Young / authentic products.'
+  shopping_taxfree: 'Shopping / tax refund / duty free / cosmetics / Olive Young / authentic products.',
+  tax_office: 'Korean tax office / 세무서 / 국세청 / 홈택스. High-accuracy public-office tax context: income tax, withholding tax, refund, certificates, unpaid tax, filing, and documents.',
+  government_agencies: 'Korean government agencies and public offices: 주민센터, 구청, 시청, 출입국, 노동청, 고용센터, 공단, 보건소, 법원, vehicle office. Preserve agency names and document purpose.',
+  legal_agent: 'Legal office / administrative agent context. The speaker may be acting on behalf of a client. Preserve whether the speaker is the applicant,代理/대리인, or asking for a client.'
 };
 
 const VOCAB_BY_SITUATION = {
@@ -4008,4 +4203,361 @@ const DO_NOT_HARD_MAP_AMBIGUOUS_KOREAN_VOCAB = `
 일단=ก่อนอื่น / เอาไว้ก่อน
 따로=แยกต่างหาก
 그냥=เฉย ๆ / แค่ / ไม่ต้องพิเศษ
+`;
+
+
+const TAX_OFFICE_KOREA_VOCAB = `
+[สรรพากรเกาหลี / 세무서 / 국세청 / Tax office]
+สรรพากรเกาหลี=세무서 / 국세청
+สำนักงานสรรพากร=세무서
+กรมสรรพากรเกาหลี=국세청
+โฮมแท็กซ์=홈택스
+ซนแท็กซ์=손택스
+ภาษี=세금
+ภาษีเงินได้=소득세
+ภาษีเงินได้รวมประจำปี=종합소득세
+ภาษีเงินได้จากงานประจำ=근로소득세
+ภาษีจากรายได้ธุรกิจ/ฟรีแลนซ์=사업소득세
+ภาษีท้องถิ่น=지방세
+ภาษีมูลค่าเพิ่ม=부가가치세
+ภาษีหัก ณ ที่จ่าย=원천징수세
+ใบหักภาษี ณ ที่จ่าย=원천징수영수증
+ยื่นภาษี=세금 신고하다
+ยื่นภาษีเงินได้รวม=종합소득세 신고하다
+ปรับภาษีสิ้นปี=연말정산
+คืนภาษี=세금 환급
+เงินคืนภาษี=환급금
+ขอคืนภาษี=세금 환급 신청
+จ่ายภาษี=세금을 납부하다
+ภาษีค้างชำระ=체납 세금
+ใบแจ้งภาษี=세금 고지서
+หลักฐานรายได้=소득 증빙
+ใบรับรองรายได้=소득금액증명원
+ใบรับรองการเสียภาษี=납세증명서
+ประวัติการจ่ายภาษี=납부내역
+ประวัติการยื่นภาษี=신고내역
+ใบเสร็จเงินสด=현금영수증
+ใบกำกับภาษีอิเล็กทรอนิกส์=전자세금계산서
+ทะเบียนธุรกิจ=사업자등록
+ใบทะเบียนธุรกิจ=사업자등록증
+ผู้ประกอบการรายบุคคล=개인사업자
+ปิดกิจการ=폐업신고
+ค่าธรรมเนียม=수수료
+ยื่นออนไลน์=온라인 신고
+ยื่นที่สำนักงาน=세무서 방문 신고
+เอกสารไม่ครบ=서류가 부족합니다
+ต้องใช้ตัวจริง=원본이 필요합니다
+ต้องใช้สำเนา=사본이 필요합니다
+
+[Foreign worker tax / agency caution]
+แรงงานต่างชาติ=외국인 근로자
+รายได้จากงานประจำ=근로소득
+นายจ้างออกใบหักภาษี=고용주가 원천징수영수증을 발급하다
+ทำงานหลายที่=여러 곳에서 일하다
+รายได้หลายทาง=여러 소득이 있다
+บัญชีธนาคารสำหรับรับเงินคืน=환급받을 계좌
+เลขบัญชี=계좌번호
+ชื่อเจ้าของบัญชี=예금주
+`;
+
+const TAX_OFFICE_REAL_PHRASES_VOCAB = `
+[Tax office real phrases: Thai -> Korean]
+ผมอยากสอบถามเรื่องคืนภาษี=세금 환급에 대해 문의하고 싶습니다.
+ฉันอยากตรวจสอบว่าคืนภาษีได้ไหม=세금 환급을 받을 수 있는지 확인하고 싶습니다.
+ผมต้องยื่นภาษีไหม=제가 세금 신고를 해야 하나요?
+มีภาษีค้างชำระไหม=체납된 세금이 있나요?
+ผมต้องการขอใบรับรองรายได้=소득금액증명원을 발급받고 싶습니다.
+ผมต้องการใบหักภาษี ณ ที่จ่าย=원천징수영수증이 필요합니다.
+ผมต้องการใบรับรองการเสียภาษี=납세증명서를 발급받고 싶습니다.
+ต้องใช้เอกสารอะไรบ้าง=어떤 서류가 필요해요?
+ยื่นออนไลน์ได้ไหม=온라인으로 신고할 수 있어요?
+ต้องจองคิวไหม=예약을 해야 하나요?
+ใช้เวลานานแค่ไหน=얼마나 걸려요?
+วันนี้ทำเสร็จได้ไหม=오늘 처리할 수 있어요?
+ผมเป็นแรงงานต่างชาติ=저는 외국인 근로자입니다.
+ผมทำงานด้วยวีซ่า E-9=저는 E-9 비자로 일하고 있습니다.
+ผมไม่เข้าใจระบบภาษีเกาหลี=한국 세금 제도를 잘 모릅니다.
+ช่วยอธิบายง่าย ๆ ได้ไหม=쉽게 설명해 주실 수 있을까요?
+ช่วยเขียนให้ดูได้ไหม=글로 써 주실 수 있을까요?
+
+[Tax office real phrases: Korean staff -> Thai]
+세무서로 가셔야 합니다=ต้องไปสำนักงานสรรพากรค่ะ/ครับ
+홈택스에서 확인하시면 됩니다=ตรวจสอบในโฮมแท็กซ์ได้ค่ะ/ครับ
+종합소득세 신고 대상입니다=เป็นผู้ที่ต้องยื่นภาษีเงินได้รวมประจำปีค่ะ/ครับ
+연말정산은 회사에서 처리합니다=การปรับภาษีสิ้นปีบริษัทเป็นผู้ดำเนินการค่ะ/ครับ
+원천징수영수증이 필요합니다=ต้องใช้ใบหักภาษี ณ ที่จ่ายค่ะ/ครับ
+소득금액증명원을 발급받으세요=กรุณาขอใบรับรองรายได้ค่ะ/ครับ
+체납된 세금이 있습니다=มีภาษีค้างชำระค่ะ/ครับ
+환급금이 있습니다=มีเงินคืนภาษีค่ะ/ครับ
+환급받을 계좌를 알려 주세요=กรุณาแจ้งบัญชีที่จะรับเงินคืนค่ะ/ครับ
+서류가 부족합니다=เอกสารยังไม่ครบค่ะ/ครับ
+원본을 가져오셔야 합니다=ต้องนำตัวจริงมาค่ะ/ครับ
+사본도 필요합니다=ต้องใช้สำเนาด้วยค่ะ/ครับ
+본인이 직접 오셔야 합니다=เจ้าตัวต้องมาด้วยตนเองค่ะ/ครับ
+대리인이면 위임장이 필요합니다=ถ้าเป็นตัวแทน ต้องใช้หนังสือมอบอำนาจค่ะ/ครับ
+`;
+
+const KOREAN_GOVERNMENT_AGENCIES_VOCAB = `
+[หน่วยงานราชการเกาหลี / Korean government agencies]
+주민센터=ศูนย์บริการชุมชน / จูมินเซ็นเตอร์
+행정복지센터=ศูนย์บริการสวัสดิการและ行政 / ชื่อใหม่ของจูมินเซ็นเตอร์หลายพื้นที่
+동사무소=สำนักงานเขตย่อยแบบเก่า
+구청=สำนักงานเขต
+시청=ศาลากลางเมือง / สำนักงานเมือง
+군청=สำนักงานอำเภอหรือเขตชนบท
+도청=ศาลากลางจังหวัด
+민원실=ห้องบริการประชาชน
+출입국관리사무소=สำนักงานตรวจคนเข้าเมือง
+하이코리아=HiKorea / ระบบจองคิว ตม.
+고용센터=ศูนย์จัดหางาน
+고용노동부=กระทรวงแรงงานและการจ้างงาน
+노동청=สำนักงานแรงงาน
+근로복지공단=องค์กรสวัสดิการแรงงาน
+국민연금공단=สำนักงานกองทุนบำนาญแห่งชาติ
+국민건강보험공단=สำนักงานประกันสุขภาพแห่งชาติ
+세무서=สำนักงานสรรพากร
+국세청=กรมสรรพากรเกาหลี
+경찰서=สถานีตำรวจ
+파출소=ป้อมตำรวจ
+우체국=ไปรษณีย์
+보건소=ศูนย์อนามัย / สาธารณสุขเขต
+운전면허시험장=สนามสอบใบขับขี่
+차량등록사업소=สำนักงานทะเบียนรถ
+법원=ศาล
+검찰청=สำนักงานอัยการ
+대한법률구조공단=องค์กรช่วยเหลือทางกฎหมาย
+외국인노동자지원센터=ศูนย์ช่วยเหลือแรงงานต่างชาติ
+다문화가족지원센터=ศูนย์ช่วยเหลือครอบครัวพหุวัฒนธรรม
+상담센터=ศูนย์ให้คำปรึกษา
+공단=องค์กร/สำนักงานกองทุน/หน่วยงานรัฐวิสาหกิจ ตามบริบท
+
+[Common agency documents]
+신청서=แบบคำร้อง / ใบสมัคร
+접수=การรับเรื่อง / ลงทะเบียน
+대기번호=หมายเลขคิว
+번호표=บัตรคิว
+신분증=บัตรประจำตัว
+외국인등록증=บัตรต่างด้าว
+여권=พาสปอร์ต
+위임장=หนังสือมอบอำนาจ
+대리인=ตัวแทน / ผู้รับมอบอำนาจ
+본인=เจ้าตัว / ผู้ยื่นด้วยตนเอง
+원본=ตัวจริง
+사본=สำเนา
+발급=ออกเอกสาร
+재발급=ออกใหม่
+제출=ยื่นเอกสาร
+보완=แก้ไข/เพิ่มเติมเอกสาร
+반려=ตีกลับ / ไม่รับเรื่อง
+처리기간=ระยะเวลาดำเนินการ
+수수료=ค่าธรรมเนียม
+`;
+
+const PUBLIC_OFFICE_AGENT_COMMON_PHRASES_VOCAB = `
+[Public office / agency worker phrases]
+ผมต้องไปติดต่อที่ไหน=어디에 가서 문의해야 하나요?
+ต้องจองคิวก่อนไหม=예약을 해야 하나요?
+ต้องใช้เอกสารอะไรบ้าง=어떤 서류가 필요해요?
+ขอรับเอกสารนี้ได้ไหม=이 서류를 발급받을 수 있을까요?
+ขอสำเนาได้ไหม=사본을 받을 수 있을까요?
+ต้องเสียค่าธรรมเนียมไหม=수수료가 있어요?
+ใช้เวลานานแค่ไหน=얼마나 걸려요?
+วันนี้ทำเสร็จได้ไหม=오늘 처리할 수 있어요?
+ผมพูดเกาหลีไม่เก่ง=한국말을 잘 못합니다.
+ช่วยพูดช้า ๆ ได้ไหม=천천히 말씀해 주실 수 있을까요?
+ช่วยเขียนให้ดูได้ไหม=글로 써 주실 수 있을까요?
+ผมไม่เข้าใจ ช่วยอธิบายอีกครั้งได้ไหม=이해가 잘 안 돼서 다시 설명해 주실 수 있을까요?
+ผมมาแทนลูกค้า=의뢰인을 대신해서 왔습니다.
+ผมเป็นตัวแทนที่ได้รับมอบอำนาจ=저는 위임받은 대리인입니다.
+ลูกค้ามอบอำนาจให้ผมมาดำเนินการ=의뢰인이 저에게 업무를 위임했습니다.
+ต้องให้เจ้าตัวมาด้วยไหม=본인이 직접 와야 하나요?
+หนังสือมอบอำนาจแบบนี้ใช้ได้ไหม=이 위임장으로 가능해요?
+ขอตรวจสอบสถานะเรื่องได้ไหม=진행 상황을 확인할 수 있을까요?
+เรื่องนี้ดำเนินการถึงขั้นตอนไหนแล้ว=이 건은 어느 단계까지 진행됐나요?
+ถ้าเอกสารไม่ครบ ต้องแก้อะไรบ้าง=서류가 부족하면 무엇을 보완해야 하나요?
+
+[Korean staff phrases -> Thai]
+번호표 뽑으세요=กดบัตรคิวก่อนค่ะ/ครับ
+신청서 작성해 주세요=กรุณากรอกแบบฟอร์มค่ะ/ครับ
+여기에 서명해 주세요=กรุณาเซ็นตรงนี้ค่ะ/ครับ
+신분증 보여 주세요=ขอดูบัตรประจำตัวค่ะ/ครับ
+외국인등록증 보여 주세요=ขอดูบัตรต่างด้าวค่ะ/ครับ
+원본이 필요합니다=ต้องใช้ตัวจริงค่ะ/ครับ
+사본도 필요합니다=ต้องใช้สำเนาด้วยค่ะ/ครับ
+본인이 직접 오셔야 합니다=เจ้าตัวต้องมาด้วยตัวเองค่ะ/ครับ
+대리인은 위임장이 필요합니다=ถ้าเป็นตัวแทนต้องมีหนังสือมอบอำนาจค่ะ/ครับ
+접수는 여기서 하시면 됩니다=ยื่นเรื่องตรงนี้ได้เลยค่ะ/ครับ
+이건 다른 기관에 문의하셔야 합니다=เรื่องนี้ต้องสอบถามหน่วยงานอื่นค่ะ/ครับ
+처리까지 며칠 걸립니다=ใช้เวลาดำเนินการหลายวันค่ะ/ครับ
+보완 서류를 다시 제출해 주세요=กรุณานำเอกสารที่แก้ไข/เพิ่มเติมมายื่นใหม่ค่ะ/ครับ
+`;
+
+const LEGAL_OFFICE_AGENT_WORKFLOW_VOCAB = `
+[สำนักงานกฎหมาย / งานเดินเรื่องแทน / legal-office agent]
+สำนักงานกฎหมาย=법률사무소
+ทนาย=변호사
+ที่ปรึกษากฎหมาย=법률 상담사 / 법률 전문가
+법무사=เจ้าหน้าที่กฎหมายเอกสาร/ผู้เชี่ยวชาญงานเอกสารกฎหมาย
+행정사=ผู้เชี่ยวชาญงานเอกสารราชการ/งานยื่นเรื่อง行政
+ลูกค้า/ผู้ว่าจ้าง=의뢰인
+ตัวแทน=대리인
+ผู้รับมอบอำนาจ=위임받은 사람 / 대리인
+หนังสือมอบอำนาจ=위임장
+มอบอำนาจ=위임하다
+เดินเรื่องแทน=대리로 처리하다 / 업무를 대행하다
+รับจ้างเดินเรื่อง=서류 업무를 대행하다
+ยื่นแทน=대리 신청하다 / 대리 접수하다
+ติดตามเรื่อง=진행 상황을 확인하다
+เคสลูกค้า=의뢰인 사건 / 의뢰 건
+ค่าดำเนินการ=대행 수수료 / 업무 처리 비용
+ค่าปรึกษา=상담료
+นัดปรึกษา=상담 예약
+เอกสารลูกค้า=의뢰인 서류
+ข้อมูลส่วนตัว=개인정보
+ยินยอมให้ใช้ข้อมูล=개인정보 이용 동의
+เก็บความลับ=비밀 유지
+
+[Agent role rule]
+If the speaker says they are a representative/agent, do not translate as if they personally need the benefit.
+Preserve whether the action is for the speaker, for a client, or on behalf of someone else.
+Example: ลูกค้ามอบอำนาจให้ผมมาดำเนินการ = 의뢰인이 저에게 업무를 위임했습니다.
+`;
+
+
+const BIRTH_REGISTRATION_KOREA_VOCAB = `
+[Birth registration / child born in Korea]
+แจ้งเกิด=출생신고
+เด็กเกิดในเกาหลี=한국에서 태어난 아이
+สูติบัตร/ใบเกิด/ใบรับรองการเกิด=출생증명서
+ใบรับรองความสัมพันธ์ครอบครัว=가족관계증명서
+ทะเบียนครอบครัว=가족관계등록부
+ใบรับรองข้อมูลพื้นฐาน=기본증명서
+ใบรับรองสถานภาพสมรส=혼인관계증명서
+พ่อเด็ก=아이 아버지
+แม่เด็ก=아이 어머니
+ผู้ปกครอง=보호자
+ชื่อเด็ก=아이 이름
+ตั้งชื่อเด็ก=아이 이름을 정하다
+สัญชาติเด็ก=아이 국적
+สถานที่เกิด=출생 장소
+วันเกิด=출생일
+โรงพยาบาลที่คลอด=출산한 병원
+ใบรับรองจากโรงพยาบาล=병원 출생증명서
+กำหนดแจ้งเกิด=출생신고 기한
+เลยกำหนดแจ้ง=신고기한이 지나다
+ค่าปรับทางปกครอง=과태료
+เจ้าตัว/พ่อแม่ต้องมาเอง=본인이 직접 와야 합니다 / 부모가 직접 와야 합니다
+ตัวแทน=대리인
+หนังสือมอบอำนาจ=위임장
+บัตรต่างด้าวพ่อแม่=부모의 외국인등록증
+พาสปอร์ตพ่อแม่=부모의 여권
+สถานทูตไทย=태국 대사관
+แจ้งเกิดที่ไทย/สถานทูต=태국 대사관에 출생신고하다
+
+[Birth registration real phrases]
+มาแจ้งเกิดเด็กที่เกิดในเกาหลี=한국에서 태어난 아이의 출생신고를 하러 왔습니다.
+ต้องใช้เอกสารอะไรบ้างในการแจ้งเกิด=출생신고를 하려면 어떤 서류가 필요해요?
+ต้องใช้ใบรับรองการเกิดจากโรงพยาบาลไหม=병원 출생증명서가 필요해요?
+ต้องให้พ่อแม่มาด้วยไหม=부모가 같이 와야 해요?
+ถ้าเป็นตัวแทนต้องใช้หนังสือมอบอำนาจไหม=대리인이면 위임장이 필요해요?
+เด็กยังไม่มีพาสปอร์ต=아이는 아직 여권이 없습니다.
+ต้องไปสถานทูตไทยด้วยไหม=태국 대사관에도 가야 해요?
+`;
+
+const FACTORY_DETAILED_WORKSHOP_VOCAB = `
+[Factory / workshop / machine / tools]
+โรงงาน=공장
+แผนกผลิต=생산부
+ไลน์ผลิต=생산라인
+ชิ้นงาน=제품 / 작업물
+วัตถุดิบ=원자재
+ใบสั่งงาน=작업지시서
+แบบงาน/แบบ Drawing=도면
+ขนาดงาน=치수
+ค่าคลาดเคลื่อน=공차
+เช็กขนาด=치수 확인
+วัดขนาด=치수를 재다
+ตรวจงาน=검사하다
+งานเสีย/ของเสีย/ชิ้นงานเสีย=불량 / 불량품
+งาน NG=NG / 불량
+งาน OK=OK품 / 양품
+ตัวอย่างงาน=샘플
+งานด่วน=급한 작업
+สอนงาน/เทรนงาน=작업 교육 / 일을 가르치다
+ทำตามแบบ=도면대로 작업하다
+
+[Machines]
+เครื่องจักร=기계
+CNC=씨엔씨 / CNC
+เครื่องกลึง=선반 / 선반기계
+เครื่องมิลลิ่ง/มิลลิงค์=밀링기 / 밀링 작업
+เครื่องปั๊ม=프레스 / 프레스기
+เครื่องเจาะ=드릴링 머신
+เครื่องตัด=절단기
+เครื่องเจียร=그라인더
+เครื่องเชื่อม=용접기
+เตาหลอม=용해로 / 용광로
+หลอม=용해하다
+แม่พิมพ์=금형
+จิ๊ก/ฟิกซ์เจอร์=지그 / 치공구
+คอนเวเยอร์=컨베이어
+
+[Air gun / compressed air]
+ปืนลม=에어건
+แอร์กัน=에어건
+พาลม/ปาลม=에어건 / 압축공기
+สายลม=에어호스
+ลมอัด=압축공기
+เป่าฝุ่น=먼지를 에어건으로 불다
+เป่าเศษเหล็ก/เศษชิ้นงาน=칩/쇳가루를 에어건으로 불다
+ใช้ปืนลมเป่าตัว=몸에 묻은 먼지를 에어건으로 불다
+ใช้ปืนลมเป่าชิ้นงาน=작업물을 에어건으로 불다
+주의: 에어 in factory context often means 에어건/compressed air, not air conditioner.
+
+[Hand tools]
+เครื่องมือ=공구
+ประแจ=스패너 / 렌치
+ประแจหกเหลี่ยม=육각렌치
+ไขควง=드라이버
+คีม=펜치
+คีมตัด=니퍼
+คัตเตอร์=커터칼
+ค้อน=망치
+ตะไบ=줄
+ดอกสว่าน=드릴날
+ต๊าป=탭
+ใบเจียร=그라인더 날
+ตลับเมตร=줄자
+เวอร์เนียร์=버니어 캘리퍼스
+ไมโครมิเตอร์=마이크로미터
+เกจ=게이지
+
+[Safety]
+ถุงมือนิรภัย=안전장갑
+แว่นตานิรภัย=보안경
+หมวกนิรภัย=안전모
+รองเท้านิรภัย=안전화
+หน้ากาก=마스크
+ระวังมือ=손 조심하세요
+ห้ามเอามือเข้าเครื่อง=기계 안에 손을 넣으면 안 됩니다
+หยุดเครื่องก่อน=기계를 먼저 멈추세요
+ปิดสวิตช์=스위치를 끄세요
+เปิดเครื่อง=기계를 켜세요
+`;
+
+const FACTORY_REAL_SPEECH_PHRASES_VOCAB = `
+[Factory real speech / boss-worker phrases]
+ใช้ปืนลมเป่าชิ้นงานก่อน=에어건으로 작업물을 먼저 불어 주세요.
+เป่าฝุ่นออกให้หมด=먼지를 전부 불어 주세요.
+เช็กขนาดงานก่อนส่ง=납품/전달 전에 치수를 확인해 주세요.
+ดูแบบงานก่อนทำ=작업하기 전에 도면을 먼저 보세요.
+งานนี้เสีย ต้องทำใหม่=이건 불량이라 다시 해야 합니다.
+งานนี้ OK แล้ว=이건 OK입니다 / 양품입니다.
+ทำตามใบสั่งงาน=작업지시서대로 하세요.
+เครื่องหยุดแล้วเรียกหัวหน้า=기계가 멈추면 반장님을 부르세요.
+อย่าเอามือเข้าไปตอนเครื่องทำงาน=기계가 작동 중일 때 손을 넣지 마세요.
+สอนงานให้คนใหม่=신입에게 작업을 가르쳐 주세요.
+วันนี้เทรนเครื่องปั๊ม=오늘은 프레스 작업 교육을 합니다.
+เครื่องกลึงนี้ต้องตั้งศูนย์ก่อน=이 선반은 먼저 중심을 맞춰야 합니다.
+งานหลอมอันตราย ระวังความร้อน=용해 작업은 위험하니까 열을 조심하세요.
 `;
