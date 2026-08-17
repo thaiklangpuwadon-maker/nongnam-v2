@@ -1286,27 +1286,32 @@ function startHold(lang) {
   recognition.interimResults = true;
   recognition.maxAlternatives = 1;
 
+  // committed = ผลจากรอบก่อน ๆ ที่เบราว์เซอร์ตัด session เอง (ดู onend)
+  // finalText  = ผลสรุปของรอบปัจจุบัน — สร้างใหม่ทั้งก้อนทุกอีเวนต์ ไม่ใช่บวกสะสม
+  let committed = '';
   let finalText = '';
   let lastInterim = '';
+  let restarts = 0;
 
+  // ★ บั๊ก "คำซ้ำสะสม" (작업자작업자작업자 한 명을...):
+  //   โค้ดเดิมวน i = e.resultIndex..length แล้ว finalText += final ซึ่งพังเมื่อเอนจิน
+  //   (พบบ่อยบน Chrome/Android) รายงานผลก้อนเดิมซ้ำโดยแก้ให้ยาวขึ้นเรื่อย ๆ —
+  //   ทุกครั้งที่รายงานซ้ำ ข้อความจะถูกบวกเข้าไปอีก จึงได้ prefix ซ้อนกันเป็นพรืด
+  //   แก้: อ่าน e.results ทั้งก้อนตั้งแต่ index 0 แล้ว "แทนที่" ค่า ไม่ใช่บวกเพิ่ม (idempotent)
   recognition.onresult = e => {
     let interim = '', final = '';
 
-    for (let i = e.resultIndex; i < e.results.length; i++) {
+    for (let i = 0; i < e.results.length; i++) {
       const t = e.results[i][0].transcript;
       if (e.results[i].isFinal) final += t;
       else interim += t;
     }
 
-    if (final) {
-      finalText += final;
-      lastInterim = '';
-    } else {
-      lastInterim = interim;
-    }
+    finalText = final;
+    lastInterim = interim;
 
-    live.textContent = finalText + (lastInterim ? ' ' + lastInterim : '');
-    if (finalText || lastInterim) live.className = 'live-box show final';
+    live.textContent = (committed + ' ' + finalText + ' ' + lastInterim).trim();
+    if (finalText || lastInterim || committed) live.className = 'live-box show final';
   };
 
   recognition.onerror = e => {
@@ -1320,8 +1325,21 @@ function startHold(lang) {
   };
 
   recognition.onend = () => {
+    // ★ บั๊ก "พูดยาวแล้วแปลได้แค่บางส่วน":
+    //   เบราว์เซอร์จบ session เองเมื่อเงียบไปแวบเดียว แม้ตั้ง continuous = true
+    //   โค้ดเดิมพอ onend ก็แปลทันที ทั้งที่ผู้ใช้ยังกดปุ่มค้างและพูดต่ออยู่ → ได้แค่ท่อนแรก
+    //   แก้: ถ้ายังกดค้างอยู่ (isListening) ให้เก็บผลรอบนี้แล้วเปิด session ใหม่ต่อ ยังไม่แปล
+    if (isListening && restarts < 40) {
+      committed = (committed + ' ' + finalText).trim();
+      finalText = ''; lastInterim = '';
+      restarts++;
+      try { recognition.start(); return; } catch (e) { /* เริ่มใหม่ไม่ได้ → แปลด้วยของที่มี */ }
+    }
     setTimeout(() => {
-      const textToSend = (finalText + ' ' + lastInterim).trim();
+      // หลัง recognition.stop() เอนจินจะสรุปผลค้างเป็น final ก่อน onend อยู่แล้ว (จึงหน่วง 800ms
+      // ตรงนี้) → ปกติ lastInterim จะว่าง ไม่มีข้อความชั่วคราวหลุดไปแปล/ลง log
+      // เก็บไว้เป็นทางสำรองเฉพาะกรณีเอนจินไม่ยอมสรุปผล ไม่งั้นท่อนท้ายประโยคจะหายทั้งท่อน
+      const textToSend = (committed + ' ' + finalText + ' ' + lastInterim).trim();
 
       if (textToSend) {
         translate(textToSend, lang);
